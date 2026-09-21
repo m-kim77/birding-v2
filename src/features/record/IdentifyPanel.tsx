@@ -2,12 +2,13 @@ import { Banner } from '../../ui/bits'
 import Button from '../../ui/Button'
 import Icon from '../../ui/Icon'
 import type { Verdict } from '../../types'
+import VerdictDetails from '../identify/VerdictDetails'
 import type { AskState } from './useAsk'
 
 interface Props {
   ask: { state: AskState; steps: string[]; verdict: Verdict | null; message: string; cancel: () => void }
-  /** 판정할 영역을 골랐는지. 고르기 전에는 물어볼 수 없다 */
-  canAsk: boolean
+  /** 자를 영역을 골랐는지. 안 골랐어도 물어볼 수 있다 — 그때는 사진 전체가 간다 */
+  hasCrop: boolean
   /** 지금 이름 칸의 값 — 결과를 이미 넣었는지 보려고 */
   name: string
   onAsk: () => void
@@ -18,7 +19,7 @@ interface Props {
  * AI 종 판정. 시작 전 · 진행 중 · 결과 · 실패의 네 모습을 가진다.
  * v1에 있던 provider·모델·최대 호출 수·시간 제한 입력은 없다 — 사용자가 정할 것은 "내 키를 쓸지"뿐이고 그건 설정에 있다.
  */
-export default function IdentifyPanel({ ask, canAsk, name, onAsk, onApply }: Props) {
+export default function IdentifyPanel({ ask, hasCrop, name, onAsk, onApply }: Props) {
   if (ask.state === 'server-down') {
     return (
       // 다시 시도: 서버가 돌아온 걸 사용자가 먼저 알 수도 있다
@@ -56,12 +57,7 @@ export default function IdentifyPanel({ ask, canAsk, name, onAsk, onApply }: Pro
         <p>{v.summary}</p>
         {v.others.length > 0 && <p className="hint">남은 후보: {v.others.join(', ')}</p>}
         {/* 근거는 버튼이 아니라 펼침이다 — 결과를 믿을지 판단하는 재료라 늘 가까이 있어야 한다 */}
-        {v.evidence.length > 0 && (
-          <details>
-            <summary>근거 {v.evidence.length}개 보기</summary>
-            <ul>{v.evidence.map((e, i) => <li key={i}>{e.text}<small>{e.source}</small></li>)}</ul>
-          </details>
-        )}
+        <VerdictDetails verdict={v} />
         {applied
           ? <p className="status-line is-ok"><Icon name="check" size={16} /> 이름 칸에 넣었습니다</p>
           // 이 이름으로: 사용자가 이미 적은 이름을 말없이 덮어쓰지 않으려고 누르게 한다
@@ -72,8 +68,9 @@ export default function IdentifyPanel({ ask, canAsk, name, onAsk, onApply }: Pro
   return (
     <div className="ask-idle">
       {/* AI에게 물어보기: 오래 걸리고 서버 자원(또는 사용자의 API 요금)을 쓰므로 자동으로 돌리지 않는다 */}
-      <Button icon="sparkle" onClick={onAsk} disabled={!canAsk}>AI에게 물어보기</Button>
-      {!canAsk && <p className="hint">판정할 새를 먼저 고르세요.</p>}
+      <Button icon="sparkle" onClick={onAsk}>AI에게 물어보기</Button>
+      {/* 자르지 않아도 보낼 수 있다. 다만 새가 작게 찍힌 사진은 잘라 보내야 잘 맞는다는 것을 알려 준다 */}
+      {!hasCrop && <p className="hint">자르지 않으면 사진 전체를 보냅니다. 새가 작게 찍혔다면 잘라서 보내는 편이 정확합니다.</p>}
     </div>
   )
 }

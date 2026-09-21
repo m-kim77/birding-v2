@@ -9,7 +9,9 @@ import Sheet from '../../ui/Sheet'
 import { dateTimeOf } from '../../ui/when'
 import type { LocationSource } from '../../types'
 import BirdCard from '../dex/BirdCard'
+import { dexNoFor } from '../dex/cardTier'
 import CardActions from '../dex/CardActions'
+import VerdictDetails from '../identify/VerdictDetails'
 
 const SOURCE_LABEL: Record<LocationSource, string> = {
   exif: '사진 정보에서', tracklog: '이동 기록으로 추정', gps: '기록할 때의 현재 위치', manual: '지도에서 직접 고름', none: '',
@@ -40,7 +42,8 @@ export default function RecordDetail({ id, onBack }: Props) {
     const next = name.trim()
     // 이름을 고쳤으면 학명도 다시 맞춘다. AI 근거는 그 이름에 대한 것이므로 이름이 바뀌면 뗀다
     const renamed = next !== s!.speciesKo
-    await update(id, { speciesKo: next, note, ...(renamed ? { latin: latinOf(next), verdict: undefined, identify: next ? 'done' as const : 'none' as const } : {}) })
+    const others = (sightings ?? []).filter((x) => x.id !== id)
+    await update(id, { speciesKo: next, note, ...(renamed ? { latin: latinOf(next), verdict: undefined, identify: next ? 'done' as const : 'none' as const, dexNo: dexNoFor(next, others) } : {}) })
     setEditing(false)
   }
 
@@ -79,11 +82,9 @@ export default function RecordDetail({ id, onBack }: Props) {
               {s.note && <Card><p className="note">{s.note}</p></Card>}
               {s.verdict && (
                 <Card>
-                  <details className="evidence">
-                    <summary>AI 판정 근거 {s.verdict.evidence.length}개</summary>
-                    <p>{s.verdict.summary}</p>
-                    <ul>{s.verdict.evidence.map((e) => <li key={e.text}>{e.text}<small>{e.source}</small></li>)}</ul>
-                  </details>
+                  <h2>AI 판정 · {s.verdict.kind}</h2>
+                  <p className="note">{s.verdict.summary}</p>
+                  <VerdictDetails verdict={s.verdict} />
                 </Card>
               )}
               <button type="button" className="card-peek" onClick={() => setShowCard(true)} aria-label="카드 크게 보기">

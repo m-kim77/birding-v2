@@ -12,7 +12,7 @@ import DetectView from './DetectView'
 import IdentifyPanel from './IdentifyPanel'
 import LocationSheet from './LocationSheet'
 import SpeciesInput from './SpeciesInput'
-import { makeCrop, savePhotos } from './savePhotos'
+import { imageForAI, makeCrop, savePhotos } from './savePhotos'
 import { useAsk } from './useAsk'
 import { useDetection } from './useDetection'
 import { usePhotoPick } from './usePhotoPick'
@@ -54,11 +54,10 @@ export default function RecordFlow({ onCancel, onDone }: Props) {
     return last ? { lat: last.lat, lng: last.lng, name: last.place, source: 'manual' } : null
   }, [existing])
 
-  /** 고른 영역을 잘라 AI에 보낸다 */
+  /** AI에 물어본다. 고른 영역이 있으면 그 부분을, 없으면 사진 전체를 보낸다 (새를 못 찾았어도 자르지 않고 물어볼 수 있다) */
   async function askAI() {
-    if (!photo || !picked) return
-    const cut = await makeCrop(photo, picked.box)
-    if (cut) void ask.start(cut.dataUrl, { capturedAt: photo.exif.capturedAt, place: loc.place.name })
+    if (!photo) return
+    void ask.start(await imageForAI(photo, picked?.box ?? null), { capturedAt: photo.exif.capturedAt, place: loc.place.name })
   }
 
   /** 사진과 기록을 저장하고 카드 화면으로 넘어간다. 실패하면 이유를 보여 주고 화면에 머문다 */
@@ -118,7 +117,7 @@ export default function RecordFlow({ onCancel, onDone }: Props) {
           </Card>
           <Card>
             <SpeciesInput value={name} known={known} onChange={setName} />
-            <IdentifyPanel ask={ask} canAsk={picked !== null} name={name} onAsk={() => void askAI()} onApply={(v) => setName(v.speciesKo || v.latin)} />
+            <IdentifyPanel ask={ask} hasCrop={picked !== null} name={name} onAsk={() => void askAI()} onApply={(v) => setName(v.speciesKo || v.latin)} />
           </Card>
           <Card>
             <label className="field"><span>메모</span>

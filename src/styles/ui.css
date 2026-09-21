@@ -82,7 +82,3 @@
 
 /* 문장 속의 낮은 비중의 동작 (예: "이 부분으로 판정합니다. 직접 자르기") */
 .text-link { padding: 0 var(--sp-1); min-height: 32px; border: 0; background: none; color: var(--text-2); text-decoration: underline; font-weight: 600; }
-.evidence summary { min-height: var(--touch); display: flex; align-items: center; font-weight: 600; cursor: pointer; }
-.evidence p { color: var(--text-2); margin-bottom: var(--sp-2); }
-.evidence ul { margin: 0; padding-left: 20px; display: grid; gap: var(--sp-2); font-size: 15px; color: var(--text-2); }
-.evidence small { display: block; color: var(--text-3); font-size: 13px; }

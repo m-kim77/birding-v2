@@ -38,7 +38,7 @@ export default function CardActions({ sighting, primary = true }: { sighting: Si
     <div className="card-actions">
       <div className="row-actions">
         <Button variant={primary ? 'primary' : 'secondary'} icon="download" onClick={() => run('image')} disabled={busy !== null}>{busy === 'image' ? '만드는 중…' : '이미지 저장'}</Button>
-        <Button icon="play" onClick={() => run('video')} disabled={busy !== null}>{busy === 'video' ? '녹화하는 중… (3초)' : '영상 저장'}</Button>
+        <Button icon="play" onClick={() => run('video')} disabled={busy !== null}>{busy === 'video' ? '녹화하는 중… (4초)' : '영상 저장'}</Button>
       </div>
       {error && <p className="status-line is-warn" role="alert">{error}</p>}
     </div>

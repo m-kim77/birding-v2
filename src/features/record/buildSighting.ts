@@ -1,7 +1,7 @@
 import { latinOf } from '../../data/species'
 import type { ExifInfo } from '../../lib/exif'
 import type { NormalizedBox, ShotInfo, Sighting, Verdict } from '../../types'
-import { tierFor } from '../dex/cardTier'
+import { dexNoFor, tierFor } from '../dex/cardTier'
 import type { PlaceValue } from './usePlace'
 
 interface Input {
@@ -45,6 +45,6 @@ export function buildSighting(input: Input): Sighting {
     shot: shotOf(input.exif), note: input.note.trim(),
     cropBox: input.crop?.box ?? null, detectorModel: input.crop?.by ?? null,
     tier: tierFor(name, capturedAt, [], input.existing), stamps: [], sensitive: false,
-    identify: name ? 'done' : 'none', verdict: accepted ?? undefined, fromSound: false,
+    identify: name ? 'done' : 'none', verdict: accepted ?? undefined, fromSound: false, dexNo: dexNoFor(name, input.existing),
   }
 }

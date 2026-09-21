@@ -1,8 +1,9 @@
 import Button from '../../ui/Button'
 import type { Sighting } from '../../types'
-import BirdCard from '../dex/BirdCard'
 import CardActions from '../dex/CardActions'
-import { TIER_LABELS, shouldReveal } from '../dex/cardTier'
+import { CARD_LOOKS } from '../dex/cardLook'
+import CardReveal from '../dex/CardReveal'
+import { TIER_REASONS, shouldReveal } from '../dex/cardTier'
 
 interface Props {
   sighting: Sighting
@@ -19,9 +20,9 @@ export default function CardResult({ sighting, onDone }: Props) {
   const waiting = !sighting.speciesKo
   return (
     <div className="screen screen-result">
-      <p className="result-kicker">{waiting ? '저장했습니다' : TIER_LABELS[sighting.tier]}</p>
+      <p className="result-kicker">{waiting ? '저장했습니다' : `${TIER_REASONS[sighting.tier]} · ${CARD_LOOKS[sighting.tier].ko}`}</p>
       <h1 className="display">{waiting ? '이름은 나중에 기록을 열어 채울 수 있습니다' : reveal ? `${sighting.speciesKo}를 도감에 더했습니다` : '기록을 저장했습니다'}</h1>
-      <div className={reveal ? 'card-reveal' : ''}><BirdCard sighting={sighting} /></div>
+      <CardReveal sighting={sighting} animate={reveal && !waiting} />
       <div className="result-actions">
         <Button variant="primary" block onClick={onDone}>완료</Button>
         {/* 저장: 이름이 정해진 카드만. 이름 미정 카드를 내보낼 이유는 없다 */}

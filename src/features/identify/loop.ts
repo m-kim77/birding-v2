@@ -1,8 +1,8 @@
-import type { Verdict } from '../../types'
+import type { Reference, Verdict } from '../../types'
 import type { OwnKey } from './connection'
 import { chat, type ChatMessage } from './llmClient'
 import { parseVerdict } from './parseVerdict'
-import { SYSTEM_PROMPT, WRAP_UP_PROMPT, userPrompt } from './prompts'
+import { RETRY_PROMPT, SYSTEM_PROMPT, WRAP_UP_PROMPT, userPrompt } from './prompts'
 import { runTool, toolSchemas } from './tools'
 
 /** LLM에 보내는 그림의 긴 변. 더 크면 그림 토큰만 늘고 판정은 나아지지 않는다 (v1 MAX_IMAGE_EDGE와 같다) */
@@ -15,6 +15,16 @@ export type IdentifyEvent =
   | { type: 'thinking'; text: string }
   | { type: 'tool'; name: string; args: Record<string, unknown> }
   | { type: 'wrap-up' }
+
+/**
+ * 도구 결과에 자료의 주소가 있으면 참고 자료로 모은다. 같은 주소는 한 번만.
+ * 도구가 실제로 돌려준 값만 쓴다 — 모델의 답에 적힌 주소는 믿지 않는다 (지어낼 수 있다).
+ */
+function collectReference(found: Reference[], result: unknown): void {
+  const r = result as { title?: unknown; url?: unknown; image?: unknown } | null
+  if (typeof r?.url !== 'string' || typeof r.title !== 'string' || found.some((f) => f.url === r.url)) return
+  found.push({ title: r.title, url: r.url, image: typeof r.image === 'string' ? r.image : undefined })
+}
 
 /** 도구 인자 글자를 읽는다. 모델이 깨진 JSON을 낼 때가 있다 — 빈 인자로 넘기면 도구가 오류를 결과로 돌려준다 */
 function parseArgs(text: string): Record<string, unknown> {
@@ -41,12 +51,23 @@ export async function runIdentify(opts: {
     { role: 'system', content: SYSTEM_PROMPT },
     { role: 'user', content: [{ type: 'text', text: userPrompt(opts.context) }, { type: 'image_url', image_url: { url: opts.imageDataUrl } }] },
   ]
+  const references: Reference[] = []
   let calls = 0
+  let retried = false
   for (;;) {
     const wrapUp = calls >= MAX_TOOL_CALLS
-    if (wrapUp) { messages.push({ role: 'user', content: WRAP_UP_PROMPT }); opts.onEvent({ type: 'wrap-up' }) }
+    if (wrapUp && !retried) { messages.push({ role: 'user', content: WRAP_UP_PROMPT }); opts.onEvent({ type: 'wrap-up' }) }
     const reply = await chat(opts.own, messages, tools, wrapUp ? 'none' : 'auto', opts.signal, (text) => opts.onEvent({ type: 'thinking', text }))
-    if (reply.toolCalls.length === 0 || wrapUp) return parseVerdict(reply.content, reply.model)
+    if (reply.toolCalls.length === 0 || wrapUp) {
+      const verdict = parseVerdict(reply.content, reply.model)
+      if (verdict) return { ...verdict, references }
+      // 답을 읽지 못했다 — 생각하는 모델이 토큰 상한을 생각에 다 써서 답이 비는 일이 실제로 있었다. 한 번만 다시 청한다
+      if (retried) return null
+      retried = true
+      messages.push({ role: 'assistant', content: reply.content || '(답 없음)' }, { role: 'user', content: RETRY_PROMPT })
+      calls = MAX_TOOL_CALLS
+      continue
+    }
 
     // 모델의 답을 그대로 대화에 남긴다 — 안 남기면 다음 요청에서 도구 결과가 어느 호출의 것인지 짝을 지을 수 없다
     messages.push({ role: 'assistant', content: reply.content || null, tool_calls: reply.toolCalls })
@@ -54,6 +75,7 @@ export async function runIdentify(opts: {
       const args = parseArgs(call.function.arguments)
       opts.onEvent({ type: 'tool', name: call.function.name, args })
       const result = await runTool(call.function.name, args)
+      collectReference(references, result)
       messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(result) })
       calls += 1
     }

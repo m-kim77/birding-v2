@@ -28,3 +28,12 @@
   .detail-cols { grid-template-columns: minmax(0, 3fr) minmax(300px, 2fr); align-items: start; }
   .dex-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: var(--sp-5); }
 }
+
+/* 도감: 종을 여러 번 만났다는 표시와, 종 시트의 기록 목록 */
+.dex-cell { position: relative; display: grid; gap: 4px; }
+.dex-count { justify-self: center; font-size: 12px; font-weight: 600; color: var(--text-3); }
+.dex-history h3 { font-size: 15px; font-weight: 700; color: var(--text-2); margin-bottom: var(--sp-1); }
+.dex-history ul { list-style: none; margin: 0; padding: 0; }
+.dex-history li + li { border-top: 1px solid var(--border); }
+.dex-history button { width: 100%; min-height: var(--touch); display: flex; align-items: center; gap: var(--sp-3); border: 0; background: none; color: var(--text-1); text-align: left; }
+.dex-history button span:nth-child(2) { flex: 1; color: var(--text-3); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

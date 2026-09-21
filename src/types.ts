@@ -63,6 +63,19 @@ export interface Verdict {
   others: string[]
   /** 어느 모델이 판정했는지 — 나중에 "왜 이 기록만 이상하지?"를 추적하는 재료 */
   model: string
+  /**
+   * 판정하면서 실제로 읽은 자료. **모델이 적어 낸 것이 아니라 도구가 실제로 돌려준 것**에서 모은다 —
+   * 모델은 주소를 지어낼 수 있지만, 도구 결과의 주소는 지어낼 수 없다. 옛 기록에는 없을 수 있다.
+   */
+  references?: Reference[]
+}
+
+/** 판정에 쓰인 자료 한 건. 사용자가 눌러서 원문을 보고, 참고 사진을 자기 사진과 견줘 본다 */
+export interface Reference {
+  title: string
+  url: string
+  /** 그 문서의 대표 사진 주소. 없는 문서도 있다 */
+  image?: string
 }
 
 export interface Sighting {
@@ -95,6 +108,8 @@ export interface Sighting {
   identify: IdentifyStatus
   /** AI의 이름을 그대로 받아들였을 때만 남긴다 */
   verdict?: Verdict
+  /** 도감 번호 — 이 종이 내 도감에 몇 번째로 들어왔는지 (카드의 No.). 이름 없는 기록과 옛 기록에는 없다 */
+  dexNo?: number
   fromSound: boolean
 }
 

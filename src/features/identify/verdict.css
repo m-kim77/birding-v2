@@ -1,0 +1,11 @@
+/* 판정 근거와 참고 자료 */
+.verdict-details { width: 100%; }
+.verdict-details summary { min-height: var(--touch); display: flex; align-items: center; font-weight: 600; cursor: pointer; }
+.evidence-list { margin: 0 0 var(--sp-3); padding-left: 20px; display: grid; gap: var(--sp-2); font-size: 15px; color: var(--text-2); }
+.evidence-list small { display: block; color: var(--text-3); font-size: 13px; }
+.ref-list { list-style: none; margin: 0 0 var(--sp-2); padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--sp-2); }
+.ref-list a { display: grid; gap: var(--sp-1); padding: var(--sp-2); min-height: var(--touch); border: 1.5px solid var(--border); border-radius: var(--radius-control); background: var(--bg-card); color: var(--text-1); text-decoration: none; }
+/* 참고 사진은 자르지 않고 다 보여 준다 — 새의 전체 모습을 견줘 보려는 것이라 잘리면 쓸모가 줄어든다 */
+.ref-list img, .ref-noimg { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; border-radius: 6px; background: var(--bg-surface); display: block; }
+.ref-list strong { display: block; font-size: 15px; }
+.ref-list small { color: var(--text-3); font-size: 13px; }

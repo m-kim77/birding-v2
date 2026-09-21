@@ -26,5 +26,8 @@ export function userPrompt(context: { capturedAt?: string; place?: string }): st
   return `이 새의 종을 판정해 줘.${hints.length ? `\n참고 — ${hints.join(', ')}` : ''}`
 }
 
+/** 최종 답을 읽지 못했을 때 한 번 더 요청하는 말. 생각이 길어 답이 잘린 경우가 많아서 짧게 생각하라고 한다 */
+export const RETRY_PROMPT = '방금 답은 읽을 수 없었다. 길게 생각하지 말고, 최종 답 JSON 하나만 바로 내라.'
+
 /** 도구 호출 한도에 닿았을 때 붙이는 말 */
 export const WRAP_UP_PROMPT = '도구를 더 부르지 말고, 지금까지 확인한 근거만으로 최종 답 JSON을 내라.'

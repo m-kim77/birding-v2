@@ -28,3 +28,9 @@ export function monthOf(s: Pick<Sighting, 'capturedAt' | 'capturedAtOffset'>): s
   const p = partsOf(s)
   return `${p.year}년 ${p.month}월`
 }
+
+/** 카드에 쓰는 날짜. '09 · 22 · 2026' (Card Reveal 디자인의 표기) */
+export function dotDateOf(s: Pick<Sighting, 'capturedAt' | 'capturedAtOffset'>): string {
+  const p = partsOf(s)
+  return `${pad2(p.month)} · ${pad2(p.day)} · ${p.year}`
+}

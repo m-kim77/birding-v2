@@ -1,32 +1,44 @@
 import type { CardTier } from '../../types'
 
 /**
- * 등급별 카드의 색. **화면의 카드(BirdCard + card.css)와 내보내는 카드(cardCanvas.ts)가 이 값을 함께 쓴다** —
- * 색을 한 곳에만 두어 두 그림이 어긋나지 않게 한다. 앱 테마와는 무관하다 (카드는 어느 테마에서도 같다).
+ * 카드의 모양을 정하는 값. 사용자의 Card Reveal 디자인(`ref_design/Card Reveal.html`, "CreatureDex")에서 가져왔다:
+ * 어두운 숲 바탕, 크림색 글자, 등급마다 한 가지 강조색, 고정폭 글꼴의 작은 대문자 라벨.
+ * (그 HTML은 껍데기만 있고 카드 본체 파일 creature-card.jsx·styles.css가 없어서, 카드 안의 배치는 그 단서들로 다시 짠 것이다.)
+ *
+ * **화면의 카드(BirdCard + card.css)와 내보내는 카드(cardCanvas.ts)가 이 값을 함께 쓴다.** 앱 테마와는 무관하다.
  */
 export interface CardLook {
-  /** 테두리 그라데이션의 색 정지점 (135도 방향, 균등 간격) */
-  frame: string[]
-  paper: string
-  ink: string
-  sub: string
-  /** 등급 글자 색 */
-  tierInk: string
-  /** 빛 줄기가 지나가는 효과를 쓸지. 1단계는 차분하게 둔다 */
-  shine: boolean
+  /** 등급의 강조색 — 테두리·별·등급 라벨·빛 */
+  accent: string
+  /** 디자인의 등급 이름 */
+  en: string
+  ko: string
+  /** 별 개수 (디자인의 예시가 1·3·4·5였다) */
+  stars: number
+  /** 빛 줄기와 바깥 빛을 쓸지. 일반 등급은 차분하게 둔다 */
+  glow: boolean
 }
 
 export const CARD_LOOKS: Record<CardTier, CardLook> = {
-  1: { frame: ['#c3cdbd', '#aab6a4'], paper: '#fbfaf4', ink: '#1c2a22', sub: '#4b5b50', tierInk: '#4b5b50', shine: false },
-  2: { frame: ['#dfe5e8', '#9aa7ae', '#eef2f4', '#8e9aa1'], paper: '#fbfaf4', ink: '#1c2a22', sub: '#4b5b50', tierInk: '#55626a', shine: true },
-  3: { frame: ['#f3dc9a', '#b98a2c', '#fbedc0', '#a87a20'], paper: '#fbfaf4', ink: '#1c2a22', sub: '#4b5b50', tierInk: '#8a6210', shine: true },
-  4: { frame: ['#f7e7b0', '#c9972f', '#fff4cf', '#b07f1d', '#f3dc9a'], paper: '#16241d', ink: '#f6efd8', sub: '#cdbf93', tierInk: '#f0cf73', shine: true },
+  1: { accent: '#9AA0A6', en: 'COMMON', ko: '일반', stars: 1, glow: false },
+  2: { accent: '#4D8BC8', en: 'RARE', ko: '희귀', stars: 3, glow: true },
+  3: { accent: '#8B4FCC', en: 'EPIC', ko: '에픽', stars: 4, glow: true },
+  4: { accent: '#E0B856', en: 'LEGENDARY', ko: '전설', stars: 5, glow: true },
 }
 
-/** 카드 뒷면 (영상의 첫 장면). 등급과 무관하게 하나다 */
-export const CARD_BACK = { fill: '#19382f', ink: '#e9dfbf', line: '#c98a2e' }
-
-/** 테두리 색 정지점을 CSS 그라데이션으로 만든다 */
-export function frameCss(look: CardLook): string {
-  return `linear-gradient(135deg, ${look.frame.join(', ')})`
+/** 모든 등급이 함께 쓰는 색 */
+export const CARD_BASE = {
+  /** 카드 바탕 (위 → 아래) */
+  bgTop: '#18221C', bgBottom: '#0B100D',
+  ink: '#F5F1E8', sub: 'rgba(245,241,232,0.62)', hair: 'rgba(245,241,232,0.16)',
+  /** 카드가 놓이는 무대 (가운데 → 가장자리) */
+  stageIn: '#1F2A24', stageMid: '#0A0E0C', stageOut: '#050605',
 }
+
+export const CARD_FONTS = {
+  name: "'Noto Serif KR', 'AppleMyungjo', serif",
+  latin: "'Instrument Serif', 'Noto Serif KR', Georgia, serif",
+  mono: "'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace",
+}
+
+export const MAX_STARS = 5

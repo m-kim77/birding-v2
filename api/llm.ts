@@ -6,11 +6,18 @@
  * 요청에서 주소를 받으면 이 함수가 아무 곳이나 찔러 주는 열린 프록시(SSRF)가 된다.
  * 자기 API 키를 쓰는 사용자는 이 함수를 거치지 않고 브라우저에서 그 서비스로 직접 간다 (키가 우리 서버를 지나지 않는다).
  *
- * 환경변수: LOCAL_LLM_URL(예: https://llm.example.com/v1), LOCAL_LLM_KEY(선택), LOCAL_LLM_MODEL
+ * 환경변수: LOCAL_LLM_URL(예: https://llm.example.com/v1), LOCAL_LLM_KEY(선택), LOCAL_LLM_MODEL, LOCAL_LLM_MAX_TOKENS(선택, 기본 4096)
  */
 
 /** 요청 본문의 상한. 1024px JPEG 한 장 + 대화 기록이면 2MB를 넘지 않는다 */
 const MAX_BODY_BYTES = 4_000_000
+
+/**
+ * 한 턴에 낼 수 있는 토큰의 기본 상한. **생각(reasoning) 토큰도 여기에 들어간다** —
+ * 2048로 뒀을 때 생각하는 모델(Qwen3 계열)이 상한을 생각에 다 쓰고 답을 한 글자도 못 낸 적이 있다 (실측).
+ * LM Studio에서는 요청 옵션으로 생각을 끌 수 없었다. 서버나 모델을 바꾸면 환경변수로 조절한다.
+ */
+const DEFAULT_MAX_TOKENS = 4096
 
 /** 한국어 안내와 함께 JSON 오류 응답을 만든다 */
 function fail(status: number, message: string): Response {
@@ -33,7 +40,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!Array.isArray(body.messages)) return fail(400, '요청 형식이 잘못되었습니다.')
 
   // 넘겨도 되는 키만 고른다 — 모르는 키를 그대로 넘기면 서버 옵션을 바깥에서 조작할 수 있다
-  const payload = { model, messages: body.messages, tools: body.tools, tool_choice: body.tool_choice, temperature: 0.2, max_tokens: 2048, stream: true }
+  const payload = { model, messages: body.messages, tools: body.tools, tool_choice: body.tool_choice, temperature: 0.2, max_tokens: Number(process.env.LOCAL_LLM_MAX_TOKENS) || DEFAULT_MAX_TOKENS, stream: true }
 
   let upstream: Response
   try {

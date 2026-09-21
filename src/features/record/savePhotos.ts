@@ -1,6 +1,7 @@
 import { putPhoto } from '../../data/photos'
 import { cropFromFile, dataUrlToBlob } from '../../lib/crop'
-import { FULL_MAX_EDGE, THUMB_MAX_EDGE, bitmapToJpeg } from '../../lib/resize'
+import { FULL_MAX_EDGE, THUMB_MAX_EDGE, bitmapToJpeg, blobToDataUrl } from '../../lib/resize'
+import { IDENTIFY_MAX_EDGE } from '../identify/loop'
 import type { NormalizedBox } from '../../types'
 import type { PickedPhoto } from './usePhotoPick'
 
@@ -15,6 +16,18 @@ export async function makeCrop(photo: PickedPhoto, box: NormalizedBox): Promise<
   } catch {
     return null
   }
+}
+
+/**
+ * AI에 보낼 그림을 만든다: 자른 영역이 있으면 그 부분, 없으면 **사진 전체**.
+ * 어느 쪽이든 캔버스에서 1024px로 줄여 다시 인코딩한다 — 그림 토큰을 아끼고, 원본의 EXIF(위치)가 따라가지 않게 한다.
+ * 자르기에 실패하면(makeCrop이 null) 사진 전체로 떨어진다.
+ */
+export async function imageForAI(photo: PickedPhoto, box: NormalizedBox | null): Promise<string> {
+  const cut = box ? await makeCrop(photo, box) : null
+  if (!cut) return blobToDataUrl(await bitmapToJpeg(photo.bitmap, IDENTIFY_MAX_EDGE, 0.88))
+  const bitmap = await createImageBitmap(cut.blob)
+  try { return await blobToDataUrl(await bitmapToJpeg(bitmap, IDENTIFY_MAX_EDGE, 0.88)) } finally { bitmap.close() }
 }
 
 /**

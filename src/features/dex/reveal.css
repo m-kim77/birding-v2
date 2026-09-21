@@ -1,0 +1,60 @@
+/*
+ * 카드 등장 연출. 네 박자: 스캔 0~0.9s → 생성 0.9~1.5s → 플립 1.5~2.2s → 공개 2.2~3.0s (cardExport.ts의 T와 같다).
+ * 무대는 앱 테마와 무관한 어두운 숲이다 — 카드가 어느 테마에서도 같은 모습으로 나타나게.
+ */
+.reveal-stage {
+  position: relative; width: 100%; padding: 28px 16px 20px; border-radius: 22px; overflow: hidden;
+  background: radial-gradient(80% 60% at 50% 45%, #1f2a24 0%, #0a0e0c 60%, #050605 100%);
+}
+.reveal-slot { position: relative; width: 100%; max-width: 340px; margin: 0 auto; aspect-ratio: 4 / 5; perspective: 1200px; }
+.reveal-flipper, .reveal-front, .reveal-back, .reveal-scan { position: absolute; inset: 0; }
+.reveal-flipper { transform-style: preserve-3d; }
+.reveal-front, .reveal-back { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+
+.reveal-back {
+  display: grid; place-content: center; justify-items: center; gap: 10px; border-radius: 18px; color: #f5f1e8;
+  background: #0b100d; border: 1.5px solid color-mix(in srgb, var(--accent) 70%, transparent);
+}
+.reveal-back strong { font-family: 'Noto Serif KR', serif; font-size: 30px; font-weight: 600; }
+.reveal-back span { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 10px; letter-spacing: 0.32em; opacity: 0.6; }
+
+.reveal-scan { display: grid; place-items: center; padding: 12% 8%; opacity: 0; pointer-events: none; }
+.reveal-scan .photo-box { border-radius: 12px; border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent); }
+.reveal-scan i { position: absolute; left: 8%; right: 8%; top: 12%; height: 3px; background: var(--accent); box-shadow: 0 0 18px var(--accent); }
+
+.reveal-beats { list-style: none; margin: 18px 0 0; padding: 0; display: flex; justify-content: center; gap: 12px; flex-wrap: wrap;
+  font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 9px; letter-spacing: 0.2em; color: rgba(245, 241, 232, 0.35); }
+
+/* ── 움직임 ── */
+.is-animated .reveal-scan { animation: rv-scan 0.9s ease-out both; }
+.is-animated .reveal-scan i { animation: rv-line 0.9s linear both; }
+.is-animated .reveal-flipper { animation: rv-flip 3s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.is-animated .reveal-back { transform: rotateY(0deg); }
+.is-animated .reveal-front { transform: rotateY(180deg); }
+.is-animated .reveal-slot::after { content: ''; position: absolute; inset: -14%; z-index: -1; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 75%, transparent), transparent); animation: rv-glow 3s ease-out both; }
+.is-animated .reveal-beats li { animation: rv-beat 3s linear both; }
+.is-animated .reveal-beats li:nth-child(4) { animation-name: rv-beat-last; }
+
+@keyframes rv-scan { 0% { opacity: 0; transform: scale(0.94); } 12%, 82% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.02); } }
+@keyframes rv-line { from { top: 12%; } to { top: 86%; } }
+/* 0~30% 숨김(스캔 중) → 30~50% 뒷면이 자라남 → 50~73% 뒤집힘 → 이후 앞면 */
+@keyframes rv-flip {
+  0%, 30% { opacity: 0; transform: rotateY(0deg) scale(0.7); }
+  50% { opacity: 1; transform: rotateY(0deg) scale(0.92); }
+  73% { opacity: 1; transform: rotateY(190deg) scale(1.04); }
+  100% { opacity: 1; transform: rotateY(180deg) scale(1); }
+}
+@keyframes rv-glow { 0%, 70% { opacity: 0; transform: scale(0.5); } 80% { opacity: 0.9; } 100% { opacity: 0; transform: scale(1.2); } }
+@keyframes rv-beat { 0% { color: rgba(245, 241, 232, 0.35); } 1%, 29% { color: #f5f1e8; } 30%, 100% { color: rgba(245, 241, 232, 0.35); } }
+.is-animated .reveal-beats li:nth-child(2) { animation-name: rv-beat-2; }
+.is-animated .reveal-beats li:nth-child(3) { animation-name: rv-beat-3; }
+@keyframes rv-beat-2 { 0%, 29% { color: rgba(245, 241, 232, 0.35); } 30%, 49% { color: #f5f1e8; } 50%, 100% { color: rgba(245, 241, 232, 0.35); } }
+@keyframes rv-beat-3 { 0%, 49% { color: rgba(245, 241, 232, 0.35); } 50%, 72% { color: #f5f1e8; } 73%, 100% { color: rgba(245, 241, 232, 0.35); } }
+@keyframes rv-beat-last { 0%, 72% { color: rgba(245, 241, 232, 0.35); } 73%, 100% { color: var(--accent); } }
+
+/* 연출이 없을 때(이미 본 종)와 움직임 줄이기: 앞면만 제자리에 */
+@media (prefers-reduced-motion: reduce) {
+  .is-animated .reveal-scan, .is-animated .reveal-back, .is-animated .reveal-beats, .is-animated .reveal-slot::after { display: none; }
+  .is-animated .reveal-flipper, .is-animated .reveal-front { animation: none; transform: none; }
+}

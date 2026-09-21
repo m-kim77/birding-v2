@@ -4,7 +4,7 @@ import Icon from './Icon'
 interface Props {
   src: string
   alt: string
-  /** 가로/세로 비. 망원 사진의 기본은 3:2 */
+  /** 가로/세로 비. 망원 사진의 기본은 3:2. 'auto'면 부모의 크기를 그대로 채운다 */
   ratio?: string
   /** 사진 위에 겹쳐 그릴 것 (탐지 상자 등) */
   children?: ReactNode
