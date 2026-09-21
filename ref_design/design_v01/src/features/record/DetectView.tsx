@@ -43,10 +43,13 @@ export default function DetectView({ draft }: { draft: RecordDraft }) {
         <Banner tone="warn" icon="alert">새를 찾지 못했습니다. 새가 있는 부분을 직접 잘라 주세요.</Banner>
       )}
       {boxes && boxes.length > 1 && crop === null && <p className="status-line">새 {boxes.length}마리를 찾았습니다. 판정할 새를 눌러 고르세요.</p>}
-      {typeof crop === 'number' && <p className="status-line is-ok">이 부분으로 판정합니다.</p>}
+      {typeof crop === 'number' && (
+        // 상자가 맞을 때가 대부분이라, 직접 자르기는 버튼이 아니라 같은 줄의 글자 링크로 낮춘다
+        <p className="status-line is-ok">이 부분으로 판정합니다. <button type="button" className="text-link" onClick={() => setCrop('manual')}>직접 자르기</button></p>
+      )}
       {manual && <p className="status-line">모서리를 끌어 새가 가득 차게 맞추세요. (초안에서는 움직이지 않습니다)</p>}
 
-      {!manual && (model !== 'ready' || boxes !== null) && model !== 'downloading' && (
+      {!manual && typeof crop !== 'number' && (model === 'missing' || boxes !== null) && (
         <Button variant="quiet" icon="crop" onClick={() => setCrop('manual')}>직접 자르기</Button>
       )}
     </div>

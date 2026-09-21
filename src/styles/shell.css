@@ -1,0 +1,60 @@
+/*
+ * 앱 뼈대. `.viewport`가 컨테이너다 — 아래 @container 규칙은 창 폭이 아니라 앱이 놓인 자리의 폭을 본다.
+ * 그래서 폰 프레임 안에서도, 실제 폰에서도, PC 창에서도 같은 규칙으로 배치가 바뀐다.
+ */
+/* contain: layout — 시트 같은 고정 위치 요소가 이 상자 밖(폰 프레임 밖)으로 나가지 못하게 한다.
+   container-type만으로는 고정 위치의 기준 상자가 되지 않는다 (실측) */
+.viewport { container: app / inline-size; contain: layout; height: 100%; }
+.app {
+  position: relative; height: 100%; display: grid; grid-template-rows: 1fr auto; overflow: hidden;
+  background: var(--bg-app); color: var(--text-1);
+}
+/* 테마의 배경 장식. 토큰 하나(--backdrop)로 받으므로 컴포넌트는 어떤 테마인지 모른다 */
+.app::before { content: ''; position: absolute; inset: 0; background-image: var(--backdrop); pointer-events: none; }
+.app-main { position: relative; overflow-y: auto; overscroll-behavior: contain; }
+
+.app-nav {
+  position: relative; display: grid; grid-template-columns: repeat(5, 1fr); align-items: end;
+  padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); background: var(--tab-bg); border-top: 1px solid var(--border);
+  backdrop-filter: var(--card-blur);
+}
+.nav-brand { display: none; }
+.nav-item {
+  min-height: var(--touch); padding: 4px 0; border: 0; background: none; color: var(--tab-inactive);
+  display: grid; justify-items: center; gap: 2px; font-size: 12px; font-weight: 600;
+}
+.nav-item.is-active { color: var(--tab-active); }
+.nav-add {
+  justify-self: center; width: 58px; height: 58px; margin-top: -18px; border: 0; border-radius: 50%;
+  background: var(--primary); color: var(--on-primary); display: grid; place-items: center; box-shadow: var(--card-shadow);
+}
+.nav-add span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+
+.screen { position: relative; max-width: 1080px; margin: 0 auto; padding: var(--sp-4) var(--sp-4) var(--sp-6); display: grid; gap: var(--sp-4); align-content: start; }
+.screen-head { display: flex; align-items: center; gap: var(--sp-2); min-height: var(--touch); }
+.screen-head-text { flex: 1; min-width: 0; }
+.screen-head h1 { font-size: 24px; line-height: 1.25; }
+.screen-head p { color: var(--text-3); font-size: 14px; }
+.screen-empty { min-height: 100%; place-content: center; justify-items: center; text-align: center; color: var(--text-2); }
+.screen-empty h1 { font-family: var(--font-display); font-size: 22px; color: var(--text-1); }
+
+/* 기록하기·소리처럼 집중하는 화면의 맨 아래 주 버튼 자리 */
+.bottom-bar { position: sticky; bottom: 0; margin: 0 calc(var(--sp-4) * -1) calc(var(--sp-6) * -1); padding: var(--sp-3) var(--sp-4) calc(var(--sp-3) + env(safe-area-inset-bottom)); background: var(--tab-bg); border-top: 1px solid var(--border); backdrop-filter: var(--card-blur); }
+
+@container app (min-width: 860px) {
+  .app { grid-template-rows: 1fr; grid-template-columns: 232px 1fr; }
+  .app.app-focus { grid-template-columns: 1fr; }
+  .app-nav {
+    order: -1; grid-template-columns: 1fr; align-content: start; align-items: stretch; gap: var(--sp-1);
+    padding: var(--sp-5) var(--sp-3); border-top: 0; border-right: 1px solid var(--border);
+  }
+  .nav-brand { display: block; padding: 0 var(--sp-3) var(--sp-4); font-family: var(--font-display); font-weight: var(--weight-title); font-size: 20px; }
+  .nav-item { grid-auto-flow: column; justify-content: start; justify-items: start; align-items: center; gap: var(--sp-3); padding: 0 var(--sp-3); font-size: 15px; border-radius: var(--radius-control); }
+  .nav-item.is-active { background: var(--bg-surface); }
+  /* PC에서는 "새 기록"이 메뉴 맨 위의 글자 있는 버튼이 된다 */
+  .nav-add { order: -1; justify-self: stretch; width: auto; height: var(--touch); margin: 0 0 var(--sp-3); border-radius: var(--radius-control); display: flex; align-items: center; justify-content: center; gap: var(--sp-2); font-weight: 700; }
+  .nav-brand { order: -2; }
+  .nav-add span { position: static; width: auto; height: auto; clip-path: none; }
+  .screen { padding: var(--sp-6); }
+  .bottom-bar { position: static; margin: 0; padding: 0; background: none; border: 0; backdrop-filter: none; max-width: 360px; }
+}

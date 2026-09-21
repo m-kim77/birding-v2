@@ -42,6 +42,7 @@ export default function MapScreen({ onOpen }: { onOpen: (id: string) => void }) 
   return (
     <div className="screen screen-map">
       <ScreenHead title="지도" sub={`${places.length}곳에서 관찰했습니다`} />
+      {places.length === 0 && <p className="hint">위치가 있는 기록이 아직 없습니다.</p>}
       <div className="map-cols">
         <div className="map-mock" role="group" aria-label="관찰 위치 지도">
           {places.map((p) => (

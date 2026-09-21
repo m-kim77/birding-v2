@@ -7,17 +7,20 @@
  */
 import type { DetectBox, Sighting, SoundHit, Verdict } from '../types'
 
-/** 위키미디어 공용 파일 이름 → 폭 960px 주소 */
-const W = (file: string) => `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(file)}?width=960`
+/**
+ * 위키미디어 공용 파일 → 폭 960px 주소. `dir`은 파일마다 정해진 해시 경로(예: 'e/ec')다.
+ * Special:FilePath 주소는 쓰지 않는다 — 리다이렉트 응답에 CORS 헤더가 없어서, 카드 내보내기(캔버스)가 사진을 못 읽는다 (실측).
+ */
+const W = (dir: string, file: string) => `https://upload.wikimedia.org/wikipedia/commons/thumb/${dir}/${file}/960px-${file}`
 
 const PHOTO = {
-  duck: W('Anas_zonorhyncha_swimming.jpg'),
-  kingfisher: W('Alcedo_atthis_-England-8_(cropped).jpg'),
-  kestrel: W('Common_kestrel_falco_tinnunculus.jpg'),
-  bulbul: W('The_brown-eared_bulbul_after_playing_with_water.jpg'),
-  owl: W('Bubo_bubo_3_(Martin_Mecnarowski).jpg'),
-  redstart: W('Daurian_redstart_at_Daisen_Park_in_Osaka,_January_2016.jpg'),
-  egret: W('Little_egret_(Egretta_garzetta)_Photograph_by_Shantanu_Kuveskar.jpg'),
+  duck: W('e/ec', 'Anas_zonorhyncha_swimming.jpg'),
+  kingfisher: W('b/bc', 'Alcedo_atthis_-England-8_%28cropped%29.jpg'),
+  kestrel: W('2/24', 'Common_kestrel_falco_tinnunculus.jpg'),
+  bulbul: W('a/a5', 'The_brown-eared_bulbul_after_playing_with_water.jpg'),
+  owl: W('1/14', 'Bubo_bubo_3_%28Martin_Mecnarowski%29.jpg'),
+  redstart: W('c/cc', 'Daurian_redstart_at_Daisen_Park_in_Osaka%2C_January_2016.jpg'),
+  egret: W('f/f1', 'Little_egret_%28Egretta_garzetta%29_Photograph_by_Shantanu_Kuveskar.jpg'),
 }
 
 // 물총새는 일부러 뺐다 — 기록하기 흐름에서 물총새를 저장하면 "첫 만남" 카드 연출이 나온다

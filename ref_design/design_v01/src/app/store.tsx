@@ -15,6 +15,12 @@ interface Store {
   scenario: Scenario
 }
 
+/**
+ * 백업 안 된 기록이 이 수 이상일 때만 첫 화면에 알림을 띄운다.
+ * 한두 건마다 띄우면 첫 화면의 가장 좋은 자리를 늘 잔소리가 차지한다. 설정 화면에는 수와 무관하게 늘 보인다.
+ */
+export const BACKUP_NUDGE_AT = 5
+
 const Ctx = createContext<Store | null>(null)
 
 /**
@@ -23,7 +29,7 @@ const Ctx = createContext<Store | null>(null)
  */
 export function StoreProvider({ scenario, children }: { scenario: Scenario; children: ReactNode }) {
   const [sightings, setSightings] = useState<Sighting[]>(SIGHTINGS)
-  const [unsaved, setUnsaved] = useState(3)
+  const [unsaved, setUnsaved] = useState(6)
 
   const store = useMemo<Store>(() => ({
     sightings, unsaved, scenario,

@@ -39,6 +39,8 @@ export interface Sighting {
   identify: IdentifyStatus
   /** 소리로 만든 기록이면 true (사진 대신 소리 그림을 보여 준다) */
   fromSound: boolean
+  /** AI 판정을 이름으로 받아들였을 때 그 근거. 나중에 "왜 이 이름이었지?"를 확인하는 재료다 */
+  verdict?: Verdict
 }
 
 /** 사진에서 찾은 새 상자. 0~1 정규화 좌표 [x1, y1, x2, y2] — v1 crop_box와 같은 약속 */

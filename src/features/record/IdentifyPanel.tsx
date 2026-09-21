@@ -1,0 +1,79 @@
+import { Banner } from '../../ui/bits'
+import Button from '../../ui/Button'
+import Icon from '../../ui/Icon'
+import type { Verdict } from '../../types'
+import type { AskState } from './useAsk'
+
+interface Props {
+  ask: { state: AskState; steps: string[]; verdict: Verdict | null; message: string; cancel: () => void }
+  /** 판정할 영역을 골랐는지. 고르기 전에는 물어볼 수 없다 */
+  canAsk: boolean
+  /** 지금 이름 칸의 값 — 결과를 이미 넣었는지 보려고 */
+  name: string
+  onAsk: () => void
+  onApply: (v: Verdict) => void
+}
+
+/**
+ * AI 종 판정. 시작 전 · 진행 중 · 결과 · 실패의 네 모습을 가진다.
+ * v1에 있던 provider·모델·최대 호출 수·시간 제한 입력은 없다 — 사용자가 정할 것은 "내 키를 쓸지"뿐이고 그건 설정에 있다.
+ */
+export default function IdentifyPanel({ ask, canAsk, name, onAsk, onApply }: Props) {
+  if (ask.state === 'server-down') {
+    return (
+      // 다시 시도: 서버가 돌아온 걸 사용자가 먼저 알 수도 있다
+      <Banner tone="warn" icon="alert" action={<Button variant="quiet" onClick={onAsk}>다시 시도</Button>}>
+        판정 서버가 쉬는 중입니다. 이름 없이 먼저 저장해 두고, 나중에 기록을 열어 다시 물어볼 수 있습니다.
+      </Banner>
+    )
+  }
+  if (ask.state === 'failed') {
+    return <Banner tone="err" icon="alert" action={<Button variant="quiet" onClick={onAsk}>다시 시도</Button>}>{ask.message}</Banner>
+  }
+  if (ask.state === 'running') {
+    return (
+      <div className="ask-running">
+        <ol className="steps">
+          {ask.steps.map((text, i) => {
+            const now = i === ask.steps.length - 1
+            return <li key={i} className={now ? 'is-now' : 'is-done'}><span className="step-dot">{!now && <Icon name="check" size={12} />}</span>{text}</li>
+          })}
+        </ol>
+        <p className="hint">1~2분 걸릴 수 있습니다.</p>
+        {/* 중단: 몇 분씩 걸리는 작업에는 빠져나올 길이 있어야 한다 */}
+        <Button variant="quiet" icon="stop" onClick={ask.cancel}>중단</Button>
+      </div>
+    )
+  }
+  if (ask.state === 'done' && ask.verdict) {
+    const v = ask.verdict
+    const label = v.speciesKo || v.latin
+    const applied = name === label
+    return (
+      <div className="verdict">
+        <p className="verdict-kind"><Icon name="sparkle" size={16} /> AI 판정 · {v.kind}</p>
+        <h3 className="display">{label} {v.speciesKo && <em>{v.latin}</em>}</h3>
+        <p>{v.summary}</p>
+        {v.others.length > 0 && <p className="hint">남은 후보: {v.others.join(', ')}</p>}
+        {/* 근거는 버튼이 아니라 펼침이다 — 결과를 믿을지 판단하는 재료라 늘 가까이 있어야 한다 */}
+        {v.evidence.length > 0 && (
+          <details>
+            <summary>근거 {v.evidence.length}개 보기</summary>
+            <ul>{v.evidence.map((e, i) => <li key={i}>{e.text}<small>{e.source}</small></li>)}</ul>
+          </details>
+        )}
+        {applied
+          ? <p className="status-line is-ok"><Icon name="check" size={16} /> 이름 칸에 넣었습니다</p>
+          // 이 이름으로: 사용자가 이미 적은 이름을 말없이 덮어쓰지 않으려고 누르게 한다
+          : <Button icon="check" onClick={() => onApply(v)}>이 이름으로</Button>}
+      </div>
+    )
+  }
+  return (
+    <div className="ask-idle">
+      {/* AI에게 물어보기: 오래 걸리고 서버 자원(또는 사용자의 API 요금)을 쓰므로 자동으로 돌리지 않는다 */}
+      <Button icon="sparkle" onClick={onAsk} disabled={!canAsk}>AI에게 물어보기</Button>
+      {!canAsk && <p className="hint">판정할 새를 먼저 고르세요.</p>}
+    </div>
+  )
+}

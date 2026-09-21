@@ -32,6 +32,7 @@ export default function DexScreen({ onOpenRecord }: { onOpenRecord: (id: string)
   return (
     <div className="screen">
       <ScreenHead title="내 새 도감" sub={`지금까지 ${cards.length}종을 만났습니다`} />
+      {cards.length === 0 && <p className="hint">이름이 정해진 기록이 생기면 여기에 카드가 모입니다.</p>}
       <div className="dex-grid">
         {cards.map((s) => (
           <button key={s.id} type="button" className="dex-cell" onClick={() => setOpen(s)} aria-label={`${s.speciesKo} 카드 크게 보기`}>

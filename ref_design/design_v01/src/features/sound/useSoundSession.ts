@@ -17,6 +17,8 @@ export function useSoundSession(scenario: Scenario) {
   const [progress, setProgress] = useState(0)
   const [elapsed, setElapsed] = useState(0)
   const [picked, setPicked] = useState<string[]>([])
+  /** 분석 결과. '사진에서 새를 못 찾음' 상황에서는 소리에서도 아무것도 못 찾은 것으로 본다 */
+  const hits: SoundHit[] = scenario === 'no-bird' ? [] : SOUND_HITS
   const [playing, setPlaying] = useState(false)
   const [playhead, setPlayhead] = useState(0)
   const timer = useRef<number | null>(null)
@@ -34,7 +36,7 @@ export function useSoundSession(scenario: Scenario) {
     setPhase('analyzing')
     window.setTimeout(() => {
       setElapsed(SOUND_SECONDS)
-      setPicked(SOUND_HITS.filter((h) => h.confidence >= AUTO_PICK).map((h) => h.speciesKo))
+      setPicked(hits.filter((h) => h.confidence >= AUTO_PICK).map((h) => h.speciesKo))
       setPhase('results')
     }, 900)
   }
@@ -74,5 +76,12 @@ export function useSoundSession(scenario: Scenario) {
     setPicked((list) => (list.includes(hit.speciesKo) ? list.filter((n) => n !== hit.speciesKo) : [...list, hit.speciesKo]))
   }
 
-  return { phase, hasModel, progress, elapsed, picked, playing, playhead, startRecording, finish, downloadModel, togglePlay, togglePick, setPlayhead }
+  /** 결과를 버리고 처음으로. 새소리를 못 찾았을 때 다시 녹음하려고 쓴다 */
+  function reset() {
+    stopTimer()
+    setPlaying(false)
+    setPhase('idle')
+  }
+
+  return { hits, reset, phase, hasModel, progress, elapsed, picked, playing, playhead, startRecording, finish, downloadModel, togglePlay, togglePick, setPlayhead }
 }

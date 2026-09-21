@@ -1,0 +1,54 @@
+/* 사진으로 기록하기 */
+.photo-drop {
+  min-height: 300px; display: grid; place-content: center; justify-items: center; gap: var(--sp-2); padding: var(--sp-5); text-align: center;
+  border: 2px dashed var(--border); border-radius: var(--radius-card); background: var(--bg-card); color: var(--text-1);
+}
+.photo-drop .icon { color: var(--primary); } .photo-drop strong { font-size: 19px; } .photo-drop span { color: var(--text-3); font-size: 14px; }
+
+.record-cols, .record-side, .detect { display: grid; gap: var(--sp-4); align-content: start; }
+.detect .btn-quiet { justify-self: start; }
+
+/* 탐지 상자. 색은 테마를 따르지 않는다 — 어떤 사진 위에서도 보여야 해서 흰 테두리에 어두운 외곽선을 쓴다 */
+.detect-box { position: absolute; padding: 0; border: 3px solid #fff; border-radius: 6px; background: rgba(255, 255, 255, 0.08); box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.55); }
+.detect-box.is-picked { border-color: #ffd34d; background: none; box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.55), 0 0 0 9999px rgba(0, 0, 0, 0.35); }
+.crop-frame { position: absolute; border: 2px solid #fff; box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45); }
+.crop-frame i { position: absolute; width: 18px; height: 18px; border: 4px solid #fff; }
+.crop-frame i:nth-child(1) { top: -4px; left: -4px; border-right: 0; border-bottom: 0; }
+.crop-frame i:nth-child(2) { top: -4px; right: -4px; border-left: 0; border-bottom: 0; }
+.crop-frame i:nth-child(3) { bottom: -4px; left: -4px; border-right: 0; border-top: 0; }
+.crop-frame i:nth-child(4) { bottom: -4px; right: -4px; border-left: 0; border-top: 0; }
+
+.species-input { position: relative; }
+.suggest { position: absolute; z-index: 5; left: 0; right: 0; top: 100%; margin: 4px 0 0; padding: 4px; list-style: none; background: var(--bg-app); border: 1.5px solid var(--border); border-radius: var(--radius-card); box-shadow: var(--card-shadow); }
+.suggest button { width: 100%; min-height: var(--touch); padding: 0 var(--sp-3); border: 0; background: none; text-align: left; color: var(--text-1); border-radius: 6px; }
+.suggest button:hover { background: var(--bg-surface); }
+
+.ask-idle, .ask-running, .verdict { display: grid; gap: var(--sp-3); justify-items: start; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2); }
+.steps li { display: flex; align-items: center; gap: var(--sp-3); color: var(--text-3); font-size: 15px; }
+.steps li.is-done { color: var(--text-2); } .steps li.is-now { color: var(--text-1); font-weight: 600; }
+.step-dot { width: 20px; height: 20px; flex: none; display: grid; place-items: center; border-radius: 50%; border: 2px solid var(--border); }
+.is-done .step-dot { background: var(--ok); border-color: var(--ok); color: var(--bg-card); }
+.is-now .step-dot { border-color: var(--primary); animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 50% { transform: scale(1.25); } }
+@media (prefers-reduced-motion: reduce) { .is-now .step-dot { animation: none; } }
+
+.verdict { padding: var(--sp-4); border-radius: var(--radius-card); background: var(--bg-surface); }
+.verdict-kind { display: flex; align-items: center; gap: var(--sp-1); font-size: 13px; font-weight: 700; color: var(--text-2); }
+.verdict h3 { font-size: 22px; } .verdict h3 em { font-family: var(--font-body); font-size: 14px; font-weight: 400; color: var(--text-3); }
+.verdict details { width: 100%; } .verdict summary { min-height: var(--touch); display: flex; align-items: center; font-weight: 600; cursor: pointer; }
+.verdict details ul { margin: 0; padding-left: 20px; display: grid; gap: var(--sp-2); font-size: 15px; color: var(--text-2); }
+.verdict small { display: block; color: var(--text-3); font-size: 13px; }
+
+.screen-result { justify-items: center; text-align: center; padding-top: var(--sp-6); }
+.result-kicker { font-size: 14px; font-weight: 700; color: var(--accent); letter-spacing: 0.04em; }
+.screen-result h1 { font-size: 22px; }
+.screen-result .card-reveal, .screen-result > .bird-card { width: 100%; }
+.result-actions { width: 100%; max-width: 340px; display: grid; gap: var(--sp-2); justify-items: center; }
+
+@container app (min-width: 860px) {
+  .record-cols { grid-template-columns: minmax(0, 3fr) minmax(320px, 2fr); }
+}
+
+/* 직접 자르기 — 사진 전체를 덮는 끌기 영역 */
+.crop-drawer { position: absolute; inset: 0; cursor: crosshair; touch-action: none; background: rgba(0, 0, 0, 0.18); }

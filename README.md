@@ -1,0 +1,95 @@
+# 탐조일지 v2
+
+새를 본 기록을 사진으로 남기는 웹앱. **기록과 사진은 사용자의 브라우저에만 저장**되고, 서버에는 아무것도 쌓이지 않는다.
+Vercel에 올려 쓰며, 폰 홈 화면에 추가하면 앱처럼 열린다.
+
+```bash
+npm install
+cp .env.example .env.local   # 기본 제공 AI가 갈 LLM 서버 주소 (LM Studio면 그대로)
+npm run dev                  # http://localhost:5173 — /api/* 도 같은 서버에서 돈다
+npm run check                # 타입 + 테마 대비 + 파일 크기 + 테스트
+npm run build
+```
+
+## 지금 되는 것 (2026-09-22)
+
+| 기능 | 상태 |
+|---|---|
+| 사진으로 기록 — EXIF(시각·촬영 정보·GPS) 자동 입력 | 동작. v1 `exif.ts` 이식, 테스트 포함 |
+| 새 찾기 → 자르기 — **브라우저 안에서** | 동작. MediaPipe EfficientDet-Lite0 + 3×2 조각 나누기. 못 찾으면 사진 위를 끌어 직접 자르기 |
+| AI 종 판정 — 도구(위키백과 검색·읽기·국명 확인)를 쓰는 루프 | 동작. 로컬 LM Studio(`qwen3.8-flash-next`)로 물총새 사진을 "확정 · 근거 3개"까지 확인 |
+| 기록 저장(IndexedDB) · 목록 · 상세 · 수정 · 삭제 | 동작. 새로고침해도 남는다 |
+| 백업 내려받기 / 불러오기 (ZIP) | 동작. 비우고 불러와서 기록·사진 3판이 되살아나는 것 확인 |
+| 새 카드 — 자동 생성, 등급, 기울기·빛, **이미지(PNG)·영상(MP4/WebM) 저장** | 동작 |
+| 지도 (Leaflet) · 위치 고르기 · 장소 이름 찾기 | 동작 |
+| 테마 6종 (도감은 밤 모드 포함) | 동작 |
+| 내 API 키로 판정 (OpenAI 호환, 브라우저 → 서비스 직행) | 구현됨. **실제 유료 키로는 확인하지 못했다** |
+
+## 아직 없는 것
+
+화면에 버튼을 미리 만들어 두지 않았다 — 동작하지 않는 버튼은 넣지 않는다.
+
+- **소리로 기록 (새소리 인식)** — 디자인은 `ref_design/design_v01`에 있다. 모델은 BirdNET의 브라우저(TF.js)판을 쓸 계획이다: 공식 구현 [birdnet-team/real-time-pwa](https://github.com/birdnet-team/real-time-pwa)(코드 MIT, 모델 CC BY-SA 4.0 — 저장소 표기 기준, 넣기 전에 다시 확인). 넣을 자리는 `features/detect`와 같은 모양의 어댑터다.
+- **이동 기록(구글 타임라인)으로 위치 찾기** — v1 `server/lib/tracklog.js`를 브라우저로 옮겨야 한다. 그때까지 위치는 사진 GPS · 현재 위치 · 지도에서 고르기.
+- **오프라인(서비스 워커)** — 매니페스트만 있다. 글꼴·탐지 wasm이 아직 CDN에서 온다.
+- **도장(천연기념물 등)과 보호종 위치 가리기** — 카드와 지도는 이미 그 값을 따르지만, 종별 자료가 없어 지금은 모두 비어 있다.
+- **관찰지 꾸미기** — 자동 카드가 "간단한 결과물" 자리를 맡는다. 꾸미기는 뒤 단계.
+- 판정을 기다리지 않고 저장한 뒤 **나중에 이어서 판정**하기 (지금은 기록 화면 안에서만 판정한다).
+
+## 구조
+
+```
+api/                  Vercel 함수 (웹 표준 Request → Response). 개발 때는 dev/apiPlugin.ts가 같은 파일을 돌린다
+  llm.ts              기본 제공 AI로 가는 통로. 목적지는 환경변수로만 정해진다 (열린 프록시가 되지 않게)
+  place.ts            좌표 → 장소 이름 (Nominatim은 User-Agent를 요구해서 브라우저에서 직접 못 부른다)
+src/
+  theme/              테마 토큰 — 겉모습의 단일 원본. 컴포넌트는 테마 이름을 모른다
+  styles/ ui/ app/    바탕 규칙 · 공통 컴포넌트 · 뼈대(폰 하단 탭 ↔ PC 사이드바, 컨테이너 쿼리)
+  data/               로컬 DB(IndexedDB) · 사진 · 백업 · 종 표. 화면은 journal.tsx의 인터페이스만 본다
+  lib/                v1에서 가져온 순수 로직 (exif · crop · format) + resize · place
+  features/
+    record/           사진으로 기록: 훅 넷(usePhotoPick · useDetection · useAsk · usePlace)이 상태를, 컴포넌트가 그리기를 맡는다
+    detect/           탐지 모델 어댑터. 모델을 바꾸면 mediapipeDetector.ts만 바뀐다
+    identify/         판정 루프 · 프롬프트 · 연결 · 답 읽기
+      tools/          LLM 도구 — **도구 하나 = 파일 하나**, 목록은 index.ts
+    dex/ records/ map/ settings/
+scripts/              check-contrast · check-size
+test/                 순수 로직 테스트 (node --test)
+ref_design/design_v01 디자인 초안과 BUTTONS.md (버튼마다 존재 이유)
+```
+
+### 자주 할 일
+
+- **LLM 도구 더하기**: `features/identify/tools/`에 파일 하나를 만들고 `index.ts`의 배열 **끝에** 한 줄을 더한다. 순서를 바꾸면 LLM 서버의 KV 캐시가 깨진다 (이유는 그 파일 주석).
+- **탐지 모델 바꾸기**: `features/detect/detector.ts`의 모양을 따르는 파일을 만들고, `useDetection.ts`·`ModelSection.tsx`의 import 한 줄을 바꾼다. 설정 > 출처에도 한 줄.
+- **테마 더하기**: `theme/themes.ts`에 항목 하나 → `npm run check`가 대비를 검사한다.
+- **카드 등급 기준·이름 바꾸기**: `features/dex/cardTier.ts`. 색은 `cardLook.ts`.
+- **백업 형식 바꾸기**: `data/backupFormat.ts` — 가산 확장만. 키를 바꾸면 옛 백업이 안 열린다.
+
+## Vercel 배포
+
+1. 이 폴더를 GitHub 저장소로 올리고 Vercel에서 가져온다 (Framework: Vite — `vercel.json`에 적혀 있다).
+2. 프로젝트 환경변수를 넣는다 (브라우저로 나가지 않는 서버 전용 값이다):
+   - `LOCAL_LLM_URL` — 집 PC의 LLM 서버 주소 (예: `https://llm.내도메인/v1`). **공유기 포트를 열지 말고 터널을 쓴다** (Cloudflare Tunnel, Tailscale Funnel).
+   - `LOCAL_LLM_KEY` — LLM 서버의 키. LM Studio는 키가 없으므로, 터널 쪽에서 토큰 검사를 걸거나 키가 있는 서버(Unsloth 등)를 쓴다. 키 없이 열면 누구나 그 GPU를 쓴다.
+   - `LOCAL_LLM_MODEL` — 쓸 모델 이름. 사진을 볼 수 있고(vision) 도구 호출을 지원해야 한다.
+3. 환경변수가 없으면 앱은 그대로 돌고, 판정만 "기본 제공 AI가 아직 설정되지 않았습니다"로 나온다. 내 키를 넣은 사용자는 판정할 수 있다.
+
+알아 둘 것:
+
+- `api/llm.ts`의 최대 실행 시간을 300초로 적어 두었다. 요금제가 허용하는 한도를 넘으면 Vercel이 배포 때 알려 준다 — 그러면 `vercel.json`의 숫자를 낮춘다. 한 턴이 한도보다 오래 걸리는 모델은 쓸 수 없다 (응답을 스트림으로 흘려보내므로 "첫 글자까지의 시간"이 아니라 "한 턴 전체 시간"이 기준이다).
+- Vercel Hobby 요금제는 비상업 용도 한정이다.
+- 이 세션에서는 **배포까지는 하지 않았다** (Vercel 계정 로그인이 필요하다). `npm run build`와 함수의 로컬 실행만 확인했다.
+
+## LLM 서버 쪽에서 할 일 (KV 캐시)
+
+앱은 캐시가 잘 걸리도록 요청을 만든다: 시스템 프롬프트와 도구 정의가 고정이고, 대화는 뒤에 덧붙이기만 하며, 마지막 턴에도 도구 정의를 빼지 않는다 (`tool_choice: none`).
+실제로 캐시를 쓰는 것은 서버다 — LM Studio 로그에서 `selected slot by LCP similarity … f_keep = 0.932`(직전 요청의 93%를 재사용)를 확인했다.
+
+서버에서 조절할 것 (앱 코드가 아니다):
+
+- **동시 사용자**: 슬롯이 하나면 두 사람의 판정이 번갈아 들어올 때 서로의 캐시를 밀어낸다. llama.cpp 계열은 `--parallel N`(Unsloth: `n_parallel`)으로 슬롯을 나눈다.
+- **KV 캐시 메모리**: `cache_type_kv`(q8_0 등)로 줄이면 같은 메모리에 더 긴 문맥·더 많은 슬롯이 들어간다. MLX는 `mlx_kv_bits`.
+- **밀려난 캐시 보관**: Unsloth의 `cache_ram`.
+- **문맥 길이**: 판정 한 건은 1~2만 토큰이면 충분하다. 26만 토큰으로 열어 두면 메모리만 먹는다.
+- 슬라이딩 윈도우 어텐션 모델(Gemma 계열)은 캐시 재사용이 제한된다 — `ctx_checkpoints`(llama.cpp `--swa-full` 계열 옵션)를 본다.

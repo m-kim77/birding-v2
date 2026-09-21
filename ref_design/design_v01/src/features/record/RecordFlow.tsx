@@ -45,6 +45,8 @@ export default function RecordFlow({ onCancel, onDone }: Props) {
       note: draft.note, photo: PICKED_PHOTO.src, stamps: [], sensitive: false, fromSound: false,
       tier: tierFor(name, PICKED_PHOTO.capturedAt, [], store.sightings),
       identify: pending ? 'waiting' : name ? 'done' : 'none',
+      // 사용자가 AI의 이름을 그대로 받아들였을 때만 근거를 남긴다. 직접 고친 이름에 AI 근거를 붙이면 거짓이 된다
+      verdict: draft.verdict && draft.verdict.speciesKo === name ? draft.verdict : undefined,
     }
     store.add(sighting)
     setSaved(sighting)

@@ -22,7 +22,8 @@ export default function PhotoBox({ src, alt, ratio = '3 / 2', children, sound }:
   return (
     <div className="photo-box" style={{ aspectRatio: ratio }}>
       {showImage
-        ? <img src={src} alt={alt} loading="lazy" onError={() => setFailed(true)} />
+        ? // crossOrigin: 같은 사진을 나중에 캔버스(카드 내보내기)가 다시 읽는다. 여기서 CORS 없이 받아 캐시에 넣으면 그때 실패한다
+        <img src={src} alt={alt} loading="lazy" crossOrigin="anonymous" onError={() => setFailed(true)} />
         : <div className="photo-empty" role="img" aria-label={alt}><Icon name={sound ? 'wave' : 'bird'} size={36} /></div>}
       {children}
     </div>

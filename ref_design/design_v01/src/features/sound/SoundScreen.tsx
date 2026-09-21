@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useStore } from '../../app/store'
-import { SOUND_HITS, SOUND_SECONDS } from '../../mock/data'
+import { SOUND_SECONDS } from '../../mock/data'
 import { Banner, Progress, ScreenHead } from '../../ui/bits'
 import Button from '../../ui/Button'
 import Icon from '../../ui/Icon'
@@ -24,12 +24,12 @@ export default function SoundScreen({ onCancel, onDone }: Props) {
   const store = useStore()
   const session = useSoundSession(store.scenario)
   const [focus, setFocus] = useState<SoundHit | null>(null)
-  const { phase, picked } = session
+  const { phase, picked, hits } = session
 
   /** 고른 종마다 기록을 하나씩 만든다. 위치는 녹음할 때의 현재 위치다 */
   function saveAll() {
     const now = new Date().toISOString().slice(0, 19)
-    SOUND_HITS.filter((h) => picked.includes(h.speciesKo)).forEach((h, i) => {
+    hits.filter((h) => picked.includes(h.speciesKo)).forEach((h, i) => {
       const sighting: Sighting = {
         id: `s${Date.now()}-${i}`, speciesKo: h.speciesKo, latin: h.latin, capturedAt: now, place: '서울숲', lat: 37.544, lng: 127.037,
         locationSource: 'gps', exifLine: '', note: `소리로 기록 · 신뢰도 ${Math.round(h.confidence * 100)}%`, photo: '',
@@ -64,19 +64,28 @@ export default function SoundScreen({ onCancel, onDone }: Props) {
 
       {(phase === 'recording' || phase === 'analyzing') && (
         <div className="sound-live">
-          <Spectrogram seconds={SOUND_SECONDS} upTo={session.elapsed} hits={SOUND_HITS} focus={null} playhead={null} />
+          <Spectrogram seconds={SOUND_SECONDS} upTo={session.elapsed} hits={hits} focus={null} playhead={null} />
           <p className="rec-clock">{phase === 'recording' ? formatClock(session.elapsed) : '분석하는 중…'}</p>
           {phase === 'recording' && <Button variant="primary" icon="stop" onClick={session.finish}>녹음 끝내기</Button>}
         </div>
       )}
 
-      {phase === 'results' && (
+      {phase === 'results' && hits.length === 0 && (
         <>
-          <Spectrogram seconds={SOUND_SECONDS} upTo={SOUND_SECONDS} hits={SOUND_HITS} focus={focus} playhead={session.playing ? session.playhead : null} />
+          <Spectrogram seconds={SOUND_SECONDS} upTo={SOUND_SECONDS} hits={hits} focus={null} playhead={null} />
+          <Banner tone="warn" icon="alert">새소리를 찾지 못했습니다. 새에게 더 가까이 가거나 바람이 덜한 곳에서 다시 녹음해 보세요.</Banner>
+          {/* 다시 녹음: 결과가 없을 때 할 수 있는 일은 이것뿐이다. 결과가 있을 때는 두지 않는다 */}
+          <Button variant="primary" icon="mic" onClick={session.reset}>다시 녹음</Button>
+        </>
+      )}
+
+      {phase === 'results' && hits.length > 0 && (
+        <>
+          <Spectrogram seconds={SOUND_SECONDS} upTo={SOUND_SECONDS} hits={hits} focus={focus} playhead={session.playing ? session.playhead : null} />
           {/* 재생: 결과를 귀로 확인하는 것이 판정의 마지막 단계다. 종을 고르면 그 구간이 그림에 표시된다 */}
           <Button icon={session.playing ? 'pause' : 'play'} onClick={session.togglePlay}>{session.playing ? '멈춤' : '들어 보기'} · {formatClock(SOUND_SECONDS)}</Button>
           <ul className="hit-list">
-            {SOUND_HITS.map((h) => {
+            {hits.map((h) => {
               const on = picked.includes(h.speciesKo)
               return (
                 <li key={h.speciesKo}>

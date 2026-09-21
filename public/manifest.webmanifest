@@ -1,0 +1,11 @@
+{
+  "name": "탐조일지",
+  "short_name": "탐조일지",
+  "description": "새를 본 기록을 사진과 소리로 남기는 앱",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F8F2E0",
+  "theme_color": "#F8F2E0",
+  "lang": "ko",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

@@ -11,6 +11,8 @@
 .stage-field select { padding: 5px 8px; border-radius: 6px; border: 1px solid #3a3f4e; background: #1d2029; color: #e7e9ef; font-size: 13px; }
 .stage-body { min-height: 0; display: grid; place-items: center; padding: 16px; }
 .stage-phone .viewport { width: 390px; height: min(844px, 100%); border-radius: 36px; overflow: hidden; box-shadow: 0 0 0 10px #05060a, 0 0 0 11px #3a3f4e, 0 24px 60px rgba(0, 0, 0, 0.5); }
+/* 폰 프레임 안에서는 상태 표시줄 자리만큼 위를 띄운다 (실제 폰에서는 safe-area가 맡는다) */
+.stage-phone .app-main { padding-top: 22px; }
 .stage-pc { padding: 12px; place-items: stretch; }
 .stage-pc .viewport { border-radius: 10px; overflow: hidden; box-shadow: 0 0 0 1px #3a3f4e; }
 

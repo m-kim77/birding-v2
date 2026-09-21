@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useStore } from '../../app/store'
+import { BACKUP_NUDGE_AT, useStore } from '../../app/store'
 import { Banner, ScreenHead, Tag } from '../../ui/bits'
 import Button from '../../ui/Button'
 import Icon from '../../ui/Icon'
@@ -62,8 +62,8 @@ export default function RecordsScreen({ onOpen, onBackup, onAdd }: Props) {
   return (
     <div className="screen">
       <ScreenHead title="탐조일지" sub={`기록 ${sightings.length}건 · ${speciesCount}종`} />
-      {unsaved > 0 && (
-        // 기록이 이 기기에만 있으므로, 백업 안 된 기록 수는 늘 보여야 한다. 누르면 바로 백업으로 간다
+      {unsaved >= BACKUP_NUDGE_AT && (
+        // 기록이 이 기기에만 있으므로 백업이 밀리면 알려야 한다. 누르면 바로 백업으로 간다
         <Banner tone="warn" icon="download" action={<Button variant="quiet" onClick={onBackup}>백업하기</Button>}>
           마지막 백업 이후 기록 {unsaved}건이 이 기기에만 있습니다
         </Banner>

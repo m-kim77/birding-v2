@@ -29,6 +29,7 @@ export default function RecordDetail({ id, onBack }: Props) {
   const [showCard, setShowCard] = useState(false)
   const [note, setNote] = useState(s?.note ?? '')
   const [name, setName] = useState(s?.speciesKo ?? '')
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   if (!s) return <div className="screen"><ScreenHead title="기록을 찾을 수 없습니다" onBack={onBack} /></div>
 
@@ -62,11 +63,26 @@ export default function RecordDetail({ id, onBack }: Props) {
                 <Button variant="quiet" onClick={() => setEditing(false)}>취소</Button>
               </div>
               <hr />
-              <Button variant="danger" icon="trash" onClick={() => { remove(id); onBack() }}>이 기록 삭제</Button>
+              {/* 삭제는 되돌릴 수 없다 — 한 번 더 묻는다. 대화 상자 대신 같은 자리에서 묻는다 */}
+              {confirmDelete ? (
+                <div className="row-actions">
+                  <Button variant="danger" icon="trash" onClick={() => { remove(id); onBack() }}>정말 삭제</Button>
+                  <Button variant="quiet" onClick={() => setConfirmDelete(false)}>그만두기</Button>
+                </div>
+              ) : <Button variant="danger" icon="trash" onClick={() => setConfirmDelete(true)}>이 기록 삭제</Button>}
             </Card>
           ) : (
             <>
               {s.note && <Card><p className="note">{s.note}</p></Card>}
+              {s.verdict && (
+                <Card>
+                  <details className="evidence">
+                    <summary>AI 판정 근거 {s.verdict.evidence.length}개</summary>
+                    <p>{s.verdict.summary}</p>
+                    <ul>{s.verdict.evidence.map((e) => <li key={e.text}>{e.text}<small>{e.source}</small></li>)}</ul>
+                  </details>
+                </Card>
+              )}
               <button type="button" className="card-peek" onClick={() => setShowCard(true)} aria-label="카드 크게 보기">
                 <BirdCard sighting={s} small />
                 <span>이 기록의 카드 보기</span>
