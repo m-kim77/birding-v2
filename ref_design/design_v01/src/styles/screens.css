@@ -1,0 +1,30 @@
+/* 기록 목록 · 상세 · 도감 */
+.group-title { margin: var(--sp-2) 0 var(--sp-3); font-size: 14px; font-weight: 700; color: var(--text-3); letter-spacing: 0.02em; }
+.record-grid { display: grid; gap: var(--sp-3); }
+.record-item { grid-template-columns: 112px 1fr; align-items: center; padding: var(--sp-2); gap: var(--sp-3); text-align: left; color: var(--text-1); width: 100%; }
+.record-item .photo-box { border-radius: calc(var(--radius-card) * 0.7); }
+.record-item-text { display: grid; gap: 2px; min-width: 0; }
+.record-item-name { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.record-item-name strong { font-size: 18px; }
+.record-item-text em { color: var(--text-3); font-size: 13px; }
+.record-item-text > span { color: var(--text-2); font-size: 14px; }
+
+.detail-cols { display: grid; gap: var(--sp-4); }
+.detail-side { display: grid; gap: var(--sp-4); align-content: start; }
+.card-peek {
+  display: grid; grid-template-columns: 96px 1fr; align-items: center; gap: var(--sp-4); padding: var(--sp-3);
+  background: var(--bg-card); border: var(--card-border); border-radius: var(--radius-card); box-shadow: var(--card-shadow); color: var(--text-1); text-align: left; font-weight: 600;
+}
+.card-peek .bird-card-text { display: none; }
+
+.dex-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--sp-4); }
+.dex-cell { padding: 0; border: 0; background: none; text-align: left; }
+
+@container app (min-width: 860px) {
+  .record-grid { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+  .record-item { grid-template-columns: 1fr; padding: 0; overflow: hidden; align-items: start; }
+  .record-item .photo-box { border-radius: 0; }
+  .record-item-text { padding: var(--sp-3) var(--sp-4) var(--sp-4); }
+  .detail-cols { grid-template-columns: minmax(0, 3fr) minmax(300px, 2fr); align-items: start; }
+  .dex-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: var(--sp-5); }
+}

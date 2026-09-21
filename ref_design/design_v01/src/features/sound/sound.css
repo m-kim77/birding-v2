@@ -1,0 +1,25 @@
+/* 소리로 기록하기 */
+.sound-start { display: grid; justify-items: center; gap: var(--sp-4); padding-top: var(--sp-5); text-align: center; }
+.sound-start .display { font-size: 20px; }
+.rec-button { width: 132px; height: 132px; border: 0; border-radius: 50%; background: var(--primary); color: var(--on-primary); display: grid; place-items: center; box-shadow: var(--card-shadow), 0 0 0 10px var(--bg-surface); }
+.sound-live { display: grid; gap: var(--sp-4); justify-items: center; }
+.rec-clock { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* 소리 그림은 자료 시각화라 테마를 따르지 않는다 (drawSpectrogram.ts의 색과 짝) */
+.spectro { position: relative; width: 100%; height: 170px; overflow: hidden; border-radius: var(--radius-card); background: #0d1226; }
+.spectro canvas { width: 100%; height: 100%; display: block; }
+.spectro-range { position: absolute; top: 0; bottom: 0; border: 2px solid #ffd34d; border-radius: 4px; background: rgba(255, 211, 77, 0.12); }
+.spectro-range span { position: absolute; top: 4px; left: 4px; padding: 1px 6px; border-radius: 3px; background: #ffd34d; color: #1a1a1a; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.spectro-head { position: absolute; top: 0; bottom: 0; width: 2px; background: #fff; }
+
+.hit-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2); }
+.hit { width: 100%; min-height: 64px; display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-2) var(--sp-4); text-align: left; color: var(--text-1);
+  background: var(--bg-card); border: 1.5px solid var(--border); border-radius: var(--radius-card); }
+.hit.is-on { border-color: var(--primary); }
+.hit-check { width: 26px; height: 26px; flex: none; display: grid; place-items: center; border-radius: 50%; border: 2px solid var(--border); }
+.is-on .hit-check { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+.hit-name { flex: 1; display: grid; } .hit-name strong { font-size: 18px; } .hit-name em { color: var(--text-3); font-size: 13px; }
+.hit-conf { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-2); }
+@container app (min-width: 860px) {
+  .screen-sound { max-width: 760px; } .spectro { height: 220px; }
+}

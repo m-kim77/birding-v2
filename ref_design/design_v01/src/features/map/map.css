@@ -1,0 +1,36 @@
+/* 그림 지도 — 초안 전용. 제품에서는 Leaflet 타일이 이 자리에 온다 */
+.map-mock {
+  position: relative; width: 100%; aspect-ratio: 4 / 3; overflow: hidden;
+  border-radius: var(--radius-card); border: var(--card-border); box-shadow: var(--card-shadow);
+  background:
+    linear-gradient(115deg, transparent 46%, #a9cfe8 46% 50%, transparent 50%),
+    linear-gradient(20deg, transparent 62%, #a9cfe8 62% 64.5%, transparent 64.5%),
+    radial-gradient(circle at 78% 70%, #b9d8a8 0 16%, transparent 16.5%),
+    radial-gradient(circle at 18% 28%, #c6dfb6 0 11%, transparent 11.5%),
+    repeating-linear-gradient(0deg, transparent 0 38px, rgba(0, 0, 0, 0.05) 38px 39px),
+    repeating-linear-gradient(90deg, transparent 0 38px, rgba(0, 0, 0, 0.05) 38px 39px),
+    #eef0e6;
+}
+.map-pick { aspect-ratio: 16 / 10; }
+.map-pin {
+  position: absolute; transform: translate(-50%, -100%); padding: 9px; min-width: 48px; min-height: 48px;
+  border: 0; background: none; color: #2f4a3a; cursor: pointer; display: grid; place-items: center;
+}
+.map-pin .icon { fill: #fbfaf4; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35)); }
+.map-pin.is-picked { color: #b3261e; z-index: 1; }
+.map-pin b {
+  position: absolute; top: 4px; right: 4px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px;
+  background: #1c2a22; color: #fff; font-size: 12px; line-height: 18px;
+}
+.map-cols { display: grid; gap: var(--sp-4); }
+.map-place h2 { margin: 0 0 var(--sp-2); font-size: 18px; }
+.map-place ul { list-style: none; margin: 0; padding: 0; }
+.map-place li + li { border-top: 1px solid var(--border); }
+.map-place button {
+  width: 100%; min-height: 48px; display: flex; align-items: center; gap: var(--sp-3);
+  border: 0; background: none; color: var(--text-1); font: inherit; text-align: left; cursor: pointer;
+}
+.map-place button span { margin-left: auto; color: var(--text-3); font-size: 14px; }
+@container app (min-width: 860px) {
+  .map-cols { grid-template-columns: 1fr 320px; align-items: start; }
+}

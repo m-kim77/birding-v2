@@ -1,0 +1,81 @@
+/* 공통 컴포넌트. 전부 토큰으로만 칠한다 */
+.card {
+  background: var(--bg-card); border: var(--card-border); border-radius: var(--radius-card); box-shadow: var(--card-shadow);
+  backdrop-filter: var(--card-blur); padding: var(--sp-4); display: grid; gap: var(--sp-3);
+}
+.card h2 { font-size: 17px; font-weight: 700; }
+/* 카드는 grid라 자식이 폭을 다 채운다 — 버튼은 글자 폭만큼만 */
+.card > .btn { justify-self: start; }
+
+.btn {
+  min-height: var(--touch); padding: 0 var(--sp-4); display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-2);
+  border-radius: var(--radius-control); border: 1.5px solid var(--border); background: var(--bg-card); color: var(--text-1); font-weight: 600;
+}
+.btn-block { width: 100%; }
+.btn-primary { background: var(--primary); border-color: var(--primary); color: var(--on-primary); font-weight: 700; }
+.btn-quiet { background: none; border-color: transparent; color: var(--text-2); padding: 0 var(--sp-2); }
+.btn-danger { background: none; border-color: var(--err); color: var(--err); }
+.icon-btn { width: var(--touch); height: var(--touch); flex: none; display: grid; place-items: center; border: 0; border-radius: 50%; background: none; color: var(--text-1); }
+.row-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+
+.photo-box { position: relative; width: 100%; overflow: hidden; border-radius: var(--radius-card); background: var(--bg-surface); }
+.photo-box img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.photo-empty { width: 100%; height: 100%; display: grid; place-items: center; color: var(--text-3); }
+
+.fact { display: flex; gap: var(--sp-3); align-items: flex-start; color: var(--text-2); }
+.fact .icon { margin-top: 3px; color: var(--text-3); }
+.fact span { display: block; color: var(--text-1); }
+.fact small { display: block; color: var(--text-3); font-size: 13px; }
+.fact-button { display: flex; align-items: center; gap: var(--sp-2); width: 100%; min-height: var(--touch); padding: 0; border: 0; background: none; text-align: left; color: var(--text-3); }
+.fact-button .fact { flex: 1; }
+
+.banner { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); border-radius: var(--radius-card); background: var(--bg-surface); border-left: 4px solid var(--text-3); }
+.banner p { flex: 1; font-size: 15px; }
+.banner .btn { flex: none; }
+.banner-warn { border-left-color: var(--warn); } .banner-warn > .icon { color: var(--warn); }
+.banner-err { border-left-color: var(--err); } .banner-err > .icon { color: var(--err); }
+.banner-ok { border-left-color: var(--ok); } .banner-ok > .icon { color: var(--ok); }
+
+.progress { height: 8px; border-radius: 4px; background: var(--bg-surface); overflow: hidden; }
+.progress-fill { height: 100%; background: var(--primary); transition: width 0.2s; }
+.status-line { display: grid; gap: var(--sp-2); color: var(--text-2); font-size: 15px; }
+.status-line.is-ok { color: var(--ok); display: flex; align-items: center; } .status-line.is-warn { color: var(--warn); }
+
+.tag { display: inline-block; padding: 2px 8px; border-radius: 999px; background: var(--bg-surface); color: var(--text-2); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.tag-accent { background: var(--accent); color: var(--on-accent); }
+.tag-warn { background: none; border: 1.5px solid var(--warn); color: var(--warn); }
+
+.field { display: grid; gap: var(--sp-1); }
+.field > span { font-size: 14px; font-weight: 600; color: var(--text-2); }
+.field input, .field textarea, .search input {
+  width: 100%; min-height: var(--touch); padding: var(--sp-3); border: 1.5px solid var(--border); border-radius: var(--radius-control);
+  background: var(--bg-input); color: var(--text-1);
+}
+.field textarea { resize: vertical; border-radius: min(var(--radius-control), 16px); }
+.field input::placeholder, .field textarea::placeholder, .search input::placeholder { color: var(--text-3); opacity: 1; }
+.search { position: relative; display: block; }
+.search .icon { position: absolute; left: 14px; top: 15px; color: var(--text-3); }
+.search input { padding-left: 42px; }
+
+/* fixed지만 앱 밖으로 나가지 않는다 — `.viewport`의 contain: layout이 기준 상자가 된다 (shell.css).
+   absolute로 두면 스크롤되는 main 안에서 함께 밀려 올라간다 */
+.sheet-scrim { position: fixed; inset: 0; z-index: 10; display: grid; align-items: end; background: rgba(0, 0, 0, 0.45); }
+.sheet {
+  max-height: 92%; overflow-y: auto; padding: var(--sp-4) var(--sp-4) calc(var(--sp-5) + env(safe-area-inset-bottom)); display: grid; gap: var(--sp-4);
+  background: var(--bg-app); border-radius: 20px 20px 0 0; color: var(--text-1);
+}
+.sheet-head { display: flex; align-items: center; justify-content: space-between; }
+.sheet-head h2 { font-family: var(--font-display); font-weight: var(--weight-title); font-size: 20px; }
+.sheet-actions { display: grid; gap: var(--sp-2); justify-items: center; }
+.sheet-actions .btn { width: 100%; }
+@container app (min-width: 860px) {
+  .sheet-scrim { align-items: center; justify-items: center; }
+  .sheet { width: 440px; border-radius: 20px; }
+}
+
+.choice-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); }
+.choice {
+  display: grid; justify-items: center; gap: var(--sp-2); padding: var(--sp-5) var(--sp-3); text-align: center;
+  background: var(--bg-card); border: var(--card-border); border-radius: var(--radius-card); box-shadow: var(--card-shadow); color: var(--text-1);
+}
+.choice .icon { color: var(--primary); } .choice strong { font-size: 17px; } .choice span { font-size: 13px; color: var(--text-3); }

@@ -1,0 +1,67 @@
+# 탐조일지 디자인 초안 v01
+
+v2의 화면 배치·테마·흐름을 **눈으로 확정하기 위한 초안**이다. 실제 추론·저장은 없고 가짜 데이터와 타이머로 흉내 낸다.
+
+```bash
+npm install
+npm run dev      # http://localhost:5173
+npm run check    # 타입 + 테마 대비 + 파일 크기 검사
+```
+
+## 보는 법
+
+화면 맨 위의 어두운 막대는 **초안 보기 도구**이고 제품에는 없다.
+
+- **앱(폰) / 웹(PC)** — 같은 앱을 폰 폭과 PC 폭으로 바꿔 본다. 웹용·앱용 코드는 따로 없다. 폭에 따라 하단 탭 ↔ 왼쪽 사이드바, 한 열 ↔ 두 열로 배치만 바뀐다 (CSS 컨테이너 쿼리, `src/styles/shell.css`). 창을 720px보다 좁히면(실제 폰) 도구와 프레임이 사라지고 앱만 남는다.
+- **상황** — 평소에 보기 어려운 상태를 고른다: 모델을 아직 안 받음 / 판정 서버가 쉬는 중 / 사진에서 새를 못 찾음. 고른 뒤 "+"로 기록을 시작하면 그 상태가 나온다.
+- **기기가 다크 모드라고 가정** — "심플 · 모던" 테마의 다크 쪽(모던)을 확인한다.
+- 테마는 제품과 같은 자리, **설정 > 화면 테마**에서 바꾼다.
+
+흐름 하나를 따라가 보려면: `+` → 사진으로 → 사진 고르기 → (새 상자가 자동으로 뜬다) → AI에게 물어보기 → 이 이름으로 → 저장 → 처음 본 종이라 카드가 뒤집히며 나온다.
+
+## 구조
+
+```
+src/
+  theme/themes.ts        테마 토큰 값 — 겉모습의 단일 원본
+  theme/applyTheme.ts    토큰을 CSS 변수로 내려보내기, 선택 저장
+  styles/                base(간격·글자) · shell(뼈대·폰/PC 전환) · ui(공통 컴포넌트) · screens · stage(보기 도구)
+  ui/                    Button, Icon, PhotoBox, Sheet, bits(Card·Fact·Banner·Progress·Tag)
+  app/                   AppShell(뼈대), routes(탭 정의), store(기록 저장소), AddSheet, PreviewStage(보기 도구)
+  features/
+    records/             기록 목록(첫 화면) · 상세
+    record/              사진으로 기록: useRecordDraft(상태) + DetectView · SpeciesInput · IdentifyPanel · LocationSheet · CardResult
+    sound/               소리로 기록: useSoundSession(상태) + Spectrogram
+    dex/                 새 카드 · 도감 · cardTier(등급 기준)
+    map/ settings/
+  mock/                  가짜 데이터, 타이머
+scripts/                 check-contrast(테마 대비) · check-size(파일 크기)
+BUTTONS.md               버튼마다 존재 이유, 뺀 버튼과 이유
+```
+
+화면 컴포넌트는 그리기만 하고, 상태와 동작은 훅(`useRecordDraft`, `useSoundSession`)과 `store`에 있다. 제품에서 가짜 구현을 진짜로 바꿀 때 화면을 건드리지 않게 하려는 구조다.
+
+## 운용을 위해 지킨 것
+
+- **컴포넌트는 테마 이름을 모른다.** 색·모서리·그림자·테두리·글꼴·배경 장식이 전부 CSS 변수다. 테마를 더하려면 `themes.ts`에 항목 하나를 더하고 `npm run check`를 돌린다. 다른 파일은 고치지 않는다. (Figma 시안은 컴포넌트 안에 `isVintage` 같은 분기가 33군데 있었다.)
+- **대비는 사람이 눈으로 보지 않고 스크립트가 본다.** 모든 테마의 글자·바탕 조합이 4.5:1을 넘는지 `check-contrast`가 검사한다. Figma 시안의 값 중 못 넘는 것(귀여운 테마의 보조 글씨, 팝·심플·모던의 버튼 글씨 등)은 고쳤다.
+- **파일 크기 상한** (v2 CLAUDE.md): 컴포넌트 300줄, 로직 400줄 (주석·빈 줄 제외). `check-size`가 검사한다. 지금 가장 큰 컴포넌트가 100줄 안팎이다.
+- **등급에 관한 결정은 `features/dex/cardTier.ts` 한 파일에만 있다.** 기준이나 이름이 바뀌어도 거기만 고친다.
+- **카드는 앱 테마를 따르지 않는다** (`card.css`가 자기 색을 든다). 테마 6개 × 등급 4개의 조합을 만들지 않으려는 것이고, 공유된 카드가 누구 것이든 같아 보이게 하려는 것이다.
+- 의존성은 React와 Vite뿐이다. CSS 프레임워크·아이콘 라이브러리·라우터를 쓰지 않았다.
+- 모든 함수에 한국어 JSDoc, 버튼 옆에는 그 버튼이 있는 이유.
+
+## 제품으로 가져갈 것 / 버릴 것
+
+**가져간다**: `theme/`(토큰 구조와 값, 적용 방식) · `scripts/` · `styles/shell.css`의 폰/PC 전환 방식 · `ui/`의 공통 컴포넌트 목록 · 화면별 배치와 `BUTTONS.md`의 결정 · `cardTier.ts`의 "한 파일에 모은다"는 구조.
+
+**버린다**: `mock/` 전부 · `app/PreviewStage.tsx`와 `styles/stage.css` · `app/store.tsx`의 메모리 저장(로컬 DB로 대체) · 훅 안쪽의 타이머 흉내 · 그림 지도(Leaflet으로 대체) · 움직이지 않는 직접 자르기 틀(v1 `crop.ts`로 대체) · `ui/format.ts`(v1 `format.ts`로 대체 — 촬영지 시간대 처리가 거기 있다).
+
+## 알려진 한계
+
+- **카드 디자인은 내가 해석한 것이다.** 예전에 Claude Design으로 만든 Card Reveal은 열어 보지 못했다(claude.ai 접근 차단). 그 디자인의 캡처를 보고 `card.css`를 맞춰야 한다.
+- 등급 기준과 이름은 **미확정**이다 (지금: 다시 만남 / 올해 첫 만남 / 첫 만남 / 귀한 손님). `DESIGN_PROMPT.md`의 "미정 사항" 참고.
+- 새 사진은 위키미디어 공용 파일을 주소로만 불러온다. 파일마다 라이선스가 달라서 제품이나 공개 자료에 그대로 쓰면 안 된다. 인터넷이 없으면 자리 표시가 나온다.
+- 글꼴(Pretendard, Noto Serif KR)도 CDN에서 받는다. 제품에서 직접 호스팅할지는 계획서에서 정한다.
+- 관찰지 꾸미기는 이 초안에 없다 (`BUTTONS.md`의 "보류").
+- 접근성은 기본만 했다: 대비, 48px 터치 영역, 포커스 표시, aria 라벨, 움직임 줄이기. 스크린리더로 끝까지 써 보지는 않았다.

@@ -1,0 +1,24 @@
+node_modules/
+dist/
+.env*
+*.log
+.DS_Store
+.vercel/
+
+# Claude Code 플러그인(oh-my-claudecode) 로컬 작업 상태 — 개인 세션 기록, 코드 아님
+.omc/
+
+# 모델 가중치 — 용량이 크고 라이선스상 repo에 넣지 않는다 (외부 스토리지에서 받는다)
+*.onnx
+*.tflite
+*.pt
+*.pth
+*.bin
+
+# 사용자의 실제 기록·사진 (백업 ZIP 포함) — 절대 올리지 않는다
+backups/
+
+# 참고 자료는 올리지 않는다: 남의 디자인 캡처(저작권), 외부 도구가 내보낸 파일.
+# 단, 직접 만드는 초안(design_v*)은 설계 기록이라 올린다.
+ref_design/*
+!ref_design/design_v*/

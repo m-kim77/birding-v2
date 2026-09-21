@@ -1,0 +1,25 @@
+/*
+ * 바탕 규칙. 색·모서리·그림자·글꼴은 전부 테마 토큰(var(--…))으로 받는다.
+ * 여기 있는 고정값은 테마와 무관한 것뿐이다: 간격 단계, 글자 크기, 터치 영역.
+ */
+:root {
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; --sp-6: 32px;
+  /* 장갑 낀 손·한 손 조작 기준. 누를 수 있는 것은 모두 이 높이 이상 */
+  --touch: 48px;
+}
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body { font-family: var(--font-body); font-size: 16px; line-height: 1.5; color: var(--text-1); -webkit-font-smoothing: antialiased; }
+button, input, textarea, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: 0.5; }
+:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
+h1, h2, h3, p { margin: 0; }
+em { font-style: italic; }
+
+/* 새 이름·화면 제목에만 쓰는 글꼴. 작은 글씨에는 쓰지 않는다 */
+.display, .screen-head h1 { font-family: var(--font-display); font-weight: var(--weight-title); }
+.icon { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.hint { color: var(--text-3); font-size: 14px; }
+.note { white-space: pre-wrap; }
+hr { border: 0; border-top: 1px solid var(--border); margin: var(--sp-4) 0; }
