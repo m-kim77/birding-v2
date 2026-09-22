@@ -29,6 +29,8 @@ export function useAsk() {
   const [message, setMessage] = useState('')
   // 이번 판정이 내 키로 갔는지 — 안내 문구가 다르다 (기본 제공 AI가 막혔을 때만 "설정에서 내 키"를 권한다)
   const [own, setOwn] = useState(false)
+  // 판정을 시작한 시각(ms). 화면이 "진행 중 · 0분 42초"와 "앞 순서를 기다리는 중일 수 있습니다"를 그리는 재료
+  const [startedAt, setStartedAt] = useState<number | null>(null)
   const abort = useRef<AbortController | null>(null)
   useEffect(() => () => abort.current?.abort(), [])
 
@@ -37,6 +39,7 @@ export function useAsk() {
     abort.current?.abort()
     abort.current = new AbortController()
     setState('running')
+    setStartedAt(Date.now())
     setSteps(['사진에서 특징을 살펴보는 중'])
     setVerdict(null)
     const key = loadOwnKey()
@@ -63,5 +66,17 @@ export function useAsk() {
     setState('idle')
   }
 
-  return { state, steps, verdict, message, own, start, cancel }
+  /**
+   * 끝난 판정을 밖에서 넣는다 (되살린 초안의 판정). 돌고 있던 것이 있으면 멈춘다.
+   * 진행 단계 목록은 비운다 — 그 판정이 어떤 도구를 거쳤는지는 남기지 않았다.
+   */
+  function restore(v: Verdict) {
+    abort.current?.abort()
+    setVerdict(v)
+    setSteps([])
+    setMessage('')
+    setState('done')
+  }
+
+  return { state, steps, verdict, message, own, startedAt, start, cancel, restore }
 }

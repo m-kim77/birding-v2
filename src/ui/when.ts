@@ -68,3 +68,16 @@ export function daysAgoOf(iso: string, now = new Date()): string | null {
   if (days === 1) return '어제'
   return `${days}일 전`
 }
+
+/**
+ * 최근 시각을 짧게. '오늘 오후 3:20' · '어제 오전 9:05' · '3일 전 오후 6:40'. 브라우저 시간대다.
+ * 못 읽는 값이면 null (부르는 쪽이 문구를 빼거나 "얼마 전"으로 쓴다).
+ */
+export function recentTimeOf(iso: string, now = new Date()): string | null {
+  const days = daysAgoOf(iso, now)
+  if (days === null) return null
+  const p = localParts(new Date(iso))
+  const half = p.hour < 12 ? '오전' : '오후'
+  const h = p.hour % 12 === 0 ? 12 : p.hour % 12
+  return `${days} ${half} ${h}:${pad2(p.minute)}`
+}
