@@ -1,4 +1,5 @@
-import { localParts, zonedParts, type ZonedParts } from '../lib/format'
+// 확장자를 적는 이유: node --test가 이 파일을 직접 읽는다 (Vite는 어느 쪽이든 된다)
+import { localParts, zonedParts, type ZonedParts } from '../lib/format.ts'
 import type { Sighting } from '../types'
 
 const pad2 = (n: number) => String(n).padStart(2, '0')
@@ -33,4 +34,37 @@ export function monthOf(s: Pick<Sighting, 'capturedAt' | 'capturedAtOffset'>): s
 export function dotDateOf(s: Pick<Sighting, 'capturedAt' | 'capturedAtOffset'>): string {
   const p = partsOf(s)
   return `${pad2(p.month)} · ${pad2(p.day)} · ${p.year}`
+}
+
+/** 'YYYY-MM-DD' */
+function fileDate(p: ZonedParts): string {
+  return `${p.year}-${pad2(p.month)}-${pad2(p.day)}`
+}
+
+/**
+ * 파일 이름에 넣는 촬영 날짜 'YYYY-MM-DD' — **촬영지 날짜**다.
+ * `capturedAt.slice(0, 10)`은 UTC라 한국의 새벽 사진이 전날 날짜로 나간다.
+ */
+export function fileDateOf(s: Pick<Sighting, 'capturedAt' | 'capturedAtOffset'>): string {
+  return fileDate(partsOf(s))
+}
+
+/** 파일 이름에 넣는 오늘 날짜 'YYYY-MM-DD' — 브라우저 시간대 기준 (백업 파일 이름) */
+export function fileDateToday(now = new Date()): string {
+  return fileDate(localParts(now))
+}
+
+/**
+ * 어떤 시각이 얼마나 지났는지. '오늘' · '어제' · 'N일 전'. 날짜 경계는 브라우저 시간대다.
+ * 빈 문자열이나 못 읽는 값이면 null (부르는 쪽이 "한 번도 없음"으로 쓴다). 미래 시각(기기 시계가 뒤로 간 경우)은 '오늘'로 둔다.
+ */
+export function daysAgoOf(iso: string, now = new Date()): string | null {
+  const then = new Date(iso)
+  if (!iso || Number.isNaN(then.getTime())) return null
+  const a = localParts(then)
+  const b = localParts(now)
+  const days = Math.round((Date.UTC(b.year, b.month - 1, b.day) - Date.UTC(a.year, a.month - 1, a.day)) / 86_400_000)
+  if (days <= 0) return '오늘'
+  if (days === 1) return '어제'
+  return `${days}일 전`
 }
