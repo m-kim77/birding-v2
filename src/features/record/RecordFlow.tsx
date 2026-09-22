@@ -6,6 +6,9 @@ import Button from '../../ui/Button'
 import Icon from '../../ui/Icon'
 import { dateTimeOf } from '../../ui/when'
 import type { NormalizedBox, Sighting } from '../../types'
+import { accentFromImage } from '../dex/accentFromPhoto'
+import { styleFromAccent } from '../dex/cardStyle'
+import { isFirstMeet } from '../dex/dexNo'
 import { buildSighting } from './buildSighting'
 import CardResult from './CardResult'
 import DetectView from './DetectView'
@@ -43,7 +46,7 @@ export default function RecordFlow({ onCancel, onDone }: Props) {
   const [editingPlace, setEditingPlace] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
-  const [saved, setSaved] = useState<Sighting | null>(null)
+  const [saved, setSaved] = useState<{ sighting: Sighting; firstMeet: boolean } | null>(null)
 
   // 새가 한 마리뿐이면 고를 것이 없으니 바로 그 상자를 쓴다
   const only = detection.boxes?.length === 1 ? detection.boxes[0] : null
@@ -60,17 +63,22 @@ export default function RecordFlow({ onCancel, onDone }: Props) {
     void ask.start(await imageForAI(photo, picked?.box ?? null), { capturedAt: photo.exif.capturedAt, place: loc.place.name })
   }
 
-  /** 사진과 기록을 저장하고 카드 화면으로 넘어간다. 실패하면 이유를 보여 주고 화면에 머문다 */
+  /**
+   * 사진과 기록을 저장하고 카드 화면으로 넘어간다. 실패하면 이유를 보여 주고 화면에 머문다.
+   * 카드 색은 잘라낸 사진(없으면 사진 전체)에서 뽑는다 — 못 뽑으면 기본색. "처음 본 종"은 더하기 전의 목록으로 판단한다.
+   */
   async function save() {
     if (!photo) return
     setSaving(true)
     setSaveError('')
     try {
       const cut = picked ? await makeCrop(photo, picked.box) : null
-      const sighting = buildSighting({ name, note, exif: photo.exif, place: loc.place, crop: cut && picked ? { box: cut.box, by: picked.by } : null, verdict: ask.verdict, existing, now: new Date() })
+      // 자른 영역이 없으면(모델을 안 받았거나 새를 못 찾았거나 여러 마리 중 안 골랐으면) 사진 전체에서 뽑는다 — imageForAI·getBestPhoto와 같은 규칙
+      const cardStyle = styleFromAccent(await accentFromImage(cut?.blob ?? photo.bitmap))
+      const sighting = buildSighting({ name, note, exif: photo.exif, place: loc.place, crop: cut && picked ? { box: cut.box, by: picked.by } : null, verdict: ask.verdict, cardStyle, existing, now: new Date() })
       await savePhotos(sighting.id, photo, cut?.blob ?? null)
       await journal.add(sighting)
-      setSaved(sighting)
+      setSaved({ sighting, firstMeet: isFirstMeet(sighting.speciesKo, existing) })
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : '저장하지 못했습니다.')
     } finally {
@@ -78,7 +86,7 @@ export default function RecordFlow({ onCancel, onDone }: Props) {
     }
   }
 
-  if (saved) return <CardResult sighting={saved} onDone={() => onDone(saved.id)} />
+  if (saved) return <CardResult sighting={saved.sighting} firstMeet={saved.firstMeet} onDone={() => onDone(saved.sighting.id)} />
 
   /**
    * 사진을 고르거나 바꾼다. **열기에 성공한 뒤에만** 이전 사진에 딸린 영역·판정을 비운다 — 실패하면 옛 사진이 그대로 남으므로 그것들도 남아야 한다.

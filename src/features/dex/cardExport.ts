@@ -1,7 +1,8 @@
 import { getBestPhoto } from '../../data/photos'
 import type { Sighting } from '../../types'
 import { CARD_H, CARD_W, PLATE, drawCardBack, drawCardFront, drawPlate, loadCardFonts } from './cardCanvas'
-import { CARD_BASE, CARD_LOOKS } from './cardLook'
+import { CARD_BASE } from './cardLook'
+import { styleOf } from './cardStyle'
 
 /**
  * 영상의 시간표(초). Card Reveal 디자인의 네 박자 — 스캔 → 생성 → 플립 → 공개 — 에 마지막 멈춘 장면을 더했다.
@@ -66,7 +67,7 @@ function withCard(ctx: CanvasRenderingContext2D, scale: number, squeeze: number,
 
 /** 영상의 한 장면. `sec`는 시작부터 흐른 초 */
 function drawFrame(ctx: CanvasRenderingContext2D, s: Sighting, img: ImageBitmap | null, sec: number): void {
-  const accent = CARD_LOOKS[s.tier].accent
+  const accent = styleOf(s).accent
   drawStage(ctx)
   if (sec < T.scanEnd) {
     // 01 스캔 — 사진판만 떠 있고 빛 줄이 위에서 아래로 훑는다
@@ -87,7 +88,7 @@ function drawFrame(ctx: CanvasRenderingContext2D, s: Sighting, img: ImageBitmap 
     const p = (sec - T.flipStart) / (T.revealStart - T.flipStart)
     withCard(ctx, 0.88 + 0.04 * Math.sin(p * Math.PI), Math.abs(Math.cos(p * Math.PI)), 1, () => (p < 0.5 ? drawCardBack(ctx, accent) : drawCardFront(ctx, s, img, null)))
   } else {
-    // 04 공개 — 등급색 빛이 번지고 빛 줄기가 지나간다
+    // 04 공개 — 강조색 빛이 번지고 빛 줄기가 지나간다
     const p = Math.min(1, (sec - T.revealStart) / (T.revealEnd - T.revealStart))
     ctx.save()
     ctx.globalAlpha = 0.55 * (1 - p)

@@ -1,7 +1,7 @@
 import { latinOf } from '../../data/species'
 import type { ExifInfo } from '../../lib/exif'
-import type { NormalizedBox, ShotInfo, Sighting, Verdict } from '../../types'
-import { dexNoFor, tierFor } from '../dex/cardTier'
+import type { CardStyle, NormalizedBox, ShotInfo, Sighting, Verdict } from '../../types'
+import { dexNoFor } from '../dex/dexNo'
 import type { PlaceValue } from './usePlace'
 
 interface Input {
@@ -11,6 +11,8 @@ interface Input {
   place: PlaceValue
   crop: { box: NormalizedBox; by: string } | null
   verdict: Verdict | null
+  /** 카드 색. 사진에서 뽑은 것을 밖에서 넣는다 (여기는 순수 함수라 캔버스를 쓰지 않는다) */
+  cardStyle: CardStyle
   existing: Sighting[]
   now: Date
 }
@@ -44,7 +46,8 @@ export function buildSighting(input: Input): Sighting {
     place: input.place.name, lat: input.place.lat, lng: input.place.lng, locationSource: input.place.source,
     shot: shotOf(input.exif), note: input.note.trim(),
     cropBox: input.crop?.box ?? null, detectorModel: input.crop?.by ?? null,
-    tier: tierFor(name, capturedAt, [], input.existing), stamps: [], sensitive: false,
+    // tier는 옛 백업 호환용으로만 남았다 — 새 기록은 늘 1 (types.ts)
+    tier: 1, cardStyle: input.cardStyle, stamps: [], sensitive: false,
     identify: name ? 'done' : 'none', verdict: accepted ?? undefined, fromSound: false, dexNo: dexNoFor(name, input.existing),
   }
 }

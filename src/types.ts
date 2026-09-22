@@ -9,10 +9,21 @@ export type LocationSource = 'exif' | 'tracklog' | 'gps' | 'manual' | 'none'
 /** 종 판정 진행 상태. 기록 저장과 판정이 분리돼 있어서 기록마다 따로 든다 */
 export type IdentifyStatus = 'none' | 'waiting' | 'done'
 
-/** 카드 등급. 나누는 기준은 `features/dex/cardTier.ts` 한 곳에만 있다 */
+/**
+ * 옛 카드 등급 (2026-09-22에 뺐다 — 새에 등급을 매기지 않는다). 백업 호환을 위해 필드만 남긴다.
+ * 옛 기록의 카드 색은 이 값으로 정한다 (`features/dex/cardStyle.ts`). 새 기록은 늘 1이다.
+ */
 export type CardTier = 1 | 2 | 3 | 4
 
-/** 등급과 별개로 찍는 사실 도장 */
+/** 카드의 색과 효과. 저장할 때 사진에서 뽑은 색이 들어가고, 사용자가 바꿀 수 있다. 없으면 옛 tier의 색으로 읽는다 */
+export interface CardStyle {
+  /** 강조색 '#RRGGBB' — 테두리·라벨·빛 */
+  accent: string
+  /** 빛 줄기와 바깥 빛을 쓸지 */
+  glow: boolean
+}
+
+/** 사실 도장 */
 export type Stamp = '천연기념물' | '멸종위기' | '길잃은새'
 
 /** 픽셀 단위 크기 한 쌍 */
@@ -101,7 +112,10 @@ export interface Sighting {
   cropBox: NormalizedBox | null
   /** 그 상자를 만든 탐지 모델 id. 손으로 잘랐으면 'manual' */
   detectorModel: string | null
+  /** 쓰지 않는다 (옛 백업 호환). 새 기록은 1. 카드 모양은 `cardStyle`이 정한다 */
   tier: CardTier
+  /** 카드의 색·효과. 옛 기록에는 없다 — 그때는 tier로 색을 정한다 */
+  cardStyle?: CardStyle
   stamps: Stamp[]
   /** 보호가 필요한 종 — 카드와 지도에서 위치를 가린다 */
   sensitive: boolean
