@@ -9,8 +9,9 @@ import Sheet from '../../ui/Sheet'
 import { dateTimeOf } from '../../ui/when'
 import type { LocationSource } from '../../types'
 import BirdCard from '../dex/BirdCard'
-import { dexNoFor } from '../dex/cardTier'
 import CardActions from '../dex/CardActions'
+import CardStylePicker from '../dex/CardStylePicker'
+import { dexNoFor } from '../dex/dexNo'
 import VerdictDetails from '../identify/VerdictDetails'
 
 const SOURCE_LABEL: Record<LocationSource, string> = {
@@ -98,6 +99,7 @@ export default function RecordDetail({ id, onBack }: Props) {
       {showCard && (
         <Sheet title="새 카드" onClose={() => setShowCard(false)}>
           <BirdCard sighting={s} />
+          <CardStylePicker sighting={s} />
           <CardActions sighting={s} />
         </Sheet>
       )}

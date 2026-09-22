@@ -1,0 +1,13 @@
+/* 카드 색 고르개 — 카드 아래. 카드(card.css)와 달리 앱의 일부라 앱 테마 토큰으로 그린다 */
+.style-picker { display: grid; gap: var(--sp-2); width: 100%; }
+.style-picker .hint { text-align: center; }
+.style-picker .chips { justify-content: center; }
+.swatches { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); }
+.swatch {
+  position: relative; width: var(--touch); height: var(--touch); border-radius: 50%; border: 4px solid transparent; padding: 0;
+  background: var(--swatch) content-box; cursor: pointer;
+}
+.swatch.is-on { border-color: var(--text-1); }
+.swatch-custom { display: grid; place-items: center; background: conic-gradient(#e8846b, #e0b856, #7fb77e, #3fb0a6, #4d8bc8, #8b4fcc, #e8846b) content-box; }
+.swatch-custom input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.swatch-photo { background: var(--bg-surface) content-box; color: var(--text-2); }

@@ -7,10 +7,11 @@ import { dayOf } from '../../ui/when'
 import type { Sighting } from '../../types'
 import BirdCard from './BirdCard'
 import CardActions from './CardActions'
+import CardStylePicker from './CardStylePicker'
 
 interface SpeciesEntry {
   name: string
-  /** 대표 카드 — 그 종의 기록 중 등급이 가장 높은 것 (같으면 최근 것) */
+  /** 대표 카드 — 그 종의 가장 최근 기록 (등급이 없으니 "가장 좋은 기록"을 고를 기준이 없다. 최근 것이 대개 가장 잘 찍은 것이기도 하다) */
   best: Sighting
   /** 그 종의 모든 기록, 최근 것부터 */
   all: Sighting[]
@@ -22,7 +23,7 @@ function bySpecies(sightings: Sighting[]): SpeciesEntry[] {
   for (const s of sightings) if (s.speciesKo) groups.set(s.speciesKo, [...(groups.get(s.speciesKo) ?? []), s])
   return [...groups.entries()].map(([name, list]) => {
     const all = [...list].sort((a, b) => b.capturedAt.localeCompare(a.capturedAt))
-    return { name, all, best: all.reduce((top, s) => (s.tier > top.tier ? s : top), all[0]) }
+    return { name, all, best: all[0] }
   }).sort((a, b) => (a.best.dexNo ?? 9999) - (b.best.dexNo ?? 9999))
 }
 
@@ -52,6 +53,8 @@ export default function DexScreen({ onOpenRecord }: { onOpenRecord: (id: string)
       {open && (
         <Sheet title={open.name} onClose={() => setOpenName('')}>
           <BirdCard sighting={open.best} />
+          {/* 도감에서 고른 색은 그 종의 모든 기록에 준다 — 대표 카드는 새 기록이 오면 바뀌므로, 한 건만 바꾸면 고른 색이 사라진다 */}
+          <CardStylePicker sighting={open.best} alsoIds={open.all.filter((s) => s.id !== open.best.id).map((s) => s.id)} />
           <CardActions sighting={open.best} />
           <section className="dex-history">
             <h3>이 새를 만난 기록 {open.all.length}건</h3>
