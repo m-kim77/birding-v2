@@ -27,16 +27,20 @@ import './record.css'
 interface Props {
   onCancel: () => void
   onDone: (id: string) => void
+  /** 기본 제공 AI가 쉴 때 "설정에서 내 키 넣기"가 가는 곳 */
+  onOpenSettings: () => void
 }
 
 type Crop = { box: NormalizedBox; by: string }
+/** 상자 둘이 같은 영역인지 (참조가 아니라 값으로) */
+const sameBox = (a: NormalizedBox | null, b: NormalizedBox | null) => JSON.stringify(a) === JSON.stringify(b)
 
 /**
  * 사진으로 기록하기. 한 화면을 위에서 아래로 훑으면 끝난다 — 단계 이동(다음·이전) 버튼이 없다.
  * 사용자가 직접 적는 것은 이름과 메모뿐이고, 둘 다 비워도 저장된다. (뺀 버튼과 이유: ref_design/design_v01/BUTTONS.md)
  * 쓰던 것은 초안으로 남는다 — 뒤로 가거나 설정에 다녀와도 다음에 "이어 쓰기"로 돌아온다 (useDraft).
  */
-export default function RecordFlow({ onCancel, onDone }: Props) {
+export default function RecordFlow({ onCancel, onDone, onOpenSettings }: Props) {
   const journal = useJournal()
   const existing = journal.sightings ?? []
   const picker = usePhotoPick()
@@ -49,7 +53,7 @@ export default function RecordFlow({ onCancel, onDone }: Props) {
   const [crop, setCrop] = useState<Crop | null>(null)
   const [name, setName] = useState('')
   const [note, setNote] = useState('')
-  // 판정을 보낼 때의 영역. 초안에 함께 남긴다 (되살린 뒤 영역이 바뀌었는지 보려고)
+  // 판정을 보낼 때의 영역. 그 뒤 영역이 바뀌면 "다시 물어볼 수 있습니다"를 보여 준다
   const [askedBox, setAskedBox] = useState<NormalizedBox | null>(null)
   const [editingPlace, setEditingPlace] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -168,7 +172,8 @@ export default function RecordFlow({ onCancel, onDone }: Props) {
           <FactsCard photo={photo} place={loc.place} onEditPlace={() => setEditingPlace(true)} />
           <Card>
             <SpeciesInput value={name} known={known} onChange={setName} />
-            <IdentifyPanel ask={ask} hasCrop={picked !== null} name={name} onAsk={() => void askAI()} onApply={(v) => setName(v.speciesKo || v.latin)} />
+            <IdentifyPanel ask={ask} hasCrop={picked !== null} cropChanged={ask.state === 'done' && !sameBox(askedBox, picked?.box ?? null)} name={name}
+              onAsk={() => void askAI()} onApply={(v) => setName(v.speciesKo || v.latin)} onPickName={setName} onOpenSettings={onOpenSettings} />
           </Card>
           <NoteCard value={note} onChange={setNote} />
           {pickError}

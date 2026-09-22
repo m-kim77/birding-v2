@@ -11,6 +11,7 @@ import type { LocationSource } from '../../types'
 import BirdCard from '../dex/BirdCard'
 import CardActions from '../dex/CardActions'
 import CardStylePicker from '../dex/CardStylePicker'
+import DetailIdentify from './DetailIdentify'
 import { dexNoFor } from '../dex/dexNo'
 import VerdictDetails from '../identify/VerdictDetails'
 
@@ -21,13 +22,15 @@ const SOURCE_LABEL: Record<LocationSource, string> = {
 interface Props {
   id: string
   onBack: () => void
+  /** 판정 서버가 쉴 때 "설정에서 내 키 넣기"가 가는 곳 */
+  onOpenSettings: () => void
 }
 
 /**
  * 기록 상세. 읽는 화면이라 동작은 둘뿐이다 — 고치기(수정 안에 삭제가 있다)와 카드 보기.
  * 삭제를 이 화면에 꺼내 두지 않은 이유: 되돌릴 수 없는 동작이 읽는 화면의 엄지 닿는 곳에 있으면 안 된다.
  */
-export default function RecordDetail({ id, onBack }: Props) {
+export default function RecordDetail({ id, onBack, onOpenSettings }: Props) {
   const { sightings, update, remove } = useJournal()
   const s = (sightings ?? []).find((x) => x.id === id)
   const [editing, setEditing] = useState(false)
@@ -64,6 +67,8 @@ export default function RecordDetail({ id, onBack }: Props) {
           {editing ? (
             <Card>
               <label className="field"><span>새 이름</span><input value={name} onChange={(e) => setName(e.target.value)} /></label>
+              {/* 이름을 고치면 근거를 떼는 것은 의도된 동작(save)이지만, 말없이 지우면 안 된다 */}
+              {s.verdict && name.trim() !== s.speciesKo && <p className="status-line is-warn">이름을 바꾸면 이 기록의 AI 판정 근거가 지워집니다.</p>}
               <label className="field"><span>메모</span><textarea rows={4} value={note} onChange={(e) => setNote(e.target.value)} /></label>
               <div className="row-actions">
                 <Button variant="primary" icon="check" onClick={() => void save()}>저장</Button>
@@ -88,6 +93,8 @@ export default function RecordDetail({ id, onBack }: Props) {
                   <VerdictDetails verdict={s.verdict} />
                 </Card>
               )}
+              {/* 저장한 뒤에도 물어볼 수 있다 — "나중에 기록을 열어 다시 물어볼 수 있습니다"(IdentifyPanel)가 사실이 되는 곳 */}
+              {!s.fromSound && <DetailIdentify sighting={s} onOpenSettings={onOpenSettings} />}
               <button type="button" className="card-peek" onClick={() => setShowCard(true)} aria-label="카드 크게 보기">
                 <BirdCard sighting={s} small />
                 <span>이 기록의 카드 보기</span>

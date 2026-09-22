@@ -24,6 +24,7 @@ export default function App() {
   const openDetail = (id: string) => setRoute({ name: 'detail', id })
   const home = () => setRoute({ name: 'records' })
   const startRecord = () => setRoute({ name: 'record' })
+  const openSettings = () => setRoute({ name: 'settings' })
 
   return (
     <div className="viewport">
@@ -32,12 +33,12 @@ export default function App() {
         <AppShell active={activeTab(route)} onTab={(name) => setRoute({ name } as Route)} onAdd={startRecord} hideNav={route.name === 'record'}
           screenKey={route.name === 'detail' ? `detail:${route.id}` : route.name}>
           <Suspense fallback={<div className="screen"><p className="hint">불러오는 중…</p></div>}>
-          {route.name === 'records' && <RecordsScreen onOpen={openDetail} onBackup={() => setRoute({ name: 'settings' })} onAdd={startRecord} />}
-          {route.name === 'detail' && <RecordDetail key={route.id} id={route.id} onBack={home} />}
+          {route.name === 'records' && <RecordsScreen onOpen={openDetail} onBackup={openSettings} onAdd={startRecord} />}
+          {route.name === 'detail' && <RecordDetail key={route.id} id={route.id} onBack={home} onOpenSettings={openSettings} />}
           {route.name === 'dex' && <DexScreen onOpenRecord={openDetail} />}
           {route.name === 'map' && <MapScreen onOpen={openDetail} />}
           {route.name === 'settings' && <SettingsScreen choice={theme.choice} onChoose={theme.choose} />}
-          {route.name === 'record' && <RecordFlow onCancel={home} onDone={openDetail} />}
+          {route.name === 'record' && <RecordFlow onCancel={home} onDone={openDetail} onOpenSettings={openSettings} />}
           </Suspense>
         </AppShell>
       </JournalProvider>
