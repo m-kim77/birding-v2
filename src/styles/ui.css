@@ -45,6 +45,15 @@
 .tag-accent { background: var(--accent); color: var(--on-accent); }
 .tag-warn { background: none; border: 1.5px solid var(--warn); color: var(--warn); }
 
+/* 누르는 꼬리표 (목록 거르기). 켜지면 강조색. 높이는 다른 누르는 것과 같은 터치 크기 */
+.chips { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.chip { min-height: var(--touch); padding: 0 var(--sp-4); border-radius: 999px; border: 1.5px solid var(--border); background: var(--bg-card); color: var(--text-2); font-size: 14px; font-weight: 600; }
+.chip.is-on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+
+/* 긴 문장 + 버튼 여럿인 안내 띠: 글이 위, 버튼 줄이 아래 */
+.install-hint { align-items: flex-start; }
+.install-hint > div { flex: 1; display: grid; gap: var(--sp-2); font-size: 15px; }
+
 .field { display: grid; gap: var(--sp-1); }
 .field > span { font-size: 14px; font-weight: 600; color: var(--text-2); }
 .field input, .field textarea, .search input {
