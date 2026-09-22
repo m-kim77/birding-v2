@@ -12,23 +12,47 @@ export interface OwnKey {
   model: string
 }
 
+/** 저장된 모양. `enabled`가 false면 키는 두되 기본 제공 AI를 쓴다 (설정에서 잠깐 바꿔 봐도 키가 지워지지 않게) */
+interface StoredKey extends OwnKey {
+  enabled?: boolean
+}
+
 const STORAGE_KEY = 'bird-journal:own-llm'
 
-/** 저장된 내 키 설정을 읽는다. 없거나 깨졌거나 localStorage가 막혀 있으면 null (= 기본 제공 AI) */
-export function loadOwnKey(): OwnKey | null {
+/** localStorage의 값을 읽는다. 없거나 깨졌거나 막혀 있으면 null */
+function readStored(): StoredKey | null {
   try {
-    const v = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null') as Partial<OwnKey> | null
-    return v?.baseUrl && v.apiKey && v.model ? { baseUrl: v.baseUrl, apiKey: v.apiKey, model: v.model } : null
+    const v = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null') as Partial<StoredKey> | null
+    return v?.baseUrl && v.apiKey && v.model ? { baseUrl: v.baseUrl, apiKey: v.apiKey, model: v.model, enabled: v.enabled !== false } : null
   } catch {
     return null
   }
 }
 
-/** 내 키 설정을 저장한다. null이면 지운다 (기본 제공 AI로 돌아간다) */
+/** 판정에 쓸 내 키. 없거나 꺼 두었으면 null (= 기본 제공 AI) */
+export function loadOwnKey(): OwnKey | null {
+  const v = readStored()
+  return v && v.enabled !== false ? { baseUrl: v.baseUrl, apiKey: v.apiKey, model: v.model } : null
+}
+
+/** 설정 화면용: 저장된 키(꺼 둔 것 포함)와 켜짐 여부 */
+export function loadStoredKey(): { key: OwnKey | null; enabled: boolean } {
+  const v = readStored()
+  return v ? { key: { baseUrl: v.baseUrl, apiKey: v.apiKey, model: v.model }, enabled: v.enabled !== false } : { key: null, enabled: false }
+}
+
+/** 내 키 설정을 켜진 상태로 저장한다. null이면 지운다 (공용 PC에서 키를 남기지 않으려는 사용자를 위해) */
 export function saveOwnKey(value: OwnKey | null): void {
   try {
-    if (value) localStorage.setItem(STORAGE_KEY, JSON.stringify(value)); else localStorage.removeItem(STORAGE_KEY)
+    if (value) localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...value, enabled: true })); else localStorage.removeItem(STORAGE_KEY)
   } catch { /* 저장이 막힌 환경이면 이번 세션에만 쓴다 */ }
+}
+
+/** 저장된 키를 지우지 않고 켜고 끈다. 저장된 키가 없으면 아무 일도 없다 */
+export function setOwnKeyEnabled(enabled: boolean): void {
+  const v = readStored()
+  if (!v) return
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...v, enabled })) } catch { /* 위와 같다 */ }
 }
 
 /** 요청을 보낼 주소와 헤더, 그리고 기록에 남길 모델 이름 */
