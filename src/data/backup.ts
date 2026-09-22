@@ -1,8 +1,8 @@
 import { unzip, zip, type Unzipped, type Zippable } from 'fflate'
 import type { PhotoKind, Sighting } from '../types'
-import { JOURNAL_FILE, buildJournal, parseJournal, parsePhotoPath, photoPath, planMerge, type MergePlan } from './backupFormat'
+import { JOURNAL_FILE, buildJournal, parseJournal, parsePhotoPath, photoPath, planMerge, shouldCopyPhoto, type MergePlan } from './backupFormat'
 import { dbGetAll, dbPut } from './db'
-import { allPhotosOf, putPhoto } from './photos'
+import { allPhotosOf, hasPhoto, putPhoto } from './photos'
 
 /** fflate의 콜백 API를 Promise로 */
 const zipAsync = (files: Zippable) => new Promise<Uint8Array>((resolve, reject) => zip(files, { level: 0 }, (err, out) => (err ? reject(err) : resolve(out))))
@@ -26,6 +26,7 @@ export async function exportBackup(): Promise<Blob> {
 /**
  * 백업 파일을 기기의 기록과 합친다. 합치는 규칙은 `planMerge` (같은 id는 최신이 이기고, 기기에만 있는 것은 그대로).
  * 파일이 ZIP이 아니거나 우리 백업이 아니면 한국어 Error를 던지고 **아무것도 바꾸지 않는다** (검사를 다 끝낸 뒤에 쓴다).
+ * 기록을 먼저 다 쓰고 사진을 쓴다. 사진 도중에 끊겨도 같은 파일을 다시 불러오면 빠진 사진만 이어서 들어온다 (`shouldCopyPhoto`).
  */
 export async function importBackup(file: Blob): Promise<MergePlan> {
   let entries: Unzipped
@@ -35,11 +36,17 @@ export async function importBackup(file: Blob): Promise<MergePlan> {
   const journal = parseJournal(new TextDecoder().decode(journalBytes))
 
   const plan = planMerge(await dbGetAll<Sighting>('sightings'), journal.sightings)
-  const wanted = new Set([...plan.add, ...plan.update].map((s) => s.id))
+  const inJournal = new Set(journal.sightings.map((s) => s.id))
+  const updating = new Set(plan.update.map((s) => s.id))
   for (const s of [...plan.add, ...plan.update]) await dbPut('sightings', s)
   for (const [path, bytes] of Object.entries(entries)) {
     const photo = parsePhotoPath(path)
-    if (photo && wanted.has(photo.id)) await putPhoto(photo.id, photo.kind as PhotoKind, new Blob([new Uint8Array(bytes)], { type: 'image/jpeg' }))
+    if (!photo || !inJournal.has(photo.id)) continue
+    const kind = photo.kind as PhotoKind
+    // 갱신되는 기록은 어차피 덮어쓰므로 DB를 묻지 않는다 — 사진 수백 장에서 트랜잭션 수를 줄인다
+    const here = updating.has(photo.id) ? false : await hasPhoto(photo.id, kind)
+    if (!shouldCopyPhoto(photo.id, plan, true, here)) continue
+    await putPhoto(photo.id, kind, new Blob([new Uint8Array(bytes)], { type: 'image/jpeg' }))
   }
   return plan
 }

@@ -63,6 +63,20 @@ export function planMerge(local: Sighting[], incoming: Sighting[]): MergePlan {
   return plan
 }
 
+/**
+ * 백업 안의 사진 한 판을 기기에 넣을지 정한다.
+ * - 갱신되는 기록(update)의 사진은 늘 넣는다 — 백업 쪽이 더 새 것이다.
+ * - 그 밖에는 백업의 기록 목록에 든 기록 중 **기기에 그 판이 없을 때만** 넣는다.
+ *   복원이 사진 도중에 끊기면 기록은 이미 다 들어가 있어서, 같은 파일을 다시 불러오면 planMerge가 전부 kept로 본다 —
+ *   add·update만 보고 사진을 넣으면 그 사진은 영영 안 들어온다. "없으면 넣는다"로 두면 다시 불러오기가 곧 이어받기다.
+ * - 백업의 기록 목록에 없는 id의 사진(주인 없는 사진)은 넣지 않는다.
+ */
+export function shouldCopyPhoto(id: string, plan: MergePlan, inJournal: boolean, alreadyHere: boolean): boolean {
+  if (!inJournal) return false
+  if (!alreadyHere) return true
+  return plan.update.some((s) => s.id === id)
+}
+
 /** 사진의 ZIP 안 경로 */
 export function photoPath(id: string, kind: string): string {
   return `photos/${id}.${kind}.jpg`

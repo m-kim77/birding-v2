@@ -1,5 +1,5 @@
 import type { PhotoKind } from '../types'
-import { dbDelete, dbGet, dbPut } from './db'
+import { dbCount, dbDelete, dbGet, dbPut } from './db'
 
 const key = (id: string, kind: PhotoKind) => `${id}:${kind}`
 const KINDS: PhotoKind[] = ['full', 'thumb', 'crop']
@@ -7,6 +7,11 @@ const KINDS: PhotoKind[] = ['full', 'thumb', 'crop']
 /** 사진 한 판을 저장한다 */
 export function putPhoto(id: string, kind: PhotoKind, blob: Blob): Promise<void> {
   return dbPut('photos', blob, key(id, kind))
+}
+
+/** 사진 한 판이 저장돼 있는지. 내용은 읽지 않는다 (복원 때 수백 장을 물어보므로 Blob을 꺼내지 않는다) */
+export async function hasPhoto(id: string, kind: PhotoKind): Promise<boolean> {
+  return (await dbCount('photos', key(id, kind))) > 0
 }
 
 /** 사진 한 판을 읽는다. 없으면 undefined */
