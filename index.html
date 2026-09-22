@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#F8F2E0" />
     <link rel="manifest" href="/manifest.webmanifest" />
+    <!-- 아이폰 사파리는 매니페스트의 아이콘·display를 안 본다. 이 셋이 없으면 "홈 화면에 추가"가 화면 캡처를 아이콘으로 쓰고 브라우저 탭으로 열린다.
+         홈 화면에 추가해야 7일 미사용 삭제에서 벗어나고 navigator.storage.persist()도 승인된다 (data/journal.tsx) -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="탐조일지" />
     <title>탐조일지</title>
     <!-- 글꼴은 아직 CDN에서 받는다. 오프라인(PWA) 지원을 넣을 때 직접 호스팅으로 바꾼다 -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
