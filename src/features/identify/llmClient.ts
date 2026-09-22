@@ -60,7 +60,10 @@ export async function chat(own: OwnKey | null, messages: ChatMessage[], tools: u
     res = await fetch(target.url, { method: 'POST', headers: { 'content-type': 'application/json', ...target.headers }, body: JSON.stringify(payload), signal })
   } catch (e) {
     if (signal.aborted) throw e
-    throw new LlmUnavailableError('판정 서버에 닿지 못했습니다.')
+    // 내 키 요청은 우리 서버를 거치지 않는다 — "판정 서버"라고 하면 사용자가 엉뚱한 곳을 의심한다
+    throw new LlmUnavailableError(own
+      ? '내 API 키의 서비스에 닿지 못했습니다 — 설정에서 주소를 확인해 주세요. 브라우저에서 직접 부르는 것을 막는 서비스일 수도 있습니다.'
+      : '판정 서버에 닿지 못했습니다.')
   }
   if (!res.ok || !res.body) {
     const message = await res.json().then((j) => String(j?.error?.message ?? ''), () => '')
