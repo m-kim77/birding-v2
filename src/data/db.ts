@@ -53,6 +53,12 @@ export async function dbGetAll<T>(store: StoreName): Promise<T[]> {
   return done(db.transaction(store).objectStore(store).getAll() as IDBRequest<T[]>)
 }
 
+/** 키가 있는지 센다 (0 또는 1). 값을 읽지 않으므로 큰 Blob이 있어도 가볍다 */
+export async function dbCount(store: StoreName, key: string): Promise<number> {
+  const db = await openDb()
+  return done(db.transaction(store).objectStore(store).count(key))
+}
+
 /** 넣거나 덮어쓴다. keyPath가 있는 저장소(sightings)는 key를 주지 않는다 */
 export async function dbPut(store: StoreName, value: unknown, key?: string): Promise<void> {
   const db = await openDb()

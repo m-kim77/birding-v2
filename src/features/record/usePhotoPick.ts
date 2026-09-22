@@ -32,16 +32,21 @@ export function usePhotoPick() {
   }
   useEffect(() => release, [])
 
-  /** 파일을 받아 연다. 실패해도 던지지 않는다 */
-  async function pick(file: File) {
+  /**
+   * 파일을 받아 연다. 성공하면 새 사진을, 열지 못하면 null을 돌려준다 — 그때는 `error`에 이유를 담고 **들고 있던 사진은 그대로 둔다**.
+   * 던지지 않는다. 부르는 쪽은 반환값을 보고 나서야 옛 사진에 딸린 것(자른 영역·판정)을 비워야 한다.
+   */
+  async function pick(file: File): Promise<PickedPhoto | null> {
     setError('')
     try {
       const [bitmap, exif] = await Promise.all([openOriented(file), parseExif(file)])
       release()
       held.current = { file, url: URL.createObjectURL(file), size: { width: bitmap.width, height: bitmap.height }, exif, bitmap }
       setPhoto(held.current)
+      return held.current
     } catch (e) {
       setError(e instanceof Error ? e.message : '사진을 열지 못했습니다.')
+      return null
     }
   }
 

@@ -1,5 +1,6 @@
 /**
- * 모델 파일을 브라우저 Cache Storage에 받아 둔다. 한 번 받으면 인터넷 없이도 쓴다.
+ * 모델 파일을 브라우저 Cache Storage에 받아 둔다. 한 번 받으면 다시 받지 않는다.
+ * 그렇다고 오프라인이 되는 것은 아니다 — 실행 코드(wasm)는 아직 CDN에서 온다 (mediapipeDetector.ts WASM_BASE). 화면에 "인터넷 없이"라고 적지 말 것.
  * HTTP 캐시에 맡기지 않는 이유: 브라우저가 마음대로 비울 수 있고, "받았는지"를 앱이 알 수 없다.
  */
 const CACHE_NAME = 'models-v1'

@@ -15,17 +15,21 @@ interface Place { key: string; name: string; lat: number; lng: number; items: Si
 /**
  * 가까운 기록을 핀 하나로 모은다 (좌표를 소수 3자리 ≈ 110m 격자로 뭉갠다 — 같은 탐조지의 기록이 한 핀이 된다).
  * 좌표가 없는 기록과 보호가 필요한 종은 지도에 올리지 않는다 — 지도 화면은 캡처돼 퍼지기 쉽다.
+ * 핀의 좌표·이름은 그 자리에서 **가장 먼저 찍은** 기록의 것이다 — 목록 순서가 아니라 촬영 시각으로 고르므로 기록이 늘어도 핀이 움직이지 않는다
+ * (핀이 움직이면 지도가 시야를 다시 맞춰 사용자가 확대해 둔 것이 튄다 — LeafletMap).
  */
 function groupPlaces(sightings: Sighting[]): Place[] {
-  const places = new Map<string, Place>()
+  const groups = new Map<string, Sighting[]>()
   for (const s of sightings) {
     if (s.lat === null || s.lng === null || s.sensitive) continue
     const key = `${s.lat.toFixed(3)},${s.lng.toFixed(3)}`
-    const found = places.get(key)
-    if (found) found.items.push(s)
-    else places.set(key, { key, name: s.place || '이름 없는 장소', lat: s.lat, lng: s.lng, items: [s] })
+    groups.set(key, [...(groups.get(key) ?? []), s])
   }
-  return [...places.values()]
+  const earlier = (a: Sighting, b: Sighting) => (a.capturedAt === b.capturedAt ? a.id < b.id : a.capturedAt < b.capturedAt)
+  return [...groups.entries()].map(([key, items]) => {
+    const first = items.reduce((a, b) => (earlier(b, a) ? b : a))
+    return { key, name: first.place || '이름 없는 장소', lat: first.lat!, lng: first.lng!, items }
+  })
 }
 
 /** 지도. 핀을 누르면 그 장소의 기록이 옆(폰에서는 아래)에 나온다 */

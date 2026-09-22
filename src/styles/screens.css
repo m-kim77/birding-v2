@@ -4,8 +4,7 @@
 .record-item { grid-template-columns: 112px 1fr; align-items: center; padding: var(--sp-2); gap: var(--sp-3); text-align: left; color: var(--text-1); width: 100%; }
 .record-item .photo-box { border-radius: calc(var(--radius-card) * 0.7); }
 .record-item-text { display: grid; gap: 2px; min-width: 0; }
-.record-item-name { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
-.record-item-name strong { font-size: 18px; }
+.record-item-text strong { font-size: 18px; }
 .record-item-text em { color: var(--text-3); font-size: 13px; }
 .record-item-text > span { color: var(--text-2); font-size: 14px; }
 

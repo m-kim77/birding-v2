@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { BACKUP_FORMAT, buildJournal, parseJournal, parsePhotoPath, photoPath, planMerge } from '../src/data/backupFormat.ts'
+import { BACKUP_FORMAT, buildJournal, parseJournal, parsePhotoPath, photoPath, planMerge, shouldCopyPhoto } from '../src/data/backupFormat.ts'
 import type { Sighting } from '../src/types.ts'
 
 /** 검사에 필요한 값만 채운 기록 */
@@ -50,4 +50,22 @@ test('photoPath ↔ parsePhotoPath 왕복', () => {
   assert.deepEqual(parsePhotoPath(photoPath('3f2a-uuid', 'crop')), { id: '3f2a-uuid', kind: 'crop' })
   assert.equal(parsePhotoPath('journal.json'), null)
   assert.equal(parsePhotoPath('photos/x.evil.exe'), null)
+})
+
+/** 복원이 사진 도중에 끊긴 뒤 같은 파일을 다시 불러오는 상황을 그대로 흉내 낸다 */
+test('shouldCopyPhoto: 기록은 이미 들어와 kept인데 사진이 없으면 넣는다 (끊긴 복원의 이어받기)', () => {
+  const at = '2026-09-01T00:00:00.000Z'
+  const plan = planMerge([sighting('a', at)], [sighting('a', at)])
+  assert.equal(plan.kept, 1)
+  assert.equal(shouldCopyPhoto('a', plan, true, false), true)
+  assert.equal(shouldCopyPhoto('a', plan, true, true), false)
+})
+
+test('shouldCopyPhoto: 갱신되는 기록의 사진은 이미 있어도 덮어쓴다 (백업 쪽이 더 새 것이다)', () => {
+  const plan = planMerge([sighting('a', '2026-09-01T00:00:00.000Z')], [sighting('a', '2026-09-02T00:00:00.000Z')])
+  assert.equal(shouldCopyPhoto('a', plan, true, true), true)
+})
+
+test('shouldCopyPhoto: 백업의 기록 목록에 없는 id의 사진은 넣지 않는다', () => {
+  assert.equal(shouldCopyPhoto('ghost', planMerge([], []), false, false), false)
 })

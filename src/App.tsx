@@ -1,5 +1,6 @@
 import { Suspense, lazy, useState } from 'react'
 import AppShell from './app/AppShell'
+import ErrorBoundary from './app/ErrorBoundary'
 import { activeTab, type Route } from './app/routes'
 import { JournalProvider } from './data/journal'
 import DexScreen from './features/dex/DexScreen'
@@ -26,6 +27,7 @@ export default function App() {
 
   return (
     <div className="viewport">
+      <ErrorBoundary>
       <JournalProvider>
         <AppShell active={activeTab(route)} onTab={(name) => setRoute({ name } as Route)} onAdd={startRecord} hideNav={route.name === 'record'}
           screenKey={route.name === 'detail' ? `detail:${route.id}` : route.name}>
@@ -39,6 +41,7 @@ export default function App() {
           </Suspense>
         </AppShell>
       </JournalProvider>
+      </ErrorBoundary>
     </div>
   )
 }

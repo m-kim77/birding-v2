@@ -6,7 +6,7 @@ import VerdictDetails from '../identify/VerdictDetails'
 import type { AskState } from './useAsk'
 
 interface Props {
-  ask: { state: AskState; steps: string[]; verdict: Verdict | null; message: string; cancel: () => void }
+  ask: { state: AskState; steps: string[]; verdict: Verdict | null; message: string; own: boolean; cancel: () => void }
   /** 자를 영역을 골랐는지. 안 골랐어도 물어볼 수 있다 — 그때는 사진 전체가 간다 */
   hasCrop: boolean
   /** 지금 이름 칸의 값 — 결과를 이미 넣었는지 보려고 */
@@ -22,9 +22,11 @@ interface Props {
 export default function IdentifyPanel({ ask, hasCrop, name, onAsk, onApply }: Props) {
   if (ask.state === 'server-down') {
     return (
-      // 다시 시도: 서버가 돌아온 걸 사용자가 먼저 알 수도 있다
+      // 다시 시도: 서버가 돌아온 걸 사용자가 먼저 알 수도 있다. 문구는 서버가 보낸 이유를 그대로 쓴다 (llmClient.ts)
       <Banner tone="warn" icon="alert" action={<Button variant="quiet" onClick={onAsk}>다시 시도</Button>}>
-        판정 서버가 쉬는 중입니다. 이름 없이 먼저 저장해 두고, 나중에 기록을 열어 다시 물어볼 수 있습니다.
+        {ask.message || '판정 서버가 쉬는 중입니다.'} 이름 없이 먼저 저장해 둘 수 있습니다.
+        {/* 기본 제공 AI가 막혔을 때 지금 당장 되는 유일한 길 — 설정으로 가는 버튼은 초안 보존(작업 3)과 함께 붙인다 */}
+        {!ask.own && ' 설정 › AI 종 판정에서 내 API 키를 넣으면 바로 판정할 수 있습니다.'}
       </Banner>
     )
   }

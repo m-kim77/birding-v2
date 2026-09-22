@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Sighting } from '../types'
 import { dbDelete, dbGet, dbGetAll, dbPut } from './db'
 import { deletePhotos } from './photos'
@@ -22,7 +22,42 @@ interface Journal {
   reload: () => Promise<void>
   /** 마지막 백업 뒤에 생기거나 고친 기록 수 */
   unsaved: number
+  /** 마지막으로 백업 파일을 만든 시각 (UTC ISO). 한 번도 안 했으면 빈 문자열 */
+  lastBackupAt: string
+  /**
+   * 브라우저가 이 앱의 저장소를 "지우지 않겠다"고 약속했는지. 아직 모르거나 API가 없으면 null.
+   * false면 저장 공간이 모자랄 때 기록이 통째로 지워질 수 있다 — 화면은 이 값을 보고 백업을 더 일찍 권한다.
+   * (처음에는 묻기만 한 값이라 "아직 요청 안 함"도 false다. 첫 저장 뒤에 요청하고 그 답으로 갱신한다.)
+   */
+  persisted: boolean | null
   markBackedUp: () => Promise<void>
+}
+
+/**
+ * 브라우저가 이 앱의 저장소를 지우지 않기로 했는지 **묻기만** 한다 (프롬프트 없음). API가 없으면 null.
+ * 요청(`persist`)과 갈라 둔 이유: 파이어폭스는 요청을 사용자에게 권한 창으로 띄운다 — 첫 화면에서 그러면 안 된다.
+ */
+async function readPersisted(): Promise<boolean | null> {
+  try {
+    if (!navigator.storage?.persisted) return null
+    return await navigator.storage.persisted()
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 저장소를 지우지 말라고 요청한다. 거절되면 false, API가 없으면 null.
+ * 크롬은 설치·즐겨찾기 같은 신호로 조용히 정하고, 아이폰 사파리는 홈 화면에 추가했을 때만 승인한다 — 그래서 거절이 흔하다.
+ * 지킬 것이 생긴 순간(첫 기록 저장 직후)에 한 번만 부른다.
+ */
+async function requestPersist(): Promise<boolean | null> {
+  try {
+    if (!navigator.storage?.persist) return null
+    return await navigator.storage.persist()
+  } catch {
+    return false
+  }
 }
 
 const Ctx = createContext<Journal | null>(null)
@@ -34,6 +69,9 @@ const Ctx = createContext<Journal | null>(null)
 export function JournalProvider({ children }: { children: ReactNode }) {
   const [sightings, setSightings] = useState<Sighting[] | null>(null)
   const [lastBackupAt, setLastBackupAt] = useState('')
+  const [persisted, setPersisted] = useState<boolean | null>(null)
+  // 이번 실행에서 persist()를 이미 요청했는지 — 거절을 기억하지 않는 브라우저에서 저장할 때마다 다시 묻지 않게
+  const askedPersist = useRef(false)
   const [error, setError] = useState('')
 
   const reload = useCallback(async () => {
@@ -46,11 +84,17 @@ export function JournalProvider({ children }: { children: ReactNode }) {
     }
   }, [])
   useEffect(() => { void reload() }, [reload])
+  useEffect(() => { void readPersisted().then(setPersisted) }, [])
 
   const journal = useMemo<Journal>(() => ({
-    sightings, error, reload,
+    sightings, error, reload, lastBackupAt, persisted,
     unsaved: (sightings ?? []).filter((s) => s.updatedAt > lastBackupAt).length,
-    add: async (s) => { await dbPut('sightings', s); setSightings((list) => [s, ...(list ?? [])]) },
+    add: async (s) => {
+      await dbPut('sightings', s)
+      setSightings((list) => [s, ...(list ?? [])])
+      // 지킬 것이 생겼다 — 지금 저장소 보존을 요청한다 (첫 화면에서 묻지 않는 이유는 requestPersist 주석)
+      if (persisted !== true && !askedPersist.current) { askedPersist.current = true; void requestPersist().then((ok) => { if (ok !== null) setPersisted(ok) }) }
+    },
     update: async (id, patch) => {
       const cur = (sightings ?? []).find((s) => s.id === id)
       if (!cur) return
@@ -68,7 +112,7 @@ export function JournalProvider({ children }: { children: ReactNode }) {
       await dbPut('meta', now, LAST_BACKUP_KEY)
       setLastBackupAt(now)
     },
-  }), [sightings, lastBackupAt, error, reload])
+  }), [sightings, lastBackupAt, persisted, error, reload])
 
   return <Ctx.Provider value={journal}>{children}</Ctx.Provider>
 }

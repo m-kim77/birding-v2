@@ -27,6 +27,8 @@ export function useAsk() {
   const [steps, setSteps] = useState<string[]>([])
   const [verdict, setVerdict] = useState<Verdict | null>(null)
   const [message, setMessage] = useState('')
+  // 이번 판정이 내 키로 갔는지 — 안내 문구가 다르다 (기본 제공 AI가 막혔을 때만 "설정에서 내 키"를 권한다)
+  const [own, setOwn] = useState(false)
   const abort = useRef<AbortController | null>(null)
   useEffect(() => () => abort.current?.abort(), [])
 
@@ -37,25 +39,29 @@ export function useAsk() {
     setState('running')
     setSteps(['사진에서 특징을 살펴보는 중'])
     setVerdict(null)
+    const key = loadOwnKey()
+    setOwn(key !== null)
     try {
       const result = await runIdentify({
-        imageDataUrl, context, own: loadOwnKey(), signal: abort.current.signal,
+        imageDataUrl, context, own: key, signal: abort.current.signal,
         onEvent: (e) => { const text = stepText(e); if (text) setSteps((list) => [...list, text]) },
       })
       if (result) { setVerdict(result); setState('done') } else { setMessage('AI의 답을 읽지 못했습니다. 다시 시도해 보세요.'); setState('failed') }
     } catch (e) {
       if (abort.current.signal.aborted) { setState('idle'); return }
-      if (e instanceof LlmUnavailableError) { setState('server-down'); return }
+      // 서버가 보낸 이유("아직 설정되지 않았습니다" 등)를 버리지 않는다 — "쉬는 중"과 "영영 안 됨"은 사용자가 할 일이 다르다
+      if (e instanceof LlmUnavailableError) { setMessage(e.message); setState('server-down'); return }
       setMessage(e instanceof Error ? e.message : '판정에 실패했습니다.')
       setState('failed')
     }
   }
 
-  /** 진행 중인 판정을 멈춘다. 몇 분씩 걸릴 수 있어 빠져나올 길이 있어야 한다 */
+  /** 진행 중인 판정을 멈추고 결과를 비운다. 몇 분씩 걸릴 수 있어 빠져나올 길이 있어야 하고, 사진을 바꿀 때는 옛 결과가 남으면 안 된다 */
   function cancel() {
     abort.current?.abort()
+    setVerdict(null)
     setState('idle')
   }
 
-  return { state, steps, verdict, message, start, cancel }
+  return { state, steps, verdict, message, own, start, cancel }
 }

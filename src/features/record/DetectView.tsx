@@ -43,7 +43,7 @@ export default function DetectView({ photoUrl, ratio, detection, picked, onPick 
       {model === 'missing' && !drawing && (
         // 받기: 수 MB를 쓰는 일이라 사용자가 눌러야 한다 (자동으로 받지 않는다)
         <Banner tone="info" icon="download" action={<Button onClick={downloadModel}>받기 ({sizeMb}MB)</Button>}>
-          새를 자동으로 찾으려면 모델을 한 번 받아야 합니다. 받은 뒤에는 인터넷 없이도 됩니다.
+          새를 자동으로 찾으려면 모델을 한 번 받아야 합니다. 받은 파일은 이 기기에 남겨 둡니다 (설정에서 지울 수 있습니다).
         </Banner>
       )}
       {model === 'downloading' && <div className="status-line"><span>새 찾기 모델 받는 중 · {Math.round(download * 100)}%</span><Progress value={download} label="모델 다운로드" /></div>}
