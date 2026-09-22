@@ -1,8 +1,8 @@
 import { dotDateOf } from '../../ui/when'
 import type { Sighting } from '../../types'
+import { CARD_BASE, CARD_FONTS, CARD_MARK } from './cardLook'
+import { styleOf } from './cardStyle'
 import { dexLabel, shotLine } from './cardText'
-import { CARD_BASE, CARD_FONTS, CARD_LOOKS, MAX_STARS } from './cardLook'
-import { TIER_REASONS } from './cardTier'
 
 /** 내보내는 카드의 크기. 인스타그램 세로(4:5) 기준 */
 export const CARD_W = 1080
@@ -49,11 +49,11 @@ export function drawPlate(ctx: CanvasRenderingContext2D, img: ImageBitmap | null
 }
 
 /**
- * 카드 앞면을 그린다. 화면의 BirdCard와 같은 배치·같은 값(cardLook.ts)이다.
- * `shine`은 빛 줄기의 위치(0~1), null이면 그리지 않는다. 글꼴은 부르는 쪽이 미리 불러 둔다 (loadCardFonts).
+ * 카드 앞면을 그린다. 화면의 BirdCard와 같은 배치·같은 값(cardLook.ts · cardStyle.ts)이다.
+ * `shine`은 빛 줄기의 위치(0~1), null이면 그리지 않는다 ("빛나게"를 고른 카드만 그린다). 글꼴은 부르는 쪽이 미리 불러 둔다 (loadCardFonts).
  */
 export function drawCardFront(ctx: CanvasRenderingContext2D, s: Sighting, img: ImageBitmap | null, shine: number | null): void {
-  const look = CARD_LOOKS[s.tier]
+  const { accent, glow } = styleOf(s)
   const bg = ctx.createLinearGradient(0, 0, 0, CARD_H)
   bg.addColorStop(0, CARD_BASE.bgTop)
   bg.addColorStop(1, CARD_BASE.bgBottom)
@@ -65,20 +65,12 @@ export function drawCardFront(ctx: CanvasRenderingContext2D, s: Sighting, img: I
   ctx.fillRect(0, 0, CARD_W, CARD_H)
 
   mono(ctx, dexLabel(s.dexNo).toUpperCase(), PAD, 70, 34, CARD_BASE.sub)
-  mono(ctx, look.en, CARD_W - PAD, 70, 34, look.accent, 'right', '0.2em', 700)
-  drawPlate(ctx, img, look.accent)
-  s.stamps.forEach((stamp, i) => drawStamp(ctx, stamp, look.accent, PLATE.x + PLATE.w - 26, PLATE.y + 56 + i * 70))
+  mono(ctx, CARD_MARK, CARD_W - PAD, 70, 34, accent, 'right', '0.2em', 700)
+  drawPlate(ctx, img, accent)
+  s.stamps.forEach((stamp, i) => drawStamp(ctx, stamp, accent, PLATE.x + PLATE.w - 26, PLATE.y + 56 + i * 70))
 
-  let y = PLATE.y + PLATE.h + 62
-  ctx.font = `400 40px ${CARD_FONTS.mono}`
-  ctx.fillStyle = look.accent
-  ctx.fillText('★'.repeat(look.stars), PAD, y)
-  ctx.globalAlpha = 0.22
-  ctx.fillText('★'.repeat(MAX_STARS - look.stars), PAD + ctx.measureText('★'.repeat(look.stars)).width, y)
-  ctx.globalAlpha = 1
-  mono(ctx, TIER_REASONS[s.tier], CARD_W - PAD, y - 4, 30, CARD_BASE.sub, 'right', '0.14em')
-
-  y += 92
+  // 등급·별이 있던 줄이 비어 이름을 사진판 가까이 올린다 (화면 카드의 h3 margin과 같은 뜻)
+  let y = PLATE.y + PLATE.h + 118
   ctx.fillStyle = CARD_BASE.ink
   ctx.font = `600 82px ${CARD_FONTS.name}`
   ctx.fillText(s.speciesKo || '이름 미정', PAD, y)
@@ -89,19 +81,19 @@ export function drawCardFront(ctx: CanvasRenderingContext2D, s: Sighting, img: I
   ctx.fillRect(PAD, lineY, CARD_W - PAD * 2, 2)
   mono(ctx, dotDateOf(s), PAD, lineY + 52, 32, CARD_BASE.sub, 'left', '0.12em')
   // 보호가 필요한 종은 장소를 적지 않는다 — 카드는 SNS로 퍼지는 물건이다
-  ctx.font = `400 34px 'Noto Sans KR', sans-serif`
+  ctx.font = `400 34px ${CARD_FONTS.body}`
   ctx.textAlign = 'right'
   ctx.fillText(s.sensitive ? '위치 비공개' : s.place, CARD_W - PAD, lineY + 52, CARD_W / 2)
   ctx.textAlign = 'left'
   const shot = shotLine(s)
   if (shot) { ctx.globalAlpha = 0.75; mono(ctx, shot, PAD, lineY + 98, 28, CARD_BASE.sub, 'left', '0.12em'); ctx.globalAlpha = 1 }
 
-  if (shine !== null && look.glow) drawShine(ctx, shine, look.accent)
+  if (shine !== null && glow) drawShine(ctx, shine, accent)
   ctx.restore()
   ctx.beginPath()
   ctx.roundRect(3, 3, CARD_W - 6, CARD_H - 6, RADIUS - 3)
   ctx.lineWidth = 6
-  ctx.strokeStyle = look.accent + 'B3'
+  ctx.strokeStyle = accent + 'B3'
   ctx.stroke()
 }
 
@@ -135,7 +127,7 @@ function drawShine(ctx: CanvasRenderingContext2D, pos: number, accent: string): 
   ctx.globalCompositeOperation = 'source-over'
 }
 
-/** 카드 뒷면. 영상에서 카드가 뒤집히기 전의 장면으로만 쓴다. 등급색 테두리만 앞면과 같다 */
+/** 카드 뒷면. 영상에서 카드가 뒤집히기 전의 장면으로만 쓴다. 강조색 테두리만 앞면과 같다 */
 export function drawCardBack(ctx: CanvasRenderingContext2D, accent: string): void {
   ctx.beginPath()
   ctx.roundRect(3, 3, CARD_W - 6, CARD_H - 6, RADIUS - 3)
@@ -154,7 +146,7 @@ export function drawCardBack(ctx: CanvasRenderingContext2D, accent: string): voi
   ctx.font = `600 92px ${CARD_FONTS.name}`
   ctx.fillText('탐조일지', CARD_W / 2, CARD_H / 2 + 20)
   ctx.textAlign = 'left'
-  mono(ctx, 'FIELD CARD', CARD_W / 2, CARD_H / 2 + 92, 28, CARD_BASE.sub, 'center', '0.32em')
+  mono(ctx, CARD_MARK, CARD_W / 2, CARD_H / 2 + 92, 28, CARD_BASE.sub, 'center', '0.32em')
 }
 
 /**
@@ -162,6 +154,6 @@ export function drawCardBack(ctx: CanvasRenderingContext2D, accent: string): voi
  * 글꼴을 끝내 못 불러와도(오프라인) 그대로 진행한다 — 대체 글꼴로라도 저장되는 편이 낫다.
  */
 export async function loadCardFonts(sample: string): Promise<void> {
-  const wanted = [`600 82px ${CARD_FONTS.name}`, `italic 400 50px ${CARD_FONTS.latin}`, `500 34px ${CARD_FONTS.mono}`, `700 34px ${CARD_FONTS.mono}`]
-  try { await Promise.all(wanted.map((font) => document.fonts.load(font, `${sample} No. COMMON ★`))) } catch { /* 대체 글꼴로 진행 */ }
+  const wanted = [`600 82px ${CARD_FONTS.name}`, `italic 400 50px ${CARD_FONTS.latin}`, `500 34px ${CARD_FONTS.mono}`, `700 34px ${CARD_FONTS.mono}`, `400 34px ${CARD_FONTS.body}`]
+  try { await Promise.all(wanted.map((font) => document.fonts.load(font, `${sample} No. ${CARD_MARK}`))) } catch { /* 대체 글꼴로 진행 */ }
 }

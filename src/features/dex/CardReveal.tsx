@@ -2,7 +2,8 @@ import type { CSSProperties } from 'react'
 import SightingPhoto from '../../ui/SightingPhoto'
 import type { Sighting } from '../../types'
 import BirdCard from './BirdCard'
-import { CARD_LOOKS } from './cardLook'
+import { CARD_MARK } from './cardLook'
+import { styleOf } from './cardStyle'
 import './reveal.css'
 
 const BEATS = ['SCANNING', 'MATERIALIZING', 'FLIP', 'REVEAL']
@@ -15,7 +16,7 @@ const BEATS = ['SCANNING', 'MATERIALIZING', 'FLIP', 'REVEAL']
  * "움직임 줄이기"를 켠 사용자에게도 연출 없이 보여 준다 (reveal.css).
  */
 export default function CardReveal({ sighting, animate }: { sighting: Sighting; animate: boolean }) {
-  const style = { '--accent': CARD_LOOKS[sighting.tier].accent } as CSSProperties
+  const style = { '--accent': styleOf(sighting).accent } as CSSProperties
   return (
     <div className={`reveal-stage${animate ? ' is-animated' : ''}`} style={style}>
       <div className="reveal-slot">
@@ -26,7 +27,7 @@ export default function CardReveal({ sighting, animate }: { sighting: Sighting; 
           </div>
         )}
         <div className="reveal-flipper">
-          {animate && <div className="reveal-back" aria-hidden="true"><strong>탐조일지</strong><span>FIELD CARD</span></div>}
+          {animate && <div className="reveal-back" aria-hidden="true"><strong>탐조일지</strong><span>{CARD_MARK}</span></div>}
           <div className="reveal-front"><BirdCard sighting={sighting} /></div>
         </div>
       </div>
