@@ -22,6 +22,7 @@ import { useDetection } from './useDetection'
 import { useDraft } from './useDraft'
 import { usePhotoPick } from './usePhotoPick'
 import { usePlace, type PlaceValue } from './usePlace'
+import { useTrackMatch } from './useTrackMatch'
 import './record.css'
 
 interface Props {
@@ -48,6 +49,7 @@ export default function RecordFlow({ onCancel, onDone, onOpenSettings }: Props) 
   const detection = useDetection(photo?.bitmap ?? null)
   const ask = useAsk()
   const loc = usePlace(photo?.exif ?? null)
+  const track = useTrackMatch(photo)
   const draft = useDraft()
   const fileInput = useRef<HTMLInputElement>(null)
   const [crop, setCrop] = useState<Crop | null>(null)
@@ -81,11 +83,14 @@ export default function RecordFlow({ onCancel, onDone, onOpenSettings }: Props) 
     setName(restoring.name)
     setNote(restoring.note)
     setAskedBox(restoring.askedBox)
-    // 사진에서 읽은 위치는 방금 다시 읽었다. 사용자가 고른 것만 되살린다
+    // 사진에서 읽은 위치는 방금 다시 읽었다. 사용자가 고른 것과 지난번에 이동 기록으로 찾은 것('tracklog')을 되살린다 — 뒤늦게 끝난 매칭은 이것을 덮지 않는다 (fillIfEmpty)
     if (restoring.place.source !== 'exif' && restoring.place.source !== 'none') loc.copyFrom(restoring.place)
     if (restoring.verdict) ask.restore(restoring.verdict)
     setRestoring(null)
   }, [photo, restoring]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 이동 기록에서 찾았으면 바로 넣는다 — 자동으로 할 수 있는 일에 버튼을 두지 않는다 (BUTTONS.md). 이미 위치가 있으면 fillIfEmpty가 거른다
+  useEffect(() => { if (track.status === 'found') void loc.fillIfEmpty(track.lat, track.lng, 'tracklog') }, [track]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // 값이 바뀔 때마다 초안을 (0.5초 모아서) 덮어쓴다. 사진이 없으면 남길 것이 없다. 되살리는 중에는 반쪽 값을 쓰지 않는다
   useEffect(() => {
@@ -161,6 +166,10 @@ export default function RecordFlow({ onCancel, onDone, onOpenSettings }: Props) 
     )
   }
 
+  // 위치 줄에 붙는 근거와 안내. "못 찾은 이유"는 위치가 비어 있을 때만 말한다 — 사용자가 고른 위치에 이동 기록 얘기를 붙이지 않는다
+  const placeNote = loc.place.source === 'tracklog' && track.status === 'found' ? track.note : undefined
+  const placeHint = loc.place.source === 'none' && track.status === 'missed' ? track.hint ?? undefined : undefined
+
   return (
     <div className="screen screen-record">
       {/* 사진 바꾸기: 잘못 고른 사진을 바꾸는 유일한 길 — 없으면 기록을 통째로 버리고 다시 시작해야 한다 */}
@@ -169,7 +178,7 @@ export default function RecordFlow({ onCancel, onDone, onOpenSettings }: Props) 
       <div className="record-cols">
         <DetectView photoUrl={photo.url} ratio={`${photo.size.width} / ${photo.size.height}`} detection={detection} picked={picked?.box ?? null} onPick={(box, by) => setCrop({ box, by: by === 'manual' ? 'manual' : detection.detectorId })} />
         <div className="record-side">
-          <FactsCard photo={photo} place={loc.place} onEditPlace={() => setEditingPlace(true)} />
+          <FactsCard photo={photo} place={loc.place} placeNote={placeNote} placeHint={placeHint} onEditPlace={() => setEditingPlace(true)} />
           <Card>
             <SpeciesInput value={name} known={known} onChange={setName} />
             <IdentifyPanel ask={ask} hasCrop={picked !== null} cropChanged={ask.state === 'done' && !sameBox(askedBox, picked?.box ?? null)} name={name}
