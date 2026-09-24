@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react'
 import { isTouchDevice } from '../../app/device'
 import InstallHint from '../../app/InstallHint'
 import { BACKUP_NUDGE_AT, useJournal } from '../../data/journal'
+import { dismissTrackNudge, loadTrackNudgeDismissed, needsTrackRefresh } from '../tracks/refreshNudge'
+import { useTracksMeta } from '../tracks/useTracksMeta'
 import { Banner, ScreenHead } from '../../ui/bits'
 import Button from '../../ui/Button'
 import Icon from '../../ui/Icon'
@@ -41,6 +43,8 @@ interface Props {
   onOpen: (id: string) => void
   onBackup: () => void
   onAdd: () => void
+  /** 설정 화면으로 (이동 기록 알림의 "설정으로" — 파일을 넣는 곳이 설정의 이동 기록 카드다) */
+  onSettings: () => void
 }
 
 /**
@@ -48,12 +52,16 @@ interface Props {
  * 검색은 하나만 둔다 — 필터·정렬 버튼은 기록이 수백 건이 되어 실제로 필요해질 때 더한다.
  * 예외는 "이름 미정" 칩 하나: 이름 없이 저장하라고 권하므로, 그 기록을 다시 찾을 길은 있어야 한다.
  */
-export default function RecordsScreen({ onOpen, onBackup, onAdd }: Props) {
+export default function RecordsScreen({ onOpen, onBackup, onAdd, onSettings }: Props) {
   const journal = useJournal()
   const { unsaved, persisted } = journal
   const sightings = useMemo(() => journal.sightings ?? [], [journal.sightings])
   const [query, setQuery] = useState('')
   const [onlyUnnamed, setOnlyUnnamed] = useState(false)
+  // 이동 기록 60일 알림. meta가 undefined(읽는 중)·null(없음)이면 안 그린다 — 넣은 적이 없는 사람에게 "새로 넣으라"고 하면 안 된다
+  const trackMeta = useTracksMeta().meta
+  const [nudgeDismissed, setNudgeDismissed] = useState(loadTrackNudgeDismissed)
+  const closeTrackNudge = (importedAt: string) => { dismissTrackNudge(importedAt); setNudgeDismissed(importedAt) }
   const sorted = useMemo(() => [...sightings].sort((a, b) => b.capturedAt.localeCompare(a.capturedAt)), [sightings])
   const unnamed = sightings.filter((s) => !s.speciesKo).length
   const shown = sorted.filter((s) => matches(s, query) && (!onlyUnnamed || !s.speciesKo))
@@ -84,6 +92,17 @@ export default function RecordsScreen({ onOpen, onBackup, onAdd }: Props) {
         // 기록이 이 기기에만 있으므로 백업이 밀리면 알려야 한다. 누르면 바로 백업으로 간다
         <Banner tone="warn" icon="download" action={<Button variant="quiet" onClick={onBackup}>백업하기</Button>}>
           마지막 백업 이후 기록 {unsaved}건이 이 기기에만 있습니다
+        </Banner>
+      )}
+      {trackMeta && needsTrackRefresh(trackMeta.importedAt, nudgeDismissed, new Date()) && (
+        // 설정으로 · 닫기: 구글은 3개월이 지난 기록을 지운다 — 한 번은 말해야 하고, 들은 뒤엔 치울 수 있어야 한다. 닫은 기억은 이 넣기(importedAt)에만 붙는다
+        <Banner tone="info" icon="map" action={
+          <div className="row-actions">
+            <Button variant="quiet" onClick={onSettings}>설정으로</Button>
+            <Button variant="quiet" onClick={() => closeTrackNudge(trackMeta.importedAt)}>닫기</Button>
+          </div>
+        }>
+          이동 기록을 새로 넣을 때가 됐습니다 (구글은 3개월이 지나면 지웁니다)
         </Banner>
       )}
       <label className="search">

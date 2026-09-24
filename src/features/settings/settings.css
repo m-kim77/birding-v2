@@ -20,6 +20,7 @@
 .model-list li { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); min-height: 56px; }
 .model-list li + li { border-top: 1px solid var(--border); }
 .link-row { min-height: var(--touch); border: 0; background: none; color: var(--text-2); text-align: left; text-decoration: underline; }
-.credits summary { min-height: var(--touch); display: flex; align-items: center; color: var(--text-2); cursor: pointer; text-decoration: underline; }
-.credits ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-3); }
-.credits small { display: block; color: var(--text-3); font-size: 13px; }
+/* 접힌 목록 둘 — 출처(.credits, LicenseSection)와 이동 기록 내보내는 방법(.howto, TracksSection). 다른 것이지만 모양은 같아 규칙을 한 번만 적는다 */
+.credits summary, .howto summary { min-height: var(--touch); display: flex; align-items: center; color: var(--text-2); cursor: pointer; text-decoration: underline; }
+.credits ul, .howto ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-3); }
+.credits small, .howto small { display: block; color: var(--text-3); font-size: 13px; }

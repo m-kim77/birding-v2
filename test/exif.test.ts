@@ -250,7 +250,8 @@ test('좌표는 exifr.gps 별도 호출에서 온다 (parse 결과가 아니다)
   const exifr = (await import('exifr')).default as { gps: (f: unknown) => Promise<unknown> }
   const realGps = exifr.gps
   let calledWith: unknown = null
-  exifr.gps = async (f: unknown) => { calledWith = f; return { latitude: 36.01175, longitude: 129.163226 } }
+  // 좌표는 아무 값이다 (실제 촬영지를 적지 않는다 — 픽스처 사진의 촬영 시각과 짝지으면 이동 기록 픽스처를 되돌릴 수 있다)
+  exifr.gps = async (f: unknown) => { calledWith = f; return { latitude: 12.345678, longitude: -45.678901 } }
   t.after(() => { exifr.gps = realGps; if (!had) delete g.FileReader })
 
   const { parseExif } = await import('../src/lib/exif.ts')
@@ -258,8 +259,8 @@ test('좌표는 exifr.gps 별도 호출에서 온다 (parse 결과가 아니다)
   const info = await parseExif(file)
 
   assert.equal(calledWith, file, 'gps에 File이 그대로 넘어가야 한다')
-  assert.equal(info.lat, 36.01175)
-  assert.equal(info.lng, 129.163226)
+  assert.equal(info.lat, 12.345678)
+  assert.equal(info.lng, -45.678901)
   // 같은 호출에서 EXIF 매핑도 정상이어야 한다 — gps 스텁이 나머지를 가리지 않는다
   assert.equal(info.cameraModel, 'ILCE-7CR')
 })

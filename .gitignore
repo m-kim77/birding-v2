@@ -23,3 +23,4 @@ backups/
 # 단, 직접 만드는 초안(design_v*)은 설계 기록이라 올린다.
 ref_design/*
 !ref_design/design_v*/
+.claude/
