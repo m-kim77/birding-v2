@@ -1,3 +1,4 @@
+// 이동 기록(`tracks` 저장소)은 백업에 넣지 않는다 — 다시 내보내면 되는 자료이고 기록보다 훨씬 민감하다 (data/tracks.ts)
 import { unzip, zip, type Unzipped, type Zippable } from 'fflate'
 import type { PhotoKind, Sighting } from '../types'
 import { JOURNAL_FILE, buildJournal, parseJournal, parsePhotoPath, photoPath, planMerge, shouldCopyPhoto, type MergePlan } from './backupFormat'
