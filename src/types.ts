@@ -3,7 +3,7 @@
  * **백업 파일에 들어가는 모양은 가산 확장만 한다** — 키를 바꾸거나 지우면 옛 백업이 안 열린다.
  */
 
-/** 위치가 어디서 왔는지. v1의 location_source와 같다 ('tracklog'는 이동 기록 기능이 들어오면 쓴다) */
+/** 위치가 어디서 왔는지. v1의 location_source와 같다 ('tracklog' = 구글 타임라인 이동 기록으로 추정 — features/record/useTrackMatch.ts) */
 export type LocationSource = 'exif' | 'tracklog' | 'gps' | 'manual' | 'none'
 
 /** 종 판정 진행 상태. 기록 저장과 판정이 분리돼 있어서 기록마다 따로 든다 */
