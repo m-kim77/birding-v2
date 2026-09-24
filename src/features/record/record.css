@@ -39,6 +39,8 @@
 .verdict details { width: 100%; } .verdict summary { min-height: var(--touch); display: flex; align-items: center; font-weight: 600; cursor: pointer; }
 .verdict details ul { margin: 0; padding-left: 20px; display: grid; gap: var(--sp-2); font-size: 15px; color: var(--text-2); }
 .verdict small { display: block; color: var(--text-3); font-size: 13px; }
+.verdict-others { display: grid; gap: var(--sp-2); }
+.verdict .row-actions { align-items: center; }
 
 .screen-result { justify-items: center; text-align: center; padding-top: var(--sp-6); }
 .result-kicker { font-size: 14px; font-weight: 700; color: var(--accent); letter-spacing: 0.04em; }
