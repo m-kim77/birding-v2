@@ -33,7 +33,7 @@ export default function App() {
         <AppShell active={activeTab(route)} onTab={(name) => setRoute({ name } as Route)} onAdd={startRecord} hideNav={route.name === 'record'}
           screenKey={route.name === 'detail' ? `detail:${route.id}` : route.name}>
           <Suspense fallback={<div className="screen"><p className="hint">불러오는 중…</p></div>}>
-          {route.name === 'records' && <RecordsScreen onOpen={openDetail} onBackup={openSettings} onAdd={startRecord} />}
+          {route.name === 'records' && <RecordsScreen onOpen={openDetail} onBackup={openSettings} onAdd={startRecord} onSettings={openSettings} />}
           {route.name === 'detail' && <RecordDetail key={route.id} id={route.id} onBack={home} onOpenSettings={openSettings} />}
           {route.name === 'dex' && <DexScreen onOpenRecord={openDetail} />}
           {route.name === 'map' && <MapScreen onOpen={openDetail} />}
