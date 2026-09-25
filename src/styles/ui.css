@@ -1,7 +1,9 @@
 /* 공통 컴포넌트. 전부 토큰으로만 칠한다 */
 .card {
-  background: var(--bg-card); border: var(--card-border); border-radius: var(--radius-card); box-shadow: var(--card-shadow);
-  backdrop-filter: var(--card-blur); padding: var(--sp-4); display: grid; gap: var(--sp-3);
+  background: var(--bg-card); border: var(--card-border-width) solid var(--card-border-color); border-radius: var(--radius-card); box-shadow: var(--card-shadow);
+  backdrop-filter: var(--card-blur); display: grid; gap: var(--sp-3);
+  /* 테두리 두께만큼 여백을 줄여 안쪽 폭을 테마와 무관하게 맞춘다 — 안 그러면 칸 수가 테마마다 달라진다 */
+  padding: calc(var(--sp-4) - var(--card-border-width));
 }
 .card h2 { font-size: 17px; font-weight: 700; }
 /* 카드는 grid라 자식이 폭을 다 채운다 — 버튼은 글자 폭만큼만 */
@@ -85,7 +87,7 @@
 .choice-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); }
 .choice {
   display: grid; justify-items: center; gap: var(--sp-2); padding: var(--sp-5) var(--sp-3); text-align: center;
-  background: var(--bg-card); border: var(--card-border); border-radius: var(--radius-card); box-shadow: var(--card-shadow); color: var(--text-1);
+  background: var(--bg-card); border: var(--card-border-width) solid var(--card-border-color); border-radius: var(--radius-card); box-shadow: var(--card-shadow); color: var(--text-1);
 }
 .choice .icon { color: var(--primary); } .choice strong { font-size: 17px; } .choice span { font-size: 13px; color: var(--text-3); }
 

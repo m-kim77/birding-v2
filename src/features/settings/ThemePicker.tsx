@@ -20,7 +20,7 @@ export default function ThemePicker({ choice, onChoose }: Props) {
         return (
           <button key={c.id} type="button" role="radio" aria-checked={on} className={`theme-cell${on ? ' is-on' : ''}`} onClick={() => onChoose(c.id)}>
             <span className="theme-swatch" style={{ background: light.bgApp }}>
-              <i style={{ background: light.bgCard, border: light.cardBorder, borderRadius: light.radiusCard }}>
+              <i style={{ background: light.bgCard, border: `${light.cardBorderWidth} solid ${light.cardBorderColor}`, borderRadius: light.radiusCard }}>
                 <b style={{ background: light.primary, borderRadius: light.radiusControl }} />
               </i>
               {/* 심플·모던처럼 라이트/다크가 다른 선택지는 반쪽을 다크로 보여 준다 */}

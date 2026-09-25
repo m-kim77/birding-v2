@@ -12,7 +12,7 @@
 .detail-side { display: grid; gap: var(--sp-4); align-content: start; }
 .card-peek {
   display: grid; grid-template-columns: 96px 1fr; align-items: center; gap: var(--sp-4); padding: var(--sp-3);
-  background: var(--bg-card); border: var(--card-border); border-radius: var(--radius-card); box-shadow: var(--card-shadow); color: var(--text-1); text-align: left; font-weight: 600;
+  background: var(--bg-card); border: var(--card-border-width) solid var(--card-border-color); border-radius: var(--radius-card); box-shadow: var(--card-shadow); color: var(--text-1); text-align: left; font-weight: 600;
 }
 .card-peek .bird-card-text { display: none; }
 

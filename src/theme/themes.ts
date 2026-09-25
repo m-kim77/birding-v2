@@ -30,8 +30,13 @@ export interface ThemeTokens {
   accent: string
   onAccent: string
   border: string
-  /** 카드 테두리 전체 선언. 없으면 'none' */
-  cardBorder: string
+  /**
+   * 카드 테두리 두께. 없으면 '0px'. 색과 나눠 둔 까닭: `.card`가 이 두께만큼 안쪽 여백을 줄여
+   * 테마가 바뀌어도 카드 안의 폭이 같게 한다 (1~2.5px 차이로 테마 목록의 한 줄 칸 수가 바뀐 적이 있다).
+   */
+  cardBorderWidth: string
+  /** 카드 테두리 색. 두께가 0px이면 'transparent' */
+  cardBorderColor: string
   cardShadow: string
   radiusCard: string
   radiusControl: string
@@ -75,7 +80,7 @@ export const THEMES: ThemeDef[] = [
       bgApp: '#F8F2E0', bgCard: '#FFFCF0', bgSurface: '#F0E8D0', bgInput: '#FFFCF0',
       text1: '#1A1008', text2: '#4A3418', text3: '#735426',
       primary: '#4C6A2E', onPrimary: '#FFFCF0', accent: '#8A4A18', onAccent: '#FFFCF0',
-      border: '#D8C890', cardBorder: '1px solid rgba(160,120,40,0.28)',
+      border: '#D8C890', cardBorderWidth: '1px', cardBorderColor: 'rgba(160,120,40,0.28)',
       cardShadow: '0 2px 8px rgba(80,50,10,0.10)',
       radiusCard: '6px', radiusControl: '6px',
       fontDisplay: SERIF, fontBody: SANS, weightTitle: '700',
@@ -94,7 +99,7 @@ export const THEMES: ThemeDef[] = [
       bgApp: '#17150F', bgCard: '#211E16', bgSurface: '#2C281D', bgInput: '#1B1912',
       text1: '#F3EBD3', text2: '#D2C6A4', text3: '#B0A37E',
       primary: '#A9C47F', onPrimary: '#17150F', accent: '#E0A66A', onAccent: '#17150F',
-      border: '#3D3726', cardBorder: '1px solid rgba(216,200,144,0.16)',
+      border: '#3D3726', cardBorderWidth: '1px', cardBorderColor: 'rgba(216,200,144,0.16)',
       cardShadow: '0 2px 10px rgba(0,0,0,0.45)',
       radiusCard: '6px', radiusControl: '6px',
       fontDisplay: SERIF, fontBody: SANS, weightTitle: '700',
@@ -111,7 +116,7 @@ export const THEMES: ThemeDef[] = [
       bgApp: '#F5F7F0', bgCard: '#FFFFFF', bgSurface: '#E6EFE2', bgInput: '#FFFFFF',
       text1: '#1E2E1A', text2: '#34502F', text3: '#4E6B48',
       primary: '#3F6E4D', onPrimary: '#FFFFFF', accent: '#8A5A00', onAccent: '#FFFFFF',
-      border: '#D2E2CA', cardBorder: 'none',
+      border: '#D2E2CA', cardBorderWidth: '0px', cardBorderColor: 'transparent',
       cardShadow: '0 4px 16px rgba(44,58,40,0.10), 0 1px 3px rgba(44,58,40,0.06)',
       radiusCard: '18px', radiusControl: '12px',
       fontDisplay: SANS, fontBody: SANS, weightTitle: '800',
@@ -128,7 +133,7 @@ export const THEMES: ThemeDef[] = [
       // Figma 시안의 보조 글씨(#C49A6C)는 대비 2:1 남짓이라 진하게 고쳤다
       text1: '#3D2B1F', text2: '#6B4226', text3: '#80573A',
       primary: '#9DD3F2', onPrimary: '#23323D', accent: '#FFB5A0', onAccent: '#4A2318',
-      border: '#F0E2CC', cardBorder: 'none',
+      border: '#F0E2CC', cardBorderWidth: '0px', cardBorderColor: 'transparent',
       cardShadow: '0 4px 16px rgba(61,43,31,0.09), 0 1px 4px rgba(61,43,31,0.05)',
       radiusCard: '24px', radiusControl: '999px',
       fontDisplay: SANS, fontBody: SANS, weightTitle: '800',
@@ -145,7 +150,7 @@ export const THEMES: ThemeDef[] = [
       bgApp: '#F7F7F7', bgCard: '#FFFFFF', bgSurface: '#F0F1F3', bgInput: '#FFFFFF',
       text1: '#1A1A1A', text2: '#4B5563', text3: '#5F6875',
       primary: '#2563EB', onPrimary: '#FFFFFF', accent: '#B45309', onAccent: '#FFFFFF',
-      border: '#E5E7EB', cardBorder: 'none',
+      border: '#E5E7EB', cardBorderWidth: '0px', cardBorderColor: 'transparent',
       cardShadow: '0 1px 4px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04)',
       radiusCard: '14px', radiusControl: '10px',
       fontDisplay: SANS, fontBody: SANS, weightTitle: '700',
@@ -161,7 +166,7 @@ export const THEMES: ThemeDef[] = [
       bgApp: '#0F1117', bgCard: '#1A1D2E', bgSurface: '#252840', bgInput: '#14172A',
       text1: '#F0F2FF', text2: '#B4BBD8', text3: '#9098B8',
       primary: '#8AA4FF', onPrimary: '#0F1117', accent: '#FF8FB4', onAccent: '#0F1117',
-      border: '#2E3352', cardBorder: '1px solid rgba(255,255,255,0.06)',
+      border: '#2E3352', cardBorderWidth: '1px', cardBorderColor: 'rgba(255,255,255,0.06)',
       cardShadow: '0 4px 24px rgba(0,0,0,0.4)',
       radiusCard: '16px', radiusControl: '10px',
       fontDisplay: SANS, fontBody: SANS, weightTitle: '700',
@@ -179,7 +184,7 @@ export const THEMES: ThemeDef[] = [
       bgCard: 'rgba(255,255,255,0.09)', bgSurface: 'rgba(255,255,255,0.08)', bgInput: 'rgba(255,255,255,0.10)',
       text1: '#F0F4FF', text2: '#C2D0EC', text3: '#A9BBDD',
       primary: '#80C8FF', onPrimary: '#0A1A3A', accent: '#FF9CCB', onAccent: '#0A1A3A',
-      border: 'rgba(255,255,255,0.16)', cardBorder: '1px solid rgba(255,255,255,0.16)',
+      border: 'rgba(255,255,255,0.16)', cardBorderWidth: '1px', cardBorderColor: 'rgba(255,255,255,0.16)',
       cardShadow: '0 8px 32px rgba(0,0,0,0.30)',
       radiusCard: '20px', radiusControl: '14px',
       fontDisplay: SANS, fontBody: SANS, weightTitle: '700',
@@ -197,7 +202,7 @@ export const THEMES: ThemeDef[] = [
       text1: '#1A1A1A', text2: '#1A1A1A', text3: '#4D4D4D',
       // 빨강 위 흰 글씨는 대비 3.6:1이라 검정 글씨로 바꿨다
       primary: '#FF4D6A', onPrimary: '#1A1A1A', accent: '#1D5FE0', onAccent: '#FFFFFF',
-      border: '#1A1A1A', cardBorder: '2.5px solid #1A1A1A',
+      border: '#1A1A1A', cardBorderWidth: '2.5px', cardBorderColor: '#1A1A1A',
       cardShadow: '4px 4px 0 #1A1A1A',
       radiusCard: '12px', radiusControl: '10px',
       fontDisplay: SANS, fontBody: SANS, weightTitle: '900',
