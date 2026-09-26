@@ -1,4 +1,4 @@
-import { putPhoto } from '../../data/photos'
+import type { PhotoFile } from '../../data/photos'
 import { cropFromFile, dataUrlToBlob } from '../../lib/crop'
 import { FULL_MAX_EDGE, THUMB_MAX_EDGE, bitmapToJpeg, blobToDataUrl } from '../../lib/resize'
 import { IDENTIFY_MAX_EDGE } from '../identify/loop'
@@ -31,17 +31,20 @@ export async function imageForAI(photo: PickedPhoto, box: NormalizedBox | null):
 }
 
 /**
- * 기록의 사진을 로컬 DB에 넣는다: 큰 판(긴 변 2048), 잘라낸 판(있으면), 작은 판.
+ * 기록에 넣을 사진 판들을 만든다: 큰 판(긴 변 2048), 잘라낸 판(있으면), 작은 판. **쓰지는 않는다** —
+ * 기록과 사진을 트랜잭션 하나로 쓰려면(journal.add) 기다려야 하는 JPEG 만들기를 먼저 끝내 둬야 한다.
  * **작은 판은 잘라낸 사진에서 만든다** — 목록과 도감에서 보고 싶은 것은 풍경이 아니라 그 새다.
  * 원본 파일은 보관하지 않는다 (수십 MB짜리 수백 장이면 브라우저 저장소가 찬다. 원본은 사용자의 카메라·PC에 있다).
+ * 인코딩이 실패하면 던진다 — 부르는 쪽(save)이 안내하고 아무것도 쓰지 않는다.
  */
-export async function savePhotos(id: string, photo: PickedPhoto, crop: Blob | null): Promise<void> {
-  await putPhoto(id, 'full', await bitmapToJpeg(photo.bitmap, FULL_MAX_EDGE, 0.88))
-  if (crop) await putPhoto(id, 'crop', crop)
+export async function makePhotos(photo: PickedPhoto, crop: Blob | null): Promise<PhotoFile[]> {
+  const photos: PhotoFile[] = [{ kind: 'full', blob: await bitmapToJpeg(photo.bitmap, FULL_MAX_EDGE, 0.88) }]
+  if (crop) photos.push({ kind: 'crop', blob: crop })
   const thumbSource = crop ? await createImageBitmap(crop) : photo.bitmap
   try {
-    await putPhoto(id, 'thumb', await bitmapToJpeg(thumbSource, THUMB_MAX_EDGE, 0.82))
+    photos.push({ kind: 'thumb', blob: await bitmapToJpeg(thumbSource, THUMB_MAX_EDGE, 0.82) })
   } finally {
     if (crop) thumbSource.close()
   }
+  return photos
 }
