@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Sighting } from '../types'
 import { dbGet, dbGetAll, dbPut } from './db'
+import { normalizeStored } from './normalizeSighting'
 import { deleteSightingWithPhotos, writeSightingWithPhotos, type PhotoFile } from './photos'
 
 /**
@@ -77,7 +78,8 @@ export function JournalProvider({ children }: { children: ReactNode }) {
 
   const reload = useCallback(async () => {
     try {
-      setSightings(await dbGetAll<Sighting>('sightings'))
+      // 빈 칸을 채워서 읽는다 — 옛 판·옛 백업에서 온 기록의 빈 칸 하나가 목록 정렬이나 상세 화면을 멈추지 않게 (버리지는 않는다)
+      setSightings((await dbGetAll<unknown>('sightings')).map(normalizeStored).filter((s): s is Sighting => s !== null))
       setLastBackupAt((await dbGet<string>('meta', LAST_BACKUP_KEY)) ?? '')
     } catch (e) {
       setError(e instanceof Error ? e.message : '기록 저장소를 열 수 없습니다.')

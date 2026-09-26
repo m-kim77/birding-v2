@@ -48,7 +48,9 @@ export default function BackupSection() {
   const upload = (file: File) => run(async () => {
     const plan = await importBackup(file)
     await reload()
-    return { tone: 'ok', text: `불러왔습니다 — 새 기록 ${plan.add.length}건, 갱신 ${plan.update.length}건, 그대로 둔 기록 ${plan.kept}건` }
+    // 건너뛴 기록은 말없이 넘기지 않는다 — 파일에 있던 기록이 안 보이면 사용자는 유실로 안다
+    const skipped = plan.skipped > 0 ? ` · 읽지 못한 기록 ${plan.skipped}건은 건너뛰었습니다` : ''
+    return { tone: 'ok', text: `불러왔습니다 — 새 기록 ${plan.add.length}건, 갱신 ${plan.update.length}건, 그대로 둔 기록 ${plan.kept}건${skipped}` }
   })
 
   const ago = daysAgoOf(lastBackupAt)

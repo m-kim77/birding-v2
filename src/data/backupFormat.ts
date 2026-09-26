@@ -1,10 +1,12 @@
 import type { Sighting } from '../types'
+// node --test가 이 파일을 직접 읽는다 — 확장자를 적어야 node가 경로를 푼다
+import { normalizeSighting } from './normalizeSighting.ts'
 
 /**
  * 백업 파일의 모양. ZIP 안에 `journal.json` 하나와 `photos/<기록id>.<판>.jpg`들이 들어 있다.
  *
  * **가산 확장만 한다.** 새 정보는 새 키로 더하고, 있던 키의 뜻을 바꾸거나 지우지 않는다.
- * 읽을 때는 모르는 키를 무시하고 없는 키에 기본값을 채운다 — 그래야 옛 백업이 새 앱에서 열린다.
+ * 읽을 때는 모르는 키를 남겨 두고 없는 키에 기본값을 채운다(`normalizeSighting`) — 그래야 옛 백업이 새 앱에서 열린다.
  * 이 파일은 DOM·IndexedDB를 쓰지 않는다 (node --test로 검사한다).
  */
 export const BACKUP_FORMAT = 'bird-journal-backup'
@@ -23,18 +25,32 @@ export function buildJournal(sightings: Sighting[], now: Date): BackupJournal {
   return { format: BACKUP_FORMAT, version: BACKUP_VERSION, exportedAt: now.toISOString(), sightings }
 }
 
+/** 읽어 들인 journal.json. 기록은 모두 맞춘 것이고, 맞출 수 없어 건너뛴 수가 따로 있다 */
+export interface ParsedJournal extends BackupJournal {
+  /** id나 읽을 수 있는 시각이 없어 건너뛴 기록 수 */
+  skipped: number
+}
+
 /**
  * journal.json 글자를 읽어 검사한다.
  * 우리 백업이 아니거나(형식 표지 없음) 이 앱보다 새 버전이면 한국어 Error를 던진다 —
  * 새 버전의 파일을 옛 앱이 절반만 이해한 채 합치면 자료가 조용히 망가진다.
+ * 기록은 하나씩 `normalizeSighting`으로 맞추고, 맞출 수 없는 것은 **그것만 건너뛴다** (2026-09-26 결정 —
+ * 한 건 때문에 나머지 수백 건을 못 되살리면 안 된다). 같은 id가 두 번 나오면 뒤의 것은 건너뛴 수에 넣는다.
  */
-export function parseJournal(text: string): BackupJournal {
+export function parseJournal(text: string): ParsedJournal {
   let data: unknown
   try { data = JSON.parse(text) } catch { throw new Error('백업 파일을 읽을 수 없습니다 (내용이 깨졌습니다).') }
   const j = data as Partial<BackupJournal>
   if (j?.format !== BACKUP_FORMAT || !Array.isArray(j.sightings)) throw new Error('탐조일지 백업 파일이 아닙니다.')
   if (typeof j.version !== 'number' || j.version > BACKUP_VERSION) throw new Error('더 새로운 버전의 앱에서 만든 백업입니다. 앱을 새로 고친 뒤 다시 시도하세요.')
-  return j as BackupJournal
+  const sightings: Sighting[] = []
+  const seen = new Set<string>()
+  for (const raw of j.sightings) {
+    const s = normalizeSighting(raw)
+    if (s && !seen.has(s.id)) { seen.add(s.id); sightings.push(s) }
+  }
+  return { format: BACKUP_FORMAT, version: j.version, exportedAt: typeof j.exportedAt === 'string' ? j.exportedAt : '', sightings, skipped: j.sightings.length - sightings.length }
 }
 
 export interface MergePlan {
