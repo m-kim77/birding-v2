@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Sighting } from '../types'
-import { dbDelete, dbGet, dbGetAll, dbPut } from './db'
-import { deletePhotos } from './photos'
+import { dbGet, dbGetAll, dbPut } from './db'
+import { deleteSightingWithPhotos, writeSightingWithPhotos, type PhotoFile } from './photos'
 
 /**
  * 백업 안 된 기록이 이 수 이상일 때만 첫 화면에 알림을 띄운다.
@@ -15,7 +15,8 @@ interface Journal {
   sightings: Sighting[] | null
   /** DB를 못 열었을 때의 안내 문구 */
   error: string
-  add: (s: Sighting) => Promise<void>
+  /** 기록과 그 사진들을 한 번에 넣는다 (반쪽이 남지 않는다) */
+  add: (s: Sighting, photos: PhotoFile[]) => Promise<void>
   update: (id: string, patch: Partial<Sighting>) => Promise<void>
   remove: (id: string) => Promise<void>
   /** 백업을 불러온 뒤처럼 DB가 바깥에서 바뀌었을 때 다시 읽는다 */
@@ -89,8 +90,8 @@ export function JournalProvider({ children }: { children: ReactNode }) {
   const journal = useMemo<Journal>(() => ({
     sightings, error, reload, lastBackupAt, persisted,
     unsaved: (sightings ?? []).filter((s) => s.updatedAt > lastBackupAt).length,
-    add: async (s) => {
-      await dbPut('sightings', s)
+    add: async (s, photos) => {
+      await writeSightingWithPhotos(s, photos)
       setSightings((list) => [s, ...(list ?? [])])
       // 지킬 것이 생겼다 — 지금 저장소 보존을 요청한다 (첫 화면에서 묻지 않는 이유는 requestPersist 주석)
       if (persisted !== true && !askedPersist.current) { askedPersist.current = true; void requestPersist().then((ok) => { if (ok !== null) setPersisted(ok) }) }
@@ -103,8 +104,7 @@ export function JournalProvider({ children }: { children: ReactNode }) {
       setSightings((list) => (list ?? []).map((s) => (s.id === id ? next : s)))
     },
     remove: async (id) => {
-      await dbDelete('sightings', id)
-      await deletePhotos(id)
+      await deleteSightingWithPhotos(id)
       setSightings((list) => (list ?? []).filter((s) => s.id !== id))
     },
     markBackedUp: async () => {

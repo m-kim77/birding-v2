@@ -76,35 +76,45 @@ export async function dbCount(store: StoreName, key: string): Promise<number> {
   return done(db.transaction(store).objectStore(store).count(key))
 }
 
-/** 넣거나 덮어쓴다. keyPath가 있는 저장소(sightings)는 key를 주지 않는다 */
-export async function dbPut(store: StoreName, value: unknown, key?: string): Promise<void> {
-  const db = await openDb()
-  await done(db.transaction(store, 'readwrite').objectStore(store).put(value, key))
+/**
+ * 넣거나 덮어쓴다. keyPath가 있는 저장소(sightings)는 key를 주지 않는다.
+ * 트랜잭션이 확정(complete)될 때까지 기다린다 — 요청이 성공해도 용량 부족·디스크 오류는 확정 단계에서 abort로 온다.
+ */
+export function dbPut(store: StoreName, value: unknown, key?: string): Promise<void> {
+  return dbWriteAll([store], (s) => { s(store).put(value, key) })
 }
 
-/** 지운다. 없는 키여도 성공한다 */
-export async function dbDelete(store: StoreName, key: string): Promise<void> {
-  const db = await openDb()
-  await done(db.transaction(store, 'readwrite').objectStore(store).delete(key))
+/** 지운다. 없는 키여도 성공한다. dbPut처럼 확정까지 기다린다 */
+export function dbDelete(store: StoreName, key: string): Promise<void> {
+  return dbWriteAll([store], (s) => { s(store).delete(key) })
+}
+
+/**
+ * 쓰기 실패를 사용자에게 보일 Error로 바꾼다. 저장 공간 부족(QuotaExceededError)만 한국어로 풀어 말하고,
+ * 나머지는 그대로 둔다 (Error가 아닌 값·빈 값이면 일반 안내). 순수 함수다 (node --test로 검사한다).
+ */
+export function storageError(e: unknown): Error {
+  if ((e as { name?: unknown } | null)?.name === 'QuotaExceededError') return new Error('저장 공간이 모자라 저장하지 못했습니다 — 백업한 뒤 기기의 저장 공간을 비워 주세요.')
+  return e instanceof Error ? e : new Error('저장소에 쓰지 못했습니다.')
 }
 
 /**
  * 쓰기 여러 개를 트랜잭션 하나로 한다 — 다 되거나 하나도 안 된다. 중간에 탭이 닫히거나 저장 공간이 모자라도 반쪽이 남지 않는다.
  * `write`는 요청을 **만들기만** 하고 기다리지 않는다: 트랜잭션은 할 일이 비는 순간 저절로 끝나서, 사이에 await를 끼우면 뒤의 요청이 실패한다.
- * 요청 하나라도 실패하면 브라우저가 전부 되돌리고, 이 Promise는 그 오류로 거절된다 (용량 초과는 커밋 때 abort로만 온다).
+ * 요청 하나라도 실패하면 브라우저가 전부 되돌리고, 이 Promise는 그 오류로 거절된다 (용량 초과는 커밋 때 abort로만 온다 — 한국어 안내로 바꾼다).
  */
 export async function dbWriteAll(stores: StoreName[], write: (store: (name: StoreName) => IDBObjectStore) => void): Promise<void> {
   const db = await openDb()
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(stores, 'readwrite')
     tx.oncomplete = () => resolve()
-    tx.onabort = () => reject(tx.error ?? new Error('저장소에 쓰지 못했습니다.'))
+    tx.onabort = () => reject(storageError(tx.error))
     try {
       write((name) => tx.objectStore(name))
     } catch (e) {
       // 요청을 만들다 던졌으면(복제할 수 없는 값 등) 앞서 만든 요청까지 되돌린다 — 그냥 두면 거기까지만 커밋된다
       tx.abort()
-      reject(e)
+      reject(storageError(e))
     }
   })
 }

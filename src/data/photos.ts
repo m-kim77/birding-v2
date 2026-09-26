@@ -1,8 +1,11 @@
-import type { PhotoKind } from '../types'
-import { dbCount, dbDelete, dbGet, dbPut } from './db'
+import type { PhotoKind, Sighting } from '../types'
+import { dbCount, dbGet, dbPut, dbWriteAll } from './db'
 
 const key = (id: string, kind: PhotoKind) => `${id}:${kind}`
 const KINDS: PhotoKind[] = ['full', 'thumb', 'crop']
+
+/** 저장할 사진 한 판. 만드는 쪽(record/savePhotos.ts)과 쓰는 쪽(여기)을 잇는다 */
+export interface PhotoFile { kind: PhotoKind; blob: Blob }
 
 /** 사진 한 판을 저장한다 */
 export function putPhoto(id: string, kind: PhotoKind, blob: Blob): Promise<void> {
@@ -27,9 +30,25 @@ export async function getBestPhoto(id: string, fallback: PhotoKind): Promise<Blo
   return (await getPhoto(id, 'crop')) ?? getPhoto(id, fallback)
 }
 
-/** 기록에 딸린 사진을 모두 지운다 */
-export async function deletePhotos(id: string): Promise<void> {
-  await Promise.all(KINDS.map((kind) => dbDelete('photos', key(id, kind))))
+/**
+ * 기록과 그 사진들을 트랜잭션 하나로 쓴다 — 둘 다 들어가거나 둘 다 안 들어간다.
+ * 따로 쓰면 중간에 끊겼을 때 목록에 없는 사진만 남거나, 사진 없는 기록이 생긴다.
+ * 사진은 미리 다 만들어 와야 한다 (트랜잭션 안에서 JPEG를 만들며 기다리면 트랜잭션이 저절로 끝난다 — db.ts dbWriteAll).
+ * 실패하면 한국어 Error로 거절된다 (용량 부족 포함).
+ */
+export function writeSightingWithPhotos(s: Sighting, photos: PhotoFile[]): Promise<void> {
+  return dbWriteAll(['sightings', 'photos'], (store) => {
+    store('sightings').put(s)
+    for (const p of photos) store('photos').put(p.blob, key(s.id, p.kind))
+  })
+}
+
+/** 기록과 딸린 사진 세 판을 트랜잭션 하나로 지운다. 없는 판이 있어도 성공한다 */
+export function deleteSightingWithPhotos(id: string): Promise<void> {
+  return dbWriteAll(['sightings', 'photos'], (store) => {
+    store('sightings').delete(id)
+    for (const kind of KINDS) store('photos').delete(key(id, kind))
+  })
 }
 
 /** 기록에 딸린 사진을 있는 것만 모은다 (백업용) */
