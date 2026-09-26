@@ -6,6 +6,7 @@ import { daysAgoOf } from '../../ui/when'
 import { importTimelineFile, type ImportProgress } from '../tracks/importTracks'
 import { pointCountText, trackRangeText } from '../tracks/trackText'
 import { useTracksMeta } from '../tracks/useTracksMeta'
+import { notifyStorageChanged } from './useStorageStatus'
 
 type Message = { tone: 'ok' | 'warn'; text: string }
 
@@ -39,11 +40,14 @@ export default function TracksSection() {
   const [progress, setProgress] = useState<ImportProgress | null>(null)
   const [message, setMessage] = useState<Message | null>(null)
 
-  /** 작업을 돌리고 결과나 실패 이유를 아래 줄에 적는다 (조용히 실패하지 않는다). 끝나면 요약을 다시 읽는다 — 성공·실패 모두, 화면은 저장소가 지금 말하는 것만 보여 준다 */
+  /**
+   * 작업을 돌리고 결과나 실패 이유를 아래 줄에 적는다 (조용히 실패하지 않는다). 끝나면 요약을 다시 읽는다 — 성공·실패 모두, 화면은 저장소가 지금 말하는 것만 보여 준다.
+   * 저장 공간 카드에도 다시 재라고 알린다 (넣기·지우기가 기기 공간을 바꾼다).
+   */
   async function run(work: () => Promise<Message>) {
     setBusy(true)
     setMessage(null)
-    try { setMessage(await work()) } catch (e) { setMessage({ tone: 'warn', text: e instanceof Error ? e.message : '실패했습니다.' }) } finally { setBusy(false); setProgress(null); await refresh() }
+    try { setMessage(await work()) } catch (e) { setMessage({ tone: 'warn', text: e instanceof Error ? e.message : '실패했습니다.' }) } finally { setBusy(false); setProgress(null); await refresh(); notifyStorageChanged() }
   }
 
   const upload = (file: File) => run(async () => {

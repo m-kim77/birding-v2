@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Card } from '../../ui/bits'
 import Button from '../../ui/Button'
 import { mediapipeDetector as detector } from '../detect/mediapipeDetector'
+import { notifyStorageChanged } from './useStorageStatus'
 
 /**
  * 이 기기에 받아 둔 모델. 지우기는 폰 저장 공간을 돌려받는 수단이고, 받기는 와이파이에 있을 때 미리 받아 두는 수단이다.
@@ -16,11 +17,13 @@ export default function ModelSection() {
   async function download() {
     setError('')
     setProgress(0)
-    try { await detector.load(setProgress); setCached(true) } catch (e) { setError(e instanceof Error ? e.message : '받지 못했습니다.') } finally { setProgress(null) }
+    try { await detector.load(setProgress); setCached(true); notifyStorageChanged() } catch (e) { setError(e instanceof Error ? e.message : '받지 못했습니다.') } finally { setProgress(null) }
   }
   async function clear() {
     await detector.clearCache()
     setCached(false)
+    // 저장 공간 카드의 쓰는 양을 다시 재게 한다 — 지우는 것이 폰 공간을 돌려받는 수단이라 숫자가 따라 바뀌어야 한다
+    notifyStorageChanged()
   }
 
   return (

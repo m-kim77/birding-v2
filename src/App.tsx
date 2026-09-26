@@ -37,7 +37,7 @@ export default function App() {
           {route.name === 'detail' && <RecordDetail key={route.id} id={route.id} onBack={home} onOpenSettings={openSettings} />}
           {route.name === 'dex' && <DexScreen onOpenRecord={openDetail} />}
           {route.name === 'map' && <MapScreen onOpen={openDetail} />}
-          {route.name === 'settings' && <SettingsScreen choice={theme.choice} onChoose={theme.choose} />}
+          {route.name === 'settings' && <SettingsScreen choice={theme.choice} onChoose={theme.choose} onOpenRecord={openDetail} />}
           {route.name === 'record' && <RecordFlow onCancel={home} onDone={openDetail} onOpenSettings={openSettings} />}
           </Suspense>
         </AppShell>
