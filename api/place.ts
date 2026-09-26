@@ -5,7 +5,11 @@
  * 브라우저는 User-Agent를 바꿀 수 없다. 키가 필요 없는 대신 정책을 지켜야 한다.
  */
 const ENDPOINT = 'https://nominatim.openstreetmap.org/reverse'
-const USER_AGENT = 'bird-journal/2.0 (birding journal web app)'
+/**
+ * 이용 정책: 앱을 알아볼 수 있는 User-Agent (라이브러리 기본값은 안 된다). 괄호 안의 저장소 주소는 연락 수단이다 —
+ * 요청이 문제가 되면 운영 측이 막기 전에 찾아올 길. 배포 주소는 바뀔 수 있어 저장소 주소를 쓴다.
+ */
+const USER_AGENT = 'bird-journal/2.0 (birding journal web app; +https://github.com/m-kim77/birding-v2)'
 
 /**
  * Nominatim의 주소 조각을 한국식 큰→작은 순서로 잇는다. 나라마다 채워지는 키가 달라 있는 것만 고른다.
