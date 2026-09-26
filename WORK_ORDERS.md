@@ -198,6 +198,9 @@ OpenAI의 v2 검토 의견(저장·복원, 배포 운영, 기능 제안)을 코�
 
 ## 작업 7 — 저장이 끝까지 된 뒤에만 성공으로, 기록과 사진은 한 번에
 
+**완료 (2026-09-26).** 계획대로 했다. 이름: `savePhotos` → `makePhotos`(만들기만, 파일 이름 `savePhotos.ts`는 그대로), 쓰기는 `photos.ts`의 `writeSightingWithPhotos`·`deleteSightingWithPhotos`, 사진 한 판의 모양은 `PhotoFile`. 쓰이지 않게 된 `deletePhotos`는 지웠다. `putPhoto`는 백업 복원이 아직 쓴다 (작업 8에서 바꾼다). 용량 부족 문구는 `db.ts storageError`(순수 함수, 테스트 2개) — `dbWriteAll`의 abort와 요청 만들기 실패 둘 다 거친다. `RecordFlow.tsx`는 156 → 155줄.
+계획과 다르게 한 것: **용량 부족 흉내를 크롬 개발 도구 대신 페이지 안에서 했다** — Claude의 브라우저 창에는 'Simulate custom storage quota'가 없다. 사진 저장소의 `put`이 `QuotaExceededError`를 던지게 바꿔 두고 '이름 없이 저장' → 한국어 안내가 뜨고 기록 3·사진 6 그대로(아무것도 안 남음). 이 흉내는 요청을 만들 때의 실패라, 확정 단계의 abort 길은 코드로만 확인했다(`onabort` → 같은 `storageError`). 고치기 전의 같은 시험은 하지 않았다. 브라우저 확인: 저장 → 기록 + full·thumb(자르지 않음) → 새로고침 뒤 목록·상세 사진 보임 → 삭제 → 기록·사진 모두 없음. 잘라낸 판(crop)과 백업 → 지우기 → 복원은 브라우저에서 다시 보지 않았다 (복원은 작업 8에서 바뀐다).
+
 **왜**:
 - `db.ts:79-89`의 `dbPut`·`dbDelete`는 요청 하나의 성공(`onsuccess`)만 기다린다. 브라우저 DB는 요청이 성공한 **뒤에** 트랜잭션을 확정하고, **저장 공간 부족·디스크 오류는 이 확정 단계에서 트랜잭션 취소(abort)로 온다** (MDN "IDBTransaction: abort event" — 이유 목록에 Quota exceeded, I/O error. 이 파일 94줄 주석도 같은 말을 한다). 용량이 빠듯한 폰에서 사진이 실제로는 안 들어갔는데 다음 단계로 넘어갈 수 있다.
 - 기록 한 건 저장에 트랜잭션이 넷이다: 큰 판·잘라낸 판·작은 판(`savePhotos.ts:38-47`) → 기록(`RecordFlow.tsx:121-122` → `journal.tsx:93`). 중간에 끊기면 (a) 사진만 남는다 — 목록에도 백업에도 안 나오는 사진이 공간만 차지하고, 지울 길이 없고, 다시 저장하면 새 id라 또 쌓인다. (b) 위의 "확정 전 성공"과 겹치면 **기록은 있는데 사진이 없는** 기록이 생긴다 — 목록 썸네일·카드·상세 사진이 빈다.
