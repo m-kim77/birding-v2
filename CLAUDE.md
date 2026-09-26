@@ -3,6 +3,7 @@
 탐조 기록 웹앱의 Vercel 배포용 재작성. 디자인부터 새로 만든다.
 
 - 실행·구조·배포·"지금 되는 것 / 없는 것": [`README.md`](README.md)
+- 지금 할 순서·진행 상태·git에 올리는 법: [`ROADMAP.md`](ROADMAP.md). **작업을 시작하기 전에 읽는다. 순서는 이 파일만 정한다.** 작업마다의 자세한 지시는 [`WORK_ORDERS.md`](WORK_ORDERS.md).
 - 결정의 배경·근거·미정 사항: [`HANDOFF.md`](HANDOFF.md). 계획서가 생기면 계획서가 우선한다.
 - 버튼마다의 존재 이유: [`ref_design/design_v01/BUTTONS.md`](ref_design/design_v01/BUTTONS.md). **동작하지 않는 버튼을 미리 만들어 두지 않는다.**
 - 끝내기 전에 `npm run check` (타입 · 테마 대비 · 파일 크기 · 테스트).

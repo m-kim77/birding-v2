@@ -33,7 +33,7 @@ npm run build
 
 ## 아직 없는 것
 
-화면에 버튼을 미리 만들어 두지 않았다 — 동작하지 않는 버튼은 넣지 않는다. 필요한 기능의 전체 목록과 순서는 [`FEATURES.md`](FEATURES.md).
+화면에 버튼을 미리 만들어 두지 않았다 — 동작하지 않는 버튼은 넣지 않는다. 필요한 기능의 전체 목록은 [`FEATURES.md`](FEATURES.md), 할 순서와 진행 상태는 [`ROADMAP.md`](ROADMAP.md).
 작업 지시 넷(손실 막기 → 카드 등급 제거 → 초안 보존·다시 판정 → 타임라인 위치)은 끝났다 (2026-09-24). 남은 저장 방식 결정은 [`WORK_ORDERS.md`](WORK_ORDERS.md)의 작업 5.
 
 - **소리로 기록 (새소리 인식)** — 디자인은 `ref_design/design_v01`에 있다. 모델은 BirdNET의 브라우저(TF.js)판을 쓸 계획이다: 공식 구현 [birdnet-team/real-time-pwa](https://github.com/birdnet-team/real-time-pwa)(코드 MIT, 모델 CC BY-SA 4.0 — 저장소 표기 기준, 넣기 전에 다시 확인). 넣을 자리는 `features/detect`와 같은 모양의 어댑터다.
