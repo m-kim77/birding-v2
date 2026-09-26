@@ -1,4 +1,5 @@
-import { endpointFor, type OwnKey } from './connection'
+// node --test가 읽는다 (test/llmClient.test.ts) — 확장자를 적는다
+import { endpointFor, type OwnKey } from './connection.ts'
 
 /** OpenAI 형식의 메시지. 내용은 글자이거나(도구·조수) 글자+그림 조각 배열(사용자)이다 */
 export interface ChatMessage {
@@ -10,7 +11,10 @@ export interface ChatMessage {
 export interface ToolCall { id: string; type: 'function'; function: { name: string; arguments: string } }
 export interface ChatReply { content: string; toolCalls: ToolCall[]; model: string }
 
-/** 서버가 쉬거나 닿지 않을 때. 화면은 이것을 "판정 서버가 쉬는 중"으로 보여 준다 */
+/**
+ * 잠시 뒤 다시 하면 되는 실패 — 서버가 쉬거나, 닿지 않거나, 바쁘거나, 요청 제한에 걸렸을 때.
+ * 화면은 이 안내와 함께 '다시 시도'(기본 제공 AI면 '설정에서 내 키 넣기'도)를 보여 준다.
+ */
 export class LlmUnavailableError extends Error {}
 
 /**
@@ -50,7 +54,8 @@ async function readStream(body: ReadableStream<Uint8Array>, onText: (soFar: stri
 /**
  * LLM에 한 턴을 보낸다. `toolChoice`가 'none'이어도 **도구 정의는 그대로 보낸다** —
  * 정의를 빼면 요청의 앞부분이 달라져 서버의 KV 캐시가 통째로 무효가 된다 (v1에서 확인한 함정).
- * 서버에 닿지 못하거나 502/503이면 LlmUnavailableError, 그 밖의 실패는 서버가 준 안내와 함께 Error.
+ * 서버에 닿지 못하거나 502/503이면 LlmUnavailableError, 기본 제공 AI가 요청 제한(429)에 걸려도 LlmUnavailableError,
+ * 그 밖의 실패는 서버가 준 안내와 함께 Error.
  */
 export async function chat(own: OwnKey | null, messages: ChatMessage[], tools: unknown[], toolChoice: 'auto' | 'none', signal: AbortSignal, onText: (soFar: string) => void): Promise<ChatReply> {
   const target = endpointFor(own)
@@ -66,6 +71,9 @@ export async function chat(own: OwnKey | null, messages: ChatMessage[], tools: u
       : '판정 서버에 닿지 못했습니다.')
   }
   if (!res.ok || !res.body) {
+    // 기본 제공 AI의 429는 Vercel Firewall의 요청 제한이다 — 본문이 우리 JSON이 아니어서 안내를 여기서 정한다.
+    // 내 키의 429(그 서비스의 한도·요금)는 그 서비스가 준 안내를 아래에서 그대로 쓴다
+    if (res.status === 429 && !own) throw new LlmUnavailableError('요청이 많아 잠시 쉬어 갑니다. 몇 분 뒤 다시 물어봐 주세요.')
     const message = await res.json().then((j) => String(j?.error?.message ?? ''), () => '')
     if (res.status === 502 || res.status === 503) throw new LlmUnavailableError(message || '판정 서버가 쉬는 중입니다.')
     throw new Error(message || `판정 요청이 실패했습니다 (${res.status}).`)
