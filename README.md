@@ -29,6 +29,7 @@ npm run build
 | 이동 기록(구글 타임라인)으로 위치 찾기 | 동작. 설정에서 안드로이드 타임라인 파일을 넣으면 브라우저 안에서만 읽어 기기에 둔다 (서버로 보내지 않고 백업에도 안 넣는다). GPS 없는 사진은 촬영 시각으로 자동으로 채운다 — 앞뒤 점 보간, Tier 1(GPS·WIFI, 정확도 100m 미만) → Tier 2(이동 경로). 아이폰 내보내기 파일은 아직 못 읽는다. 카메라 시계 보정은 넣지 않았다. **실제 파일은 파서로만 확인했다**(22,426점, v1 실측 앵커 그대로) — 브라우저에서는 같은 모양의 합성 파일(32MB)로 넣기·합치기·지우기·자동 채우기를 확인했다 |
 | 테마 6종 (도감은 밤 모드 포함) | 동작 |
 | 내 API 키로 판정 (OpenAI 호환, 브라우저 → 서비스 직행) | 구현됨. **실제 유료 키로는 확인하지 못했다.** 기본 제공 AI로 돌아가도 키는 남고(끄기만 한다), `/models`가 없는 서비스도 저장된다 |
+| 기본 제공 AI 통로 보호 | 동작 (작업 9). 지시문·도구·모델은 서버가 정한다 — 브라우저가 보낸 것은 버린다. 대화 40개·사진 1장까지, 판정 서버가 90초 안에 답을 시작하지 않으면 "판정 서버가 바쁩니다"(맥으로 가는 요청도 끊는다), 요청 제한(429)에는 "요청이 많아 잠시 쉬어 갑니다". IP마다의 요청 수 제한은 Vercel Firewall 규칙이 맡는다 — 아래 "Vercel 배포" 4 |
 | 홈 화면 설치 (PWA 아이콘 · 아이폰 안내) | 동작. `apple-touch-icon`·PNG 아이콘이 있고, 아이폰 사파리 탭에서 열면 "홈 화면에 추가" 안내가 한 번 뜬다 — 설치해야 7일 미사용 삭제에서 벗어나고 `storage.persist()`가 승인된다. 홈 화면 앱은 사파리와 저장소가 따로라 기록이 있으면 "먼저 백업"을 권한다. `persist()`는 첫 저장 뒤에 요청하고, 거절된 폰에서는 백업 알림이 1건부터 뜬다 |
 | 화면 오류 경계 | 동작. 예외가 나면 백지 대신 "기록은 안전합니다 / 다시 열기" |
 
@@ -46,7 +47,8 @@ npm run build
 
 ```
 api/                  Vercel 함수 (웹 표준 Request → Response). 개발 때는 dev/apiPlugin.ts가 같은 파일을 돌린다
-  llm.ts              기본 제공 AI로 가는 통로. 목적지는 환경변수로만 정해진다 (열린 프록시가 되지 않게)
+  llm.ts              기본 제공 AI로 가는 통로. 목적지는 환경변수로만 정해진다 (열린 프록시가 되지 않게). 첫 응답 90초 마감
+  _lib/llmRequest.ts  기본 제공 AI 요청 검사 — 지시문·도구·모델은 서버가 정한다 (순수). `_` 폴더는 Vercel이 함수로 만들지 않는다
   place.ts            좌표 → 장소 이름 (Nominatim은 User-Agent를 요구해서 브라우저에서 직접 못 부른다)
 src/
   theme/              테마 토큰 — 겉모습의 단일 원본. 컴포넌트는 테마 이름을 모른다
@@ -59,7 +61,7 @@ src/
     tracks/           워커·가져오기·60일 알림 (이동 기록)
     detect/           탐지 모델 어댑터. 모델을 바꾸면 mediapipeDetector.ts만 바뀐다
     identify/         판정 루프 · 프롬프트 · 연결 · 답 읽기
-      tools/          LLM 도구 — **도구 하나 = 파일 하나**, 목록은 index.ts
+      tools/          LLM 도구 — 정의(설명·인자·순서)는 definitions.ts 한 곳(서버도 읽는다), 실행은 **도구 하나 = 파일 하나**, 짝은 index.ts
     dex/ records/ map/ settings/
 scripts/              check-contrast · check-size
 test/                 순수 로직 테스트 (node --test)
@@ -68,7 +70,7 @@ ref_design/design_v01 디자인 초안과 BUTTONS.md (버튼마다 존재 이유
 
 ### 자주 할 일
 
-- **LLM 도구 더하기**: `features/identify/tools/`에 파일 하나를 만들고 `index.ts`의 배열 **끝에** 한 줄을 더한다. 순서를 바꾸면 LLM 서버의 KV 캐시가 깨진다 (이유는 그 파일 주석).
+- **LLM 도구 더하기**: `features/identify/tools/definitions.ts`의 배열 **끝에** 정의(이름·설명·인자) 하나 → 실행 파일 하나 → `index.ts`의 `RUNNERS`에 한 줄. 실행부를 빠뜨리면 `npm run check`의 타입 검사가 막는다. 순서를 바꾸면 LLM 서버의 KV 캐시가 깨진다 (이유는 그 파일 주석). 정의 파일은 서버(`api/`)도 읽으니 다른 파일을 import하지 않는다 (CLAUDE.md의 `.ts` 규칙).
 - **탐지 모델 바꾸기**: `features/detect/detector.ts`의 모양을 따르는 파일을 만들고, `useDetection.ts`·`ModelSection.tsx`의 import 한 줄을 바꾼다. 설정 > 출처에도 한 줄.
 - **테마 더하기**: `theme/themes.ts`에 항목 하나 → `npm run check`가 대비를 검사한다.
 - **카드 색 바꾸기**: 추천 색·기본색·옛 기록의 색은 `features/dex/cardStyle.ts` 한 곳. 사진에서 뽑는 방법은 `accentFromPhoto.ts`. 모든 카드가 함께 쓰는 값(바탕·글꼴)은 `cardLook.ts`.
@@ -82,7 +84,13 @@ ref_design/design_v01 디자인 초안과 BUTTONS.md (버튼마다 존재 이유
    - `LOCAL_LLM_URL` — 집 PC의 LLM 서버 주소 (예: `https://llm.내도메인/v1`). **공유기 포트를 열지 말고 터널을 쓴다** (Cloudflare Tunnel, Tailscale Funnel). Cloudflare **빠른 터널(trycloudflare)은 쓰지 않는다** — Cloudflare 문서상 테스트·개발 전용이고 스트리밍(SSE)을 지원하지 않는데, 앱은 판정 답을 스트림으로 받는다. 켤 때마다 주소도 바뀐다.
    - `LOCAL_LLM_KEY` — LLM 서버의 키. LM Studio는 키가 없으므로, 터널 쪽에서 토큰 검사를 걸거나 키가 있는 서버(Unsloth 등)를 쓴다. 키 없이 열면 누구나 그 GPU를 쓴다.
    - `LOCAL_LLM_MODEL` — 쓸 모델 이름. 사진을 볼 수 있고(vision) 도구 호출을 지원해야 한다.
+   - `LOCAL_LLM_FIRST_RESPONSE_SECONDS` (선택, 기본 90) — LLM 서버가 이 시간 안에 답을 시작하지 않으면 "판정 서버가 바쁩니다"로 끝낸다. 앞 요청이 밀린 동안 함수가 300초를 붙잡지 않게 하는 값이다. 모델을 처음 올리는 데 더 걸리면 올린다. 생각하는 모델도 생각을 조각으로 바로 흘려보내 긴 생각에는 걸리지 않는다 (실측: 첫 조각 4초).
 3. 환경변수가 없으면 앱은 그대로 돌고, 판정만 "기본 제공 AI가 아직 설정되지 않았습니다"로 나온다. 내 키를 넣은 사용자는 판정할 수 있다.
+4. **요청 수 제한 — 코드가 아니라 Vercel 대시보드에서 건다**: 프로젝트 → 왼쪽 **Firewall** → 오른쪽 위 **Configure** → **+ New Rule**.
+   - 이름(예: `api-rate-limit`) / **If**: `Request Path` · `Starts with` · `/api/` / **Then**: **Rate Limit** (처음이면 요금 안내 창 → **Continue**)
+   - **Fixed Window**, Time Window **10분**, Request Limit **60**, 기준 **IP**. 동작은 처음에 **Log**(막지 않고 세기만 한다) → **Save Rule** → 오른쪽 위 **Review Changes** → **Publish**
+   - 며칠 뒤 Firewall 화면에서 이 규칙을 골라 실제 수를 보고, 괜찮으면 동작을 **Default (429)**로 바꾼다. 걸린 사람은 앱에서 "요청이 많아 잠시 쉬어 갑니다"를 본다.
+   - 판정 한 건은 `/api/llm` 요청이 많아야 10회쯤(도구 8회 + 마무리 + 다시 청하기)이라 사람은 10분에 대여섯 건까지 된다. Hobby는 요청 제한 규칙이 **프로젝트당 1개**(창 10초~10분, 기준 IP)라 `/api/llm`·`/api/place`를 한 규칙으로 묶는다. 세는 값은 지역(region)마다 따로다. 모든 사용자를 합친 하루 상한은 공유 저장소(예: Upstash)가 있어야 해서 아직 없다.
 
 알아 둘 것:
 
@@ -97,7 +105,7 @@ ref_design/design_v01 디자인 초안과 BUTTONS.md (버튼마다 존재 이유
 
 서버에서 조절할 것 (앱 코드가 아니다):
 
-- **동시 사용자**: 슬롯이 하나면 두 사람의 판정이 번갈아 들어올 때 서로의 캐시를 밀어낸다. llama.cpp 계열은 `--parallel N`(Unsloth: `n_parallel`)으로 슬롯을 나눈다.
+- **동시 사용자**: 슬롯이 하나면 두 사람의 판정이 번갈아 들어올 때 서로의 캐시를 밀어낸다. llama.cpp 계열은 `--parallel N`(Unsloth: `n_parallel`)으로 슬롯을 나눈다. 운영자 맥 하나라면 1~2를 권한다 (작업 9) — 한 사람이 몰아 보내도 맥이 버티고, 넘친 요청은 줄을 서다 90초 안에 차례가 안 오면 "판정 서버가 바쁩니다"로 끝난다. 9-26 로그의 설정은 `--parallel 4`다.
 - **KV 캐시 메모리**: `cache_type_kv`(q8_0 등)로 줄이면 같은 메모리에 더 긴 문맥·더 많은 슬롯이 들어간다. MLX는 `mlx_kv_bits`.
 - **밀려난 캐시 보관**: Unsloth의 `cache_ram`.
 - **문맥 길이**: 판정 한 건은 1~2만 토큰이면 충분하다. 26만 토큰으로 열어 두면 메모리만 먹는다.
