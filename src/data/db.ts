@@ -76,16 +76,17 @@ export async function dbCount(store: StoreName, key: string): Promise<number> {
   return done(db.transaction(store).objectStore(store).count(key))
 }
 
-/** 넣거나 덮어쓴다. keyPath가 있는 저장소(sightings)는 key를 주지 않는다 */
-export async function dbPut(store: StoreName, value: unknown, key?: string): Promise<void> {
-  const db = await openDb()
-  await done(db.transaction(store, 'readwrite').objectStore(store).put(value, key))
+/**
+ * 넣거나 덮어쓴다. keyPath가 있는 저장소(sightings)는 key를 주지 않는다.
+ * 트랜잭션이 확정(complete)될 때까지 기다린다 — 요청이 성공해도 용량 부족·디스크 오류는 확정 단계에서 abort로 온다.
+ */
+export function dbPut(store: StoreName, value: unknown, key?: string): Promise<void> {
+  return dbWriteAll([store], (s) => { s(store).put(value, key) })
 }
 
-/** 지운다. 없는 키여도 성공한다 */
-export async function dbDelete(store: StoreName, key: string): Promise<void> {
-  const db = await openDb()
-  await done(db.transaction(store, 'readwrite').objectStore(store).delete(key))
+/** 지운다. 없는 키여도 성공한다. dbPut처럼 확정까지 기다린다 */
+export function dbDelete(store: StoreName, key: string): Promise<void> {
+  return dbWriteAll([store], (s) => { s(store).delete(key) })
 }
 
 /**
