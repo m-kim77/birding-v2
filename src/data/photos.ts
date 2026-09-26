@@ -1,8 +1,7 @@
 import type { PhotoKind, Sighting } from '../types'
 import { dbCount, dbGet, dbPut, dbWriteAll } from './db'
-
-const key = (id: string, kind: PhotoKind) => `${id}:${kind}`
-const KINDS: PhotoKind[] = ['full', 'thumb', 'crop']
+// 키 모양은 점검·정리(photoCheck.ts)와 함께 쓴다 — 여기서 따로 만들면 둘이 어긋날 수 있다
+import { PHOTO_KINDS as KINDS, photoKey as key } from './photoKey'
 
 /** 저장할 사진 한 판. 만드는 쪽(record/savePhotos.ts)과 쓰는 쪽(여기)을 잇는다 */
 export interface PhotoFile { kind: PhotoKind; blob: Blob }

@@ -1,10 +1,11 @@
 /**
  * 브라우저 로컬 DB(IndexedDB)의 얇은 포장. 라이브러리를 쓰지 않았다 — 필요한 동작이 get·getAll·count·put·delete와,
- * 여러 쓰기를 트랜잭션 하나로 묶는 dbWriteAll뿐이다.
+ * 여러 쓰기·읽기를 트랜잭션 하나로 묶는 dbWriteAll·dbReadAll뿐이다.
  *
  * 저장소 넷:
  * - sightings: 기록 (키 = id)
- * - photos: 사진 Blob (키 = `${기록id}:${판}`)
+ * - photos: 사진 Blob (키 = `${기록id}:${판}`, data/photoKey.ts). **기록의 사진만 둔다** — 설정의 정리(data/photoCheck.ts)가
+ *   기록이 없는 키를 지운다. 다른 사진은 새 저장소에 둔다
  * - meta: 마지막 백업 시각 같은 낱개 값
  * - tracks: 이동 기록 점 (키 = UTC 날짜 'YYYY-MM-DD', 값 = PackedPoint[]). 백업에 넣지 않는다 (data/tracks.ts)
  */
@@ -115,6 +116,30 @@ export async function dbWriteAll(stores: StoreName[], write: (store: (name: Stor
       // 요청을 만들다 던졌으면(복제할 수 없는 값 등) 앞서 만든 요청까지 되돌린다 — 그냥 두면 거기까지만 커밋된다
       tx.abort()
       reject(storageError(e))
+    }
+  })
+}
+
+/**
+ * 여러 저장소를 읽기 트랜잭션 하나로 읽는다 — 한순간의 모습이다. 쓰기 트랜잭션은 겹치는 읽기와 동시에 돌지 않아서
+ * (다른 탭의 쓰기도), 따로 읽을 때처럼 "기록은 읽기 전, 사진은 읽은 뒤에 저장된" 어긋난 모습이 나오지 않는다.
+ * `read`는 요청을 **만들기만** 하고, 트랜잭션이 끝난 뒤 결과를 꺼낼 함수를 돌려준다 (dbWriteAll과 같은 까닭으로 사이에 await를 끼우지 않는다).
+ * 요청 하나라도 실패하면 그 오류로 거절된다.
+ */
+export async function dbReadAll<T>(stores: StoreName[], read: (store: (name: StoreName) => IDBObjectStore) => () => T): Promise<T> {
+  const db = await openDb()
+  return new Promise<T>((resolve, reject) => {
+    const tx = db.transaction(stores, 'readonly')
+    let take: (() => T) | null = null
+    tx.oncomplete = () => {
+      try { resolve(take!()) } catch (e) { reject(e) }
+    }
+    tx.onabort = () => reject(tx.error ?? new Error('저장소를 읽지 못했습니다.'))
+    try {
+      take = read((name) => tx.objectStore(name))
+    } catch (e) {
+      tx.abort()
+      reject(e)
     }
   })
 }
