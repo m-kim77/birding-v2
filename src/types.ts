@@ -117,7 +117,11 @@ export interface Sighting {
   /** 카드의 색·효과. 옛 기록에는 없다 — 그때는 tier로 색을 정한다 */
   cardStyle?: CardStyle
   stamps: Stamp[]
-  /** 보호가 필요한 종 — 카드와 지도에서 위치를 가린다 */
+  /**
+   * 위치 숨기기 — 카드(화면·이미지·영상)에 장소 대신 "위치 비공개"를 적고 지도에 올리지 않는다. 사용자가 기록마다 켠다
+   * (records/HideLocationSwitch — 둥지처럼 알려지면 안 되는 곳). 기록 상세·목록·백업에는 장소가 그대로 남는다.
+   * 키 이름은 보호종 자료로 켜려던 때의 것이다 — 백업 호환 때문에 그대로 둔다.
+   */
   sensitive: boolean
   identify: IdentifyStatus
   /** AI의 이름을 그대로 받아들였을 때만 남긴다 */

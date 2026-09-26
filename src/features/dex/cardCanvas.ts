@@ -80,7 +80,7 @@ export function drawCardFront(ctx: CanvasRenderingContext2D, s: Sighting, img: I
   ctx.fillStyle = CARD_BASE.hair
   ctx.fillRect(PAD, lineY, CARD_W - PAD * 2, 2)
   mono(ctx, dotDateOf(s), PAD, lineY + 52, 32, CARD_BASE.sub, 'left', '0.12em')
-  // 보호가 필요한 종은 장소를 적지 않는다 — 카드는 SNS로 퍼지는 물건이다
+  // 위치를 숨긴 기록은 장소를 적지 않는다 (BirdCard와 같다) — 카드는 SNS로 퍼지는 물건이다
   ctx.font = `400 34px ${CARD_FONTS.body}`
   ctx.textAlign = 'right'
   ctx.fillText(s.sensitive ? '위치 비공개' : s.place, CARD_W - PAD, lineY + 52, CARD_W / 2)

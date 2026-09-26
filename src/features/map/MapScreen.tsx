@@ -14,7 +14,7 @@ interface Place { key: string; name: string; lat: number; lng: number; items: Si
 
 /**
  * 가까운 기록을 핀 하나로 모은다 (좌표를 소수 3자리 ≈ 110m 격자로 뭉갠다 — 같은 탐조지의 기록이 한 핀이 된다).
- * 좌표가 없는 기록과 보호가 필요한 종은 지도에 올리지 않는다 — 지도 화면은 캡처돼 퍼지기 쉽다.
+ * 좌표가 없는 기록과 위치를 숨긴 기록(`sensitive` — records/HideLocationSwitch)은 지도에 올리지 않는다 — 지도 화면은 캡처돼 퍼지기 쉽다.
  * 핀의 좌표·이름은 그 자리에서 **가장 먼저 찍은** 기록의 것이다 — 목록 순서가 아니라 촬영 시각으로 고르므로 기록이 늘어도 핀이 움직이지 않는다
  * (핀이 움직이면 지도가 시야를 다시 맞춰 사용자가 확대해 둔 것이 튄다 — LeafletMap).
  */
@@ -36,6 +36,8 @@ function groupPlaces(sightings: Sighting[]): Place[] {
 export default function MapScreen({ onOpen }: { onOpen: (id: string) => void }) {
   const { sightings } = useJournal()
   const places = useMemo(() => groupPlaces(sightings ?? []), [sightings])
+  // 핀에서 뺀 기록 수 — 말없이 사라지면 기록을 잃은 줄 안다
+  const hidden = useMemo(() => (sightings ?? []).filter((s) => s.sensitive && s.lat !== null && s.lng !== null).length, [sightings])
   const [pickedKey, setPickedKey] = useState('')
   const picked = places.find((p) => p.key === pickedKey) ?? null
   const markers = useMemo<MapMarker[]>(() => places.map((p) => ({ key: p.key, lat: p.lat, lng: p.lng, count: p.items.length, picked: p.key === pickedKey })), [places, pickedKey])
@@ -43,7 +45,8 @@ export default function MapScreen({ onOpen }: { onOpen: (id: string) => void }) 
   return (
     <div className="screen screen-map">
       <ScreenHead title="지도" sub={places.length ? `${places.length}곳에서 관찰했습니다` : undefined} />
-      {places.length === 0 && <p className="hint">위치가 있는 기록이 아직 없습니다.</p>}
+      {places.length === 0 && hidden === 0 && <p className="hint">위치가 있는 기록이 아직 없습니다.</p>}
+      {hidden > 0 && <p className="hint">위치를 숨긴 기록 {hidden}건은 지도에 올리지 않았습니다.</p>}
       <div className="map-cols">
         <div className="map-frame"><LeafletMap markers={markers} center={DEFAULT_CENTER} onMarker={setPickedKey} /></div>
         {picked && (

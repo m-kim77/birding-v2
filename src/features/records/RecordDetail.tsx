@@ -12,6 +12,7 @@ import BirdCard from '../dex/BirdCard'
 import CardActions from '../dex/CardActions'
 import CardStylePicker from '../dex/CardStylePicker'
 import DetailIdentify from './DetailIdentify'
+import HideLocationSwitch from './HideLocationSwitch'
 import { dexNoFor } from '../dex/dexNo'
 import VerdictDetails from '../identify/VerdictDetails'
 
@@ -121,6 +122,7 @@ export default function RecordDetail({ id, onBack, onOpenSettings }: Props) {
         <Sheet title="새 카드" onClose={() => setShowCard(false)}>
           <BirdCard sighting={s} />
           <CardStylePicker sighting={s} />
+          <HideLocationSwitch sighting={s} />
           <CardActions sighting={s} />
         </Sheet>
       )}

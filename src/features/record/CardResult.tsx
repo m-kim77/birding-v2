@@ -4,6 +4,7 @@ import type { Sighting } from '../../types'
 import CardActions from '../dex/CardActions'
 import CardReveal from '../dex/CardReveal'
 import CardStylePicker from '../dex/CardStylePicker'
+import HideLocationSwitch from '../records/HideLocationSwitch'
 
 interface Props {
   sighting: Sighting
@@ -13,8 +14,8 @@ interface Props {
 }
 
 /**
- * 저장 직후 화면. 방금 만든 기록의 카드를 보여 주고, 색을 바로 고칠 수 있다.
- * 카드는 저장소의 최신 기록으로 그린다 — 색을 바꾸면 여기서도 바로 바뀌어야 한다.
+ * 저장 직후 화면. 방금 만든 기록의 카드를 보여 주고, 색을 바로 고치고 위치를 숨길 수 있다 — 카드를 공유하는 가장 흔한 때가 지금이다.
+ * 카드는 저장소의 최신 기록으로 그린다 — 색이나 위치 숨기기를 바꾸면 여기서도 바로 바뀌어야 한다.
  */
 export default function CardResult({ sighting, firstMeet, onDone }: Props) {
   const { sightings } = useJournal()
@@ -27,6 +28,7 @@ export default function CardResult({ sighting, firstMeet, onDone }: Props) {
       <h1 className="display">{waiting ? '이름은 나중에 기록을 열어 채울 수 있습니다' : firstMeet ? `${live.speciesKo}를 도감에 더했습니다` : `${live.speciesKo}를 기록했습니다`}</h1>
       <CardReveal sighting={live} animate={firstMeet && !waiting} />
       <CardStylePicker sighting={live} />
+      <HideLocationSwitch sighting={live} />
       <div className="result-actions">
         <Button variant="primary" block onClick={onDone}>완료</Button>
         {/* 저장: 이름이 정해진 카드만. 이름 미정 카드를 내보낼 이유는 없다 */}

@@ -14,7 +14,7 @@ import './card.css'
  *
  * **카드 디자인은 앱 테마를 따르지 않는다.** 값은 cardLook.ts·cardStyle.ts에서 오고, 내보내는 이미지·영상(cardCanvas.ts)과 같은 값을 쓴다.
  * 큰 카드는 손가락을 따라 살짝 기울고 빛이 지나간다. 도감 격자의 작은 카드는 가만히 있다 — 수십 장이 함께 움직이면 어지럽다.
- * 보호가 필요한 종은 장소 대신 "위치 비공개"를 적는다 — 카드는 SNS로 퍼지는 물건이다.
+ * 위치를 숨긴 기록(`sensitive` — records/HideLocationSwitch)은 장소 대신 "위치 비공개"를 적는다 — 카드는 SNS로 퍼지는 물건이다.
  */
 export default function BirdCard({ sighting, small }: { sighting: Sighting; small?: boolean }) {
   const s = sighting
