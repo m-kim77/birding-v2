@@ -3,6 +3,7 @@ import AiSection from './AiSection'
 import BackupSection from './BackupSection'
 import LicenseSection from './LicenseSection'
 import ModelSection from './ModelSection'
+import PrivacySection from './PrivacySection'
 import ThemePicker from './ThemePicker'
 import TracksSection from './TracksSection'
 import './settings.css'
@@ -13,7 +14,7 @@ interface Props {
 }
 
 /**
- * 설정. 중요한 순서대로 위에서 아래로: 백업 → 테마 → AI 연결 → 이동 기록 → 받은 모델 → 출처.
+ * 설정. 중요한 순서대로 위에서 아래로: 백업 → 테마 → AI 연결 → 이동 기록 → 받은 모델 → 무엇이 어디로 가나요 → 출처.
  * 구역마다 파일이 하나다 — 구역을 더할 때 이 파일에는 한 줄만 더한다.
  */
 export default function SettingsScreen({ choice, onChoose }: Props) {
@@ -25,6 +26,7 @@ export default function SettingsScreen({ choice, onChoose }: Props) {
       <AiSection />
       <TracksSection />
       <ModelSection />
+      <PrivacySection />
       <LicenseSection />
     </div>
   )
