@@ -615,3 +615,35 @@ ROADMAP의 "AI 판정 메모"와 조사 문서(`../v2 docs/community/fable-final
 
 **닿는 파일**: 새로 `src/features/identify/koName.ts`, `test/koName.test.ts`, `test/koreanName.test.ts`, `test/buildSighting.test.ts`. 고침 `src/features/identify/tools/koreanName.ts`, `src/features/identify/parseVerdict.ts`, `src/features/identify/loop.ts`, `src/data/species.ts`, `src/types.ts`, `src/features/record/IdentifyPanel.tsx`, `src/features/record/RecordFlow.tsx`, `src/features/record/buildSighting.ts`, `src/features/records/DetailIdentify.tsx`, `test/parseVerdict.test.ts`. 문서 `ROADMAP.md`, `WORK_ORDERS.md`, `README.md`.
 **검증**: `npm run check`. 브라우저 — 위 "완료"에 적은 순서. 실제 사이트에서 박새 사진으로 한 번(사용자).
+
+---
+
+## 코드 정리 메모 (작업 26~28과 나머지) — 순서는 ROADMAP.md
+
+2026-09-27 점검(읽기 전용, main `f147342`)의 근거다. 줄 번호는 그날 기준이다 — 작업을 시작하면 다시 확인하고, 그 작업의 새 "작업 N" 절로 옮겨 자세히 쓴다 (위 "다음 기능 메모"와 같은 방식).
+
+**코드 정리 작업 공통**:
+- 리팩터링은 앱 동작을 바꾸지 않는다 — 끝난 뒤 사용자가 느끼는 변화가 없어야 한다. **옮기면서 고치지 않는다.** 고칠 것이 보이면 따로 `fix` 커밋이나 다른 작업으로 한다. 앞선 예: 작업 12의 `7f04f9b`(기능 커밋 앞에 둔 "동작은 그대로" 커밋).
+- 화면(컴포넌트) 테스트가 없다 — `npm run check`와 함께 브라우저에서 그 흐름을 전과 똑같이 눌러 보는 것이 안전망이다. 순수 함수로 뺀 것에는 테스트를 붙인다.
+- 같은 화면을 만지는 다른 작업과 동시에 돌리지 않는다 — 코드를 파일 사이로 옮기므로 서로 덮는다.
+- 점검에서 이미 지켜지고 있던 것: 파일 크기 전부 상한 안, `lib`·`data`가 위층을 부르지 않음, `history` 직접 호출·컴포넌트 안 테마 id 분기·`api/`의 확장자 없는 import 없음.
+
+- **작업 26 — 기록 화면(`RecordFlow`) 나누기**: 함수 122줄(`RecordFlow.tsx:44`, 상한 80 — 점검 때 유일한 위반), 파일 155줄(목표 150). 한 함수가 사진·영역·AI·위치·초안 되살리기·자동 저장·저장·세 화면을 다 한다. 초안에 칸 하나를 더하면 상태·되살리기 effect(L80-90)·자동 저장 effect(L96-99) 세 곳을 같이 고친다.
+  - 뗄 것: (1) 초안 배선 → 새 훅 `record/useRecordFields.ts` — `useDraft`(L53), crop·name·note·askedBox·restoring 상태(L55-59·L65), 두 effect, `choose`·`resume`(L139-148). 모두 `data/draft.ts`의 초안 칸과 같이 바뀐다. (2) 위치 배선 → 새 훅 `record/useRecordPlace.ts` — `usePlace`·`useTrackMatch`(L51-52), `lastPlace`(L71-74), 이동 기록 넣기 effect(L93), `placeNote`·`placeHint`(L170-171). **`usePlace.ts`에 넣지 않는다** — RecordEdit(첫 화면 묶음)이 부르는 파일이라 이동 기록 매칭 코드가 첫 화면에 딸려 온다(`bfbdb2d`에서 막은 문제). (3) 사진 고르기 첫 화면(L155-167) → `record/PhotoStart.tsx`. 예상: 함수 약 77줄, 파일 약 115줄.
+  - 남길 것: 작성 화면 JSX(넘길 값이 20개가 넘는다), `picked`(AI·저장·탐지·판정 칸이 다 쓴다), `save`와 saving·saveError·saved(떼면 초안 훅과 서로 부른다).
+  - **함정**: 초안 훅은 위치 훅 **뒤에** 부른다 — 같은 커밋의 effect는 훅을 부른 순서대로 돌아서, 앞에 부르면 `usePlace`의 EXIF effect가 되살린 위치를 덮는다(L76-79 주석). effect 의존성 배열은 글자 그대로 옮긴다 — ESLint가 설치돼 있지 않아 `eslint-disable-line` 6곳은 아무 효과가 없고, 틀려도 안 잡힌다.
+  - 마지막 커밋: `scripts/check-size.ts`가 함수 길이도 잰다 — 이미 있는 `typescript` 파서로(새 패키지 없음) 함수마다 빈 줄·주석을 뺀 줄 수를 세어 80 초과는 실패, 40 초과는 표시. 머리 주석의 "함수 길이는 재지 않는다 — … ESLint로 한다"도 고친다. 26보다 먼저 넣으면 check가 바로 실패한다. 점검 때 40줄을 넘은 함수: RecordFlow 122 · IdentifyPanel 80 · RecordsScreen 78 · RecordEdit 69 · CardStylePicker 64 · AiSection 63 · BackupSection 56 · RecordDetail 55 · StorageSection 55 · TracksSection 49 · useAsk 45 · JournalProvider 44 · runIdentify 41 · parseExif 41.
+  - 확인: 사진 고르기 → 새 찾기(한 마리·여러 마리) → AI → 위치(사진 좌표·이동 기록·지도에서 고르기·직전 위치) → 저장 → 카드. 쓰다가 뒤로 → "이어 쓰기"로 이름·메모·영역·판정·직접 고른 위치가 모두 돌아오는지. 사진 바꾸기에 실패하면 옛 사진·영역이 남는지.
+- **작업 27 — AI 판정을 기록에 넣는 규칙 한 곳으로**: 이름과 판정으로 {speciesKo, latin, verdict, identify, dexNo}를 정하는 규칙이 네 곳에 있다 — 새 기록 `record/buildSighting.ts:42,46,53`, 수정 `records/editPatch.ts:45-47`, 상세의 '이 이름으로' `records/DetailIdentify.tsx:49-54`, 후보 칩 `:57-60`. 뒤의 둘은 테스트 없는 화면 안에 있고, 후보 칩은 앞뒤 빈칸도 안 지운다. 작업 20 규칙(국명 없는 판정은 이름에 넣지 않는다·이름을 바꾸면 근거를 뗀다)을 순수 함수 하나로 모으고 테스트한다.
+  - AI에 보낼 그림 만들기가 두 벌이다 — `record/savePhotos.ts` `imageForAI` ↔ `records/DetailIdentify.tsx:33-36` (1024px·품질 0.88이 두 곳). CLAUDE.md가 가리키는 `imageForAI` 쪽으로 모은다.
+  - **같이 고칠 버그** (동작이 바뀌므로 따로 `fix` 커밋): 판정 칸의 "넣었다" 판단(`IdentifyPanel.tsx:86` `name === v.speciesKo`)에 상세가 기록의 이름(`DetailIdentify.tsx:65`)을 넘긴다. AI 서버가 쉬어서 '까치'라고 직접 적어 저장 → 상세에서 물었더니 '까치' → "이름 칸에 넣었습니다"만 뜨고 '이 이름으로'가 없어 판정 근거를 기록에 붙일 수 없고, 나가면 사라진다. "이름 칸"이라는 말도 상세와 맞지 않는다. 방향: '넣었는지'를 부르는 쪽이 정해 넘긴다.
+- **작업 28 — 설정 카드들의 같은 틀 하나로**: "누르면 → 진행 중 → 결과 한 줄" 틀을 카드마다 복사해 쓴다 — `{tone, text}` 타입 4벌(`BackupSection.tsx:10`·`TracksSection.tsx:11`·`StorageSection.tsx:14`·`AiSection.tsx:7`), 진행 중 표시와 오류 잡기 3벌(`BackupSection.tsx:25`·`TracksSection.tsx:47`·`StorageSection.tsx:37`), 결과 줄 4벌(`AiSection.tsx:104`·`BackupSection.tsx:75`·`StorageSection.tsx:86`·`TracksSection.tsx:80`). 훅 하나(`useTask`)와 결과 줄 컴포넌트 하나로 모은다. 작업 19의 드라이브 카드(연결/해제·마지막 동기화·못 올린 건수)가 이 틀을 쓴다.
+  - 같이 볼 것: `TracksSection`·`StorageSection`은 읽기 훅(`useTracksMeta`·`useStorageStatus`)을 두고, 지우기는 `data`를 직접 부르고 `refresh()`를 화면이 챙긴다. `AiSection.tsx:15-30`의 연결 확인 요청은 `identify/connection.ts` `endpointFor`와 주소 만들기가 겹친다 — identify 쪽으로 옮기면 테스트할 수 있다 (보내는 곳이 같으니 "무엇이 어디로 가나요"는 그대로). 이 요청에는 시간 제한이 없다 — 더하는 것은 동작이 바뀌니 따로.
+- **작업 18을 시작할 때**: AI 판정 칸(`IdentifyPanel.tsx`) 함수가 80줄로 상한이다. 18의 첫 커밋으로 같은 파일 안 하위 컴포넌트로 나눈다(작업 12의 `PlaceRow` 방식) — 답이 온 뒤 화면(L83-118) → `VerdictResult`, 묻는 중 화면(L67-82)과 `useElapsed` → `AskRunning` (지금의 `state === 'running' ? startedAt : null` 우회가 사라진다). 'AI 판정 · {kind}' 문구가 `IdentifyPanel.tsx:89`·`RecordDetail.tsx:67` 두 곳, '확정'을 문장에 쓰는 곳이 `VerdictDetails.tsx:15` — 보이는 말을 정하는 함수 하나로. (위 "다음 기능 메모"의 `RecordDetail.tsx:91`은 옛 줄 번호다.)
+- **나머지 (ROADMAP "그 뒤")**:
+  - 화면 문구 한 곳으로 — 위치 출처 문구 2벌(`usePlace.ts:15-17` ↔ `RecordDetail.tsx:19-21`, '없음' 문구가 이미 다르다), "장소 → 좌표 → 위치 없음" 3벌(`RecordFacts.tsx:34`·`RecordDetail.tsx:56`·`LocationSheet.tsx:32`), 촬영 정보 한 줄 3벌(`RecordFacts.tsx:15`·`RecordDetail.tsx:44`·`dex/cardText.ts:15`), 카드 글자 2쌍(`BirdCard.tsx:22,40` ↔ `cardCanvas.ts:76,86` — '위치 비공개'가 화면 카드와 내보낸 카드에 따로 있다. `cardText.ts`가 모으려던 자리다), '이름 미정' 9곳.
+  - 화면 안의 계산을 순수 함수로(+테스트) — 기록 목록의 검색·달별 묶기(`RecordsScreen.tsx:18-40`, 함수 78줄에 여유가 생긴다), 지도·도감의 묶기(`MapScreen.tsx:21-33`·`DexScreen.tsx:21-28`). 같이: 시각을 글자로 견주는 정렬 4곳(`RecordsScreen.tsx:65`·`DexScreen.tsx:25`·`StorageSection.tsx:59`·`MapScreen.tsx:28`)을 `editPatch.ts`처럼 순간으로 — 따로 `fix` 커밋. 지금은 영향이 거의 없다: 앱이 만드는 시각은 모두 UTC 'Z'(`lib/exif.ts` `toISOString`)이고 v1도 UTC 정규형이다. '+09:00' 같은 형식이 섞인 백업을 불러올 때만 몇 시간 범위로 어긋난다.
+- **정해야 하거나 가치가 낮은 것** (표에 없다):
+  - `record` ↔ `records` 폴더가 서로 부른다 (파일 단위 순환은 없다). 공용 부품(`IdentifyPanel`·`useAsk` → identify, `usePlace`·`LocationSheet` → 위치 모듈, `HideLocationSwitch` → dex)을 옮기면 풀리지만 파일 이동이 많다. `RecordEdit.tsx`의 지연 로딩을 지켜야 한다.
+  - 쓰이지 않는 코드: `ui/bits.tsx` `Tag`(참조 0), `useTheme`의 `forceDark`(부르는 곳이 넘기지 않는다). 테스트에서만 쓰이는 `lib/format.ts` `formatMeta`·`formatCoords`, `lib/exif.ts` `recomputeCapturedAt`. **`exposureToSave`·`parseExposure`는 남긴다** — "촬영 정보 고치기"가 쓸 셔터 입력 규칙이다 (CLAUDE.md "셔터는 초 단위 실수로 저장한다").
+  - ESLint와 react-hooks 규칙 — effect 의존성 실수를 잡아 준다. 새 개발 패키지가 들어가므로 사용자가 정한다.
