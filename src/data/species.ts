@@ -73,6 +73,16 @@ export const SPECIES: Species[] = [
   { ko: '괭이갈매기', latin: 'Larus crassirostris' },
 ]
 
+/**
+ * 학명으로 국명을 찾는다 (대소문자·앞뒤 공백은 가리지 않는다). 표에 없으면 빈 문자열.
+ * 국명 도구(`identify/tools/koreanName.ts`)가 위키백과보다 먼저 본다 — 손으로 확인한 표라 인터넷이 틀릴 때 이긴다.
+ * 학명이 정확히 같을 때만 찾는다: 아종 학명(세 낱말)은 국명이 따로 있는 일이 있어 종 이름으로 뭉개지 않는다.
+ */
+export function koOf(latin: string): string {
+  const key = latin.trim().toLowerCase()
+  return SPECIES.find((s) => s.latin.toLowerCase() === key)?.ko ?? ''
+}
+
 /** 국명으로 학명을 찾는다. 표에 없으면 빈 문자열 */
 export function latinOf(ko: string): string {
   return SPECIES.find((s) => s.ko === ko)?.latin ?? ''
