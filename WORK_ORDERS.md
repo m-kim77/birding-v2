@@ -618,6 +618,38 @@ ROADMAP의 "AI 판정 메모"와 조사 문서(`../v2 docs/community/fable-final
 
 ---
 
+## 작업 19 — 구글 드라이브 동기화 (PC 먼저)
+
+2026-09-27에 지시와 완료를 한 세션에 썼다. 사용자가 "오늘 다 끝내야 한다"고 해서 이틀 시험을 따로 하지 않고 이 작업 안에서 로컬 확인으로 대신했다.
+
+**결정 (2026-09-27, 사용자)**: 로그인은 **구글만** — 네이버는 드라이브 같은 공개 저장 API가 없어 쓰려면 운영자 서버에 기록을 쌓아야 한다. 로그인은 한 번이면 되게 **자동으로** — 브라우저만으로는 1시간마다 다시 눌러야 해서, 갱신권을 다루는 작은 서버 함수를 둔다(기록·사진은 여전히 서버를 지나지 않는다).
+
+**무엇이 바뀌나**
+- 설정에 '구글 드라이브 동기화' 카드: '구글로 로그인' 한 번이 연결이다. 로그인한 **사람마다 자기 드라이브**의 보이는 폴더 `탐조일지 동기화/records/<id>.json`·`photos/<id>.<판>.jpg`에 사본을 둔다. 운영자가 구글 설정(환경변수 셋)을 안 했으면 카드가 보이지 않는다.
+- 저절로 돈다: 저장·고침·지우기 3초 뒤, 앱을 열 때, 도감을 열 때, 인터넷이 다시 붙을 때, 탭으로 돌아올 때, 올릴 일이 남았으면 1분마다.
+- 도감 위 띠: "드라이브에 아직 안 올라간 기록 N건 · 지금 올리기", 로그인이 풀리면 "다시 로그인". 다 올라갔으면 안 보인다.
+- 처음 연결하면 기기의 기록이 전부 올라가고(`planPull`이 드라이브에 없는 기록을 줄에 넣는다), 다른 기기의 기록이 내려온다.
+
+**어떻게 (보안·끊김)**
+- 로그인: 구글 로그인 창(코드 모델·팝업, 권한 `drive.file` — 앱이 만든 파일만) → `api/drive.ts` POST가 코드를 토큰으로 → 갱신권을 AES-GCM으로 잠가(`api/_lib/cookieSeal.ts`, 키 `DRIVE_COOKIE_KEY`) `HttpOnly; SameSite=Strict; Secure; Path=/api/drive` 쿠키에만. 서버·로그·응답 본문에는 없다. GET이 쿠키로 새 출입증을 주고, DELETE가 구글에서 철회하고 쿠키를 지운다. POST·DELETE는 같은 출처(Origin)만.
+- 출입증(1시간)은 탭 메모리에만(`lib/google/driveAuth.ts`). 드라이브가 401이면 한 번 새로 받아 다시(`driveApi.ts call`).
+- 올릴 일 줄: IndexedDB `syncQueue`(DB 판 3, 키 = 기록 id — 나중 일이 앞 일을 덮는다). 드라이브가 성공이라고 답한 뒤에만 빼고, 올리는 사이 새 일이 들어왔으면 빼지 않는다(`finishEntry`). 실패하면 30초·2분·10분·30분·1시간 뒤 다시, 5번이면 멈추고 알린다(`afterFailure`). 인터넷이 끊기면 그 자리에서 멈춘다(실패 횟수만 올리지 않게).
+- 한 파일 = 요청 하나(multipart) — 드라이브는 반쪽 파일을 만들지 않는다. 사진을 먼저, 기록 파일을 마지막에.
+- 지운 기록: 드라이브의 기록 파일을 "지웠음" 표시(`appProperties.deleted='1'`, 지운 시각)로 바꾸고 사진 파일을 지운다. 기기에서 지울 때 이 일을 **기록을 지우는 트랜잭션에 함께** 넣는다(`deleteSightingWithPhotos(id, syncEntry)`) — 따로 넣다 탭이 닫히면 다음 동기화가 지운 기록을 도로 받는다.
+- 받기: 기록 파일의 꼬리표(`appProperties.updatedAt`)로 내용을 받기 전에 정한다(`planPull`, 백업 불러오기처럼 더 새 쪽이 이긴다). 줄에 일이 남은 기록은 건드리지 않는다. 받은 기록은 `normalizeSighting`으로 검사해 깨진 것은 건너뛰고, 기록과 사진을 한 트랜잭션으로 쓴다. 받는 사이 기기에서 더 새로 고쳤으면 덮지 않는다.
+
+**구글 클라우드 설정 (운영자가 한 번)**: Drive API 사용 · 인증 플랫폼 브랜딩(앱 이름·지원 이메일·홈페이지·개인정보처리방침 `/privacy.html`·승인된 도메인 `birding-v2.vercel.app`, **로고 없음** — 넣으면 심사) · 대상: 외부, **프로덕션 게시** · 데이터 액세스: `drive.file`만 · 클라이언트(웹): 승인된 JavaScript 원본 `http://localhost:5190`·`https://birding-v2.vercel.app`, 리디렉션 URI 없음. 환경변수 `GOOGLE_CLIENT_ID`·`GOOGLE_CLIENT_SECRET`·`DRIVE_COOKIE_KEY`(`openssl rand -base64 32`)를 `.env.local`과 Vercel에. 개발 서버의 원본 포트가 바뀌면 콘솔에도 더한다 — 미리보기 주소에서는 로그인이 안 된다.
+
+**닿는 파일**: 새 `api/drive.ts`·`api/_lib/cookieSeal.ts`·`api/_lib/googleOAuth.ts`·`src/lib/google/{gis,driveAuth,driveApi}.ts`·`src/data/{syncPlan,syncQueue,syncTransfer,sync,syncStatus,useAutoSync}.ts`·`src/features/settings/DriveSection.tsx`·`src/features/dex/SyncBanner.tsx`·`public/privacy.html`·`test/{driveAuth,syncPlan}.test.ts`. 고침 `src/data/{db,photos,journal,backup}.ts(x)`·`SettingsScreen.tsx`·`DexScreen.tsx`·`PrivacySection.tsx`·`vercel.json`·`vite.config.ts`·`.env.example`·`CLAUDE.md`·`README.md`·`ROADMAP.md`.
+
+**완료 (2026-09-27, 배포 전).** `npm run check` 통과 (새 테스트 22개 — 쿠키 잠금·위조 쿠키·다른 출처 403·갱신권 없음 409·철회, 줄 덮기·재시도 상한·받기/올리기/지움 판정).
+브라우저 확인: 개발 서버(5190)에서 DB가 판 3으로 올라가도 기존 기록 3건이 그대로, 설정 카드·도감 띠 모양(상태를 넣어 봄). **사용자가 PC 크롬에서 실제 구글 로그인 → 드라이브에 올라간 것을 확인.**
+**남은 확인 (배포 뒤)**: 실제 사이트에서 로그인 · 두 번째 브라우저(또는 기기)에서 같은 계정으로 받아 합치기 · 고치기·지우기가 다른 쪽에 반영 · 다음 날 다시 열었을 때 로그인 없이 이어지는지 · 폰 사파리(원래도 나중 — 홈 화면 앱은 팝업 대신 페이지 이동 방식이 필요할 수 있다).
+
+**이번에 하지 않은 것**: 큰 사진을 열 때 받기(지금은 받을 때 세 판을 다 받는다 — 기록이 수백 건이면 첫 연결이 길다) · 진행률 표시 · 설정 카드 틀 하나로(작업 28 — 드라이브 카드는 백업 카드의 틀을 따랐다, 28에서 같이 옮긴다) · 사진만 바꾸는 고침(지금은 없다 — 생기면 `noteChange(id, 'put', true)`).
+
+---
+
 ## 코드 정리 메모 (작업 26~28과 나머지) — 순서는 ROADMAP.md
 
 2026-09-27 점검(읽기 전용, main `f147342`)의 근거다. 줄 번호는 그날 기준이다 — 작업을 시작하면 다시 확인하고, 그 작업의 새 "작업 N" 절로 옮겨 자세히 쓴다 (위 "다음 기능 메모"와 같은 방식).
