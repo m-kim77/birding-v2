@@ -2,18 +2,19 @@
  * 브라우저 로컬 DB(IndexedDB)의 얇은 포장. 라이브러리를 쓰지 않았다 — 필요한 동작이 get·getAll·count·put·delete와,
  * 여러 쓰기·읽기를 트랜잭션 하나로 묶는 dbWriteAll·dbReadAll뿐이다.
  *
- * 저장소 넷:
+ * 저장소 다섯:
  * - sightings: 기록 (키 = id)
  * - photos: 사진 Blob (키 = `${기록id}:${판}`, data/photoKey.ts). **기록의 사진만 둔다** — 설정의 정리(data/photoCheck.ts)가
  *   기록이 없는 키를 지운다. 다른 사진은 새 저장소에 둔다
  * - meta: 마지막 백업 시각 같은 낱개 값
  * - tracks: 이동 기록 점 (키 = UTC 날짜 'YYYY-MM-DD', 값 = PackedPoint[]). 백업에 넣지 않는다 (data/tracks.ts)
+ * - syncQueue: 드라이브에 올릴 일 (키 = 기록 id, 값 = QueueEntry). 드라이브를 연결했을 때만 쌓인다 (data/syncQueue.ts)
  */
 
 const DB_NAME = 'bird-journal'
-// 판 이력: 1 = sightings·photos·meta / 2 = tracks 추가
-const DB_VERSION = 2
-export type StoreName = 'sightings' | 'photos' | 'meta' | 'tracks'
+// 판 이력: 1 = sightings·photos·meta / 2 = tracks 추가 / 3 = syncQueue 추가
+const DB_VERSION = 3
+export type StoreName = 'sightings' | 'photos' | 'meta' | 'tracks' | 'syncQueue'
 
 let opening: Promise<IDBDatabase> | null = null
 
@@ -33,6 +34,7 @@ export function openDb(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains('photos')) db.createObjectStore('photos')
       if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta')
       if (!db.objectStoreNames.contains('tracks')) db.createObjectStore('tracks')
+      if (!db.objectStoreNames.contains('syncQueue')) db.createObjectStore('syncQueue')
     }
     // 다른 탭이 옛 판을 열고 있으면 브라우저는 그 탭이 닫힐 때까지 이 요청을 보류하고 blocked만 알린다.
     // 조용히 기다리면 앱이 영원히 "읽는 중"이라 바로 거절하고 사용자에게 다른 탭을 닫으라고 말한다

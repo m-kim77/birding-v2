@@ -15,6 +15,7 @@
 - **기록과 그 사진은 트랜잭션 하나로 쓴다** (`data/photos.ts writeSightingWithPhotos`·`deleteSightingWithPhotos`). 쓰기 함수는 `complete`까지 기다린다 (`data/db.ts dbWriteAll`) — 요청 성공만 보면 용량 부족을 놓친다. JPEG 만들기처럼 기다리는 일은 트랜잭션 **밖에서** 먼저 끝낸다.
 - **`photos` 저장소에는 기록의 사진만 둔다** (키 `기록id:판`, `data/photoKey.ts`). 설정의 '정리하기'(`data/photoCheck.ts`)가 기록이 없는 키를 지운다 — 다른 사진(예: 탐조 세션 표지)은 새 저장소에 둔다.
 - **사진과 기록을 서버에 저장하지 않는다.** 데이터는 사용자 브라우저에 있고, 파일(ZIP)로 내려받아 다시 올려서 이어 쓴다. 서버에 사용자 데이터를 쌓는 방향의 제안을 하지 않는다.
+- **구글 드라이브 동기화: 기기가 원본, 사용자 자신의 드라이브가 사본** (`data/sync*.ts`). 기록·사진은 브라우저에서 드라이브로 곧장 가고 `api/drive.ts`를 지나지 않는다. `api/drive.ts`는 로그인 열쇠만 다룬다 — 갱신권은 잠가서(`_lib/cookieSeal.ts`) HttpOnly 쿠키에만 두고, 서버·로그·응답 본문에 남기지 않는다. 권한은 `drive.file`만(더 넓히면 구글 심사). 기록을 쓰는 새 길을 만들면 `syncQueue.ts noteChange`를 부르고, 기록을 지우는 길은 지움 항목을 **같은 트랜잭션에** 넣는다(`deleteSightingWithPhotos`) — 빠뜨리면 드라이브에서 지운 기록이 되살아난다.
 - **기기 밖으로 나가는 요청을 더하거나 보내는 값을 바꾸면 설정의 "무엇이 어디로 가나요"(`settings/PrivacySection.tsx`)를 같이 고친다.** 안 고치면 그 안내가 거짓이 된다.
 - **무료·비상업 배포.** 과금·광고를 넣지 않는다.
 - **LLM은 두 갈래.** 사용자가 자기 API 키를 넣으면 그것을 쓰고, 없으면 운영자 PC의 로컬 LLM(OpenAI 호환)을 쓴다.

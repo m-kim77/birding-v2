@@ -8,6 +8,7 @@ import type { Sighting } from '../../types'
 import BirdCard from './BirdCard'
 import CardActions from './CardActions'
 import CardStylePicker from './CardStylePicker'
+import SyncBanner from './SyncBanner'
 
 interface SpeciesEntry {
   name: string
@@ -41,6 +42,7 @@ export default function DexScreen({ onOpenRecord }: { onOpenRecord: (id: string)
   return (
     <div className="screen">
       <ScreenHead title="도감" sub={`종별 · 지금까지 ${species.length}종을 만났습니다`} />
+      <SyncBanner />
       {species.length === 0 && <p className="hint">이름이 정해진 기록이 생기면 여기에 종마다 카드가 한 장씩 모입니다.</p>}
       <div className="dex-grid">
         {species.map((e) => (
