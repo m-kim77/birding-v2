@@ -182,7 +182,7 @@ export default function RecordFlow({ onCancel, onDone, onOpenSettings }: Props) 
           <Card>
             <SpeciesInput value={name} known={known} onChange={setName} />
             <IdentifyPanel ask={ask} hasCrop={picked !== null} cropChanged={ask.state === 'done' && !sameBox(askedBox, picked?.box ?? null)} name={name}
-              onAsk={() => void askAI()} onApply={(v) => setName(v.speciesKo || v.latin)} onPickName={setName} onOpenSettings={onOpenSettings} />
+              onAsk={() => void askAI()} onApply={(v) => setName(v.speciesKo)} onPickName={setName} onOpenSettings={onOpenSettings} />
           </Card>
           <NoteCard value={note} onChange={setNote} />
           {pickError}

@@ -42,9 +42,13 @@ export default function DetailIdentify({ sighting, onOpenSettings }: Props) {
     }
   }
 
-  /** 판정 결과를 기록에 넣는다. 도감 번호는 다른 기록들을 기준으로 다시 매긴다 (처음 보는 종이면 다음 번호) */
+  /**
+   * 판정 결과를 기록에 넣는다. 도감 번호는 다른 기록들을 기준으로 다시 매긴다 (처음 보는 종이면 다음 번호).
+   * 국명을 확인하지 못한 판정이면 아무것도 하지 않는다 — 학명을 이름 자리에 넣지 않는다 (작업 20. 그때는 화면에 '이 이름으로'도 없다).
+   */
   async function apply(v: Verdict) {
-    const name = v.speciesKo || v.latin
+    const name = v.speciesKo
+    if (!name) return
     const others = (sightings ?? []).filter((x) => x.id !== sighting.id)
     await update(sighting.id, { speciesKo: name, latin: v.latin, verdict: v, identify: 'done', dexNo: dexNoFor(name, others) })
   }

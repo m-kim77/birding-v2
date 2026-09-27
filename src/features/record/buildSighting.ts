@@ -1,7 +1,8 @@
-import { latinOf } from '../../data/species'
+// 확장자를 적는 이유: node --test가 이 파일을 직접 읽는다 (Vite는 어느 쪽이든 된다)
+import { latinOf } from '../../data/species.ts'
 import type { ExifInfo } from '../../lib/exif'
 import type { CardStyle, NormalizedBox, ShotInfo, Sighting, Verdict } from '../../types'
-import { dexNoFor } from '../dex/dexNo'
+import { dexNoFor } from '../dex/dexNo.ts'
 import type { PlaceValue } from './usePlace'
 
 interface Input {
@@ -34,10 +35,11 @@ function shotOf(exif: ExifInfo): ShotInfo {
  * - 촬영 시각이 없는 사진은 기록한 시각을 쓴다.
  * - 학명은 AI의 이름을 그대로 받아들였으면 AI의 것을, 아니면 종 표에서 찾는다.
  * - AI 근거는 사용자가 그 이름을 그대로 받아들였을 때만 남긴다. 직접 고친 이름에 AI 근거를 붙이면 거짓이 된다.
+ * - 국명을 확인하지 못한 판정(`speciesKo`가 빈 것)은 받아들일 이름이 없다 — 이름 없이 저장해도 그 학명·근거를 붙이지 않는다 (작업 20).
  */
 export function buildSighting(input: Input): Sighting {
   const name = input.name.trim()
-  const accepted = input.verdict && (input.verdict.speciesKo || input.verdict.latin) === name ? input.verdict : null
+  const accepted = input.verdict && input.verdict.speciesKo !== '' && input.verdict.speciesKo === name ? input.verdict : null
   const stamp = input.now.toISOString()
   const capturedAt = input.exif.capturedAt ?? stamp
   return {

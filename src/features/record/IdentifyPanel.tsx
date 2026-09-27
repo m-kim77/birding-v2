@@ -82,12 +82,18 @@ export default function IdentifyPanel({ ask, hasCrop, cropChanged, name, idleHin
   }
   if (ask.state === 'done' && ask.verdict) {
     const v = ask.verdict
-    const label = v.speciesKo || v.latin
-    const applied = name === label
+    // 국명을 확인하지 못한 판정은 이름 칸에 넣을 것이 없다 — 학명·영어 이름을 이름 자리에 넣지 않는다 (작업 20)
+    const applied = v.speciesKo !== '' && name === v.speciesKo
     return (
       <div className="verdict">
         <p className="verdict-kind"><Icon name="sparkle" size={16} /> AI 판정 · {v.kind}</p>
-        <h3 className="display">{label} {v.speciesKo && <em>{v.latin}</em>}</h3>
+        <h3 className="display">{v.speciesKo || '이름 미정'} {v.latin && <em>{v.latin}</em>}</h3>
+        {!v.speciesKo && (
+          <p className="status-line is-warn">
+            국명을 확인하지 못했습니다. 이름은 직접 적어 주세요.
+            {v.unverifiedName && ` AI가 적은 이름 "${v.unverifiedName}" — 자료에서 확인되지 않아 넣지 않았습니다.`}
+          </p>
+        )}
         <p>{v.summary}</p>
         {v.others.length > 0 && (
           <div className="verdict-others">
@@ -102,8 +108,8 @@ export default function IdentifyPanel({ ask, hasCrop, cropChanged, name, idleHin
         <div className="row-actions">
           {applied
             ? <p className="status-line is-ok"><Icon name="check" size={16} /> 이름 칸에 넣었습니다</p>
-            // 이 이름으로: 사용자가 이미 적은 이름을 말없이 덮어쓰지 않으려고 누르게 한다
-            : <Button icon="check" onClick={() => onApply(v)}>이 이름으로</Button>}
+            // 이 이름으로: 사용자가 이미 적은 이름을 말없이 덮어쓰지 않으려고 누르게 한다. 넣을 국명이 없으면 버튼도 없다
+            : v.speciesKo && <Button icon="check" onClick={() => onApply(v)}>이 이름으로</Button>}
           {/* 다시 물어보기: 영역을 고친 뒤(또는 답이 미심쩍을 때) 다시 물을 유일한 길 */}
           <Button variant="quiet" icon="sparkle" onClick={onAsk}>다시 물어보기</Button>
         </div>
