@@ -1,4 +1,3 @@
-import exifr from 'exifr'
 
 export interface ExifInfo {
   lat?: number
@@ -127,6 +126,9 @@ const str = (v: unknown): string | undefined => {
 export async function parseExif(file: File): Promise<ExifInfo> {
   const info: ExifInfo = {}
   try {
+    // exifr(약 75KB)는 사진을 읽을 때 받는다. 맨 위에서 import하면 이 파일의 작은 시간대 함수만 쓰는 곳
+    // (저장한 기록 고치기 → captureTime.ts)을 따라 첫 화면 묶음에 들어간다. 받지 못하면(오프라인) 아래 catch로 {}
+    const { default: exifr } = await import('exifr')
     // exifr.gps()는 highlevel/gps의 독립 옵션 경로라 아래 parse()의 reviveValues:false에
     // 영향받지 않는다 — 그래서 parse 옵션에 gps:true를 넣지 않고 별도 호출을 유지한다.
     const [gps, d] = await Promise.all([

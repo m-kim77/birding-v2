@@ -1,12 +1,15 @@
-import { useState } from 'react'
+import { Suspense, lazy, useState } from 'react'
 import { useJournal } from '../../data/journal'
 import { Card } from '../../ui/bits'
 import Button from '../../ui/Button'
 import type { Sighting } from '../../types'
-import LocationSheet from '../record/LocationSheet'
 import { PlaceRow } from '../record/RecordFacts'
 import { usePlaceValue } from '../record/usePlace'
 import { editPatch, formOf, placeBefore } from './editPatch'
+
+// 위치 시트는 지도(Leaflet)를 끌고 온다. 이 파일은 기록 상세와 함께 첫 화면 묶음에 들어가므로, 시트를 열 때 받는다 —
+// 그냥 import하면 지도를 안 여는 사람도 첫 화면에서 지도 라이브러리까지 받는다 (App.tsx가 지도를 늦게 받는 이유와 같다)
+const LocationSheet = lazy(() => import('../record/LocationSheet'))
 
 interface Props {
   sighting: Sighting
@@ -89,9 +92,12 @@ export default function RecordEdit({ sighting: s, onClose, onDeleted }: Props) {
         ) : <Button variant="danger" icon="trash" onClick={() => setConfirmDelete(true)}>이 기록 삭제</Button>}
       </Card>
       {pickingPlace && (
-        // 직전 기록은 고치는 중인 시각 기준으로 고른다 — 시각을 먼저 고쳤으면 그 시각의 앞 기록이다 (placeBefore)
-        <LocationSheet place={loc.place} error={loc.error} last={placeBefore(sightings ?? [], s.id, patch?.capturedAt ?? s.capturedAt)}
-          onClose={() => setPickingPlace(false)} onPickOnMap={(lat, lng) => void loc.pickOnMap(lat, lng)} onUseCurrent={() => void loc.useCurrent()} onCopyLast={loc.copyFrom} />
+        // 받는 동안은 아무것도 그리지 않는다 — 대신 시트를 잠깐 그리면 시트가 둘 열렸다 닫힌 셈이라 뒤로가기 칸이 하나 헛칸으로 남는다 (app/nav.ts openLayer)
+        <Suspense fallback={null}>
+          {/* 직전 기록은 고치는 중인 시각 기준으로 고른다 — 시각을 먼저 고쳤으면 그 시각의 앞 기록이다 (placeBefore) */}
+          <LocationSheet place={loc.place} error={loc.error} last={placeBefore(sightings ?? [], s.id, patch?.capturedAt ?? s.capturedAt)}
+            onClose={() => setPickingPlace(false)} onPickOnMap={(lat, lng) => void loc.pickOnMap(lat, lng)} onUseCurrent={() => void loc.useCurrent()} onCopyLast={loc.copyFrom} />
+        </Suspense>
       )}
     </>
   )
