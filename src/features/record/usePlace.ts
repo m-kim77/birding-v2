@@ -17,14 +17,12 @@ export const SOURCE_LABEL: Record<LocationSource, string> = {
 }
 
 /**
- * 기록의 위치. 사진에 좌표가 있으면 그것으로 시작하고, 없으면 "위치 없음"으로 둔다.
- * 현재 위치를 자동으로 넣지 않는 이유: 집에서 정리할 때 집 좌표가 촬영지로 들어가 버린다. 현재 위치는 사용자가 고를 때만 쓴다.
- * 좌표가 정해질 때마다 장소 이름을 찾아 채운다 (못 찾으면 빈 이름 — 좌표는 남는다).
- * 사진을 바꿔도 사용자가 직접 고른 위치는 남는다 — 지워지는 것은 앞 사진에서 나온 좌표(EXIF·이동 기록)뿐이다.
- * 이동 기록 매칭은 useTrackMatch가 하고 결과를 fillIfEmpty로 넣는다 — 위치가 비어 있을 때만 든다.
+ * 위치 하나와 그것을 고치는 동작 — 지도에서 고르기 · 현재 위치 · 다른 위치 복사 · 비어 있을 때만 채우기. 사진과는 상관없다.
+ * 기록 화면은 아래 usePlace(사진 규칙이 붙는다)로 쓰고, 저장한 기록의 수정 칸(records/RecordEdit)은 그 기록의 위치로 시작해 이것만 쓴다.
+ * 좌표가 정해질 때마다 장소 이름을 찾아 채운다 (못 찾으면 빈 이름 — 좌표는 남는다). `initial`은 처음 그릴 때만 쓴다.
  */
-export function usePlace(exif: { lat?: number; lng?: number } | null) {
-  const [place, setPlace] = useState<PlaceValue>(NONE)
+export function usePlaceValue(initial: PlaceValue = NONE) {
+  const [place, setPlace] = useState<PlaceValue>(initial)
   const [error, setError] = useState('')
   // 렌더마다 갱신 — fillIfEmpty가 늦게 불려도(매칭이 끝난 뒤) 그 순간의 위치를 보게
   const placeRef = useRef(place)
@@ -42,13 +40,6 @@ export function usePlace(exif: { lat?: number; lng?: number } | null) {
     setPlace((cur) => (cur.lat === lat && cur.lng === lng ? { ...cur, name } : cur))
   }
 
-  useEffect(() => {
-    if (exif?.lat !== undefined && exif.lng !== undefined) void setCoords(exif.lat, exif.lng, 'exif')
-    // 새 사진에 좌표가 없다는 이유로 지도에서 고르거나 현재 위치로 넣은 값을 지우지 않는다 — 같은 자리에서 찍은 더 나은 사진으로 바꾸는 일이 흔하다.
-    // 이동 기록에서 온 위치는 앞 사진의 촬영 시각에서 나온 것이라 EXIF처럼 비운다 — 새 사진의 시각으로 다시 찾는다 (useTrackMatch)
-    else setPlace((cur) => (cur.source === 'exif' || cur.source === 'tracklog' ? NONE : cur))
-  }, [exif]) // eslint-disable-line react-hooks/exhaustive-deps
-
   /** "현재 위치로" */
   async function useCurrent() {
     try { const p = await currentPosition(); await setCoords(p.lat, p.lng, 'gps') } catch (e) { setError(e instanceof Error ? e.message : '현재 위치를 찾지 못했습니다.') }
@@ -64,5 +55,31 @@ export function usePlace(exif: { lat?: number; lng?: number } | null) {
     await setCoords(lat, lng, source, true)
   }
 
-  return { place, error, pickOnMap: (lat: number, lng: number) => setCoords(lat, lng, 'manual'), useCurrent, copyFrom: (p: PlaceValue) => setPlace(p), fillIfEmpty }
+  /** 지금 위치가 이 출처들에서 왔으면 비운다. 사용자가 고른 위치는 남는다 (usePlace가 사진을 바꿀 때 쓴다) */
+  function clearFrom(sources: LocationSource[]) {
+    setPlace((cur) => (sources.includes(cur.source) ? NONE : cur))
+  }
+
+  return { place, error, setCoords, clearFrom, pickOnMap: (lat: number, lng: number) => setCoords(lat, lng, 'manual'), useCurrent, copyFrom: (p: PlaceValue) => setPlace(p), fillIfEmpty }
+}
+
+/**
+ * 기록 화면의 위치 — usePlaceValue에 사진 규칙을 붙인다. 사진에 좌표가 있으면 그것으로 시작하고, 없으면 "위치 없음"으로 둔다.
+ * 현재 위치를 자동으로 넣지 않는 이유: 집에서 정리할 때 집 좌표가 촬영지로 들어가 버린다. 현재 위치는 사용자가 고를 때만 쓴다.
+ * 사진을 바꿔도 사용자가 직접 고른 위치는 남는다 — 지워지는 것은 앞 사진에서 나온 좌표(EXIF·이동 기록)뿐이다.
+ * 이동 기록 매칭은 useTrackMatch가 하고 결과를 fillIfEmpty로 넣는다 — 위치가 비어 있을 때만 든다.
+ * 저장한 기록의 수정 칸에는 이 규칙을 붙이지 않는다 — 그 칸에는 새 사진이 없어서, 처음 그릴 때 저장된 EXIF 위치를 비워 버린다.
+ */
+export function usePlace(exif: { lat?: number; lng?: number } | null) {
+  const value = usePlaceValue()
+  const { setCoords, clearFrom } = value
+
+  useEffect(() => {
+    if (exif?.lat !== undefined && exif.lng !== undefined) void setCoords(exif.lat, exif.lng, 'exif')
+    // 새 사진에 좌표가 없다는 이유로 지도에서 고르거나 현재 위치로 넣은 값을 지우지 않는다 — 같은 자리에서 찍은 더 나은 사진으로 바꾸는 일이 흔하다.
+    // 이동 기록에서 온 위치는 앞 사진의 촬영 시각에서 나온 것이라 EXIF처럼 비운다 — 새 사진의 시각으로 다시 찾는다 (useTrackMatch)
+    else clearFrom(['exif', 'tracklog'])
+  }, [exif]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  return value
 }
