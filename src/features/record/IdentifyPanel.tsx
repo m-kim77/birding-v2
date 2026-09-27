@@ -15,8 +15,15 @@ interface Props {
   hasCrop: boolean
   /** 결과가 나온 뒤 영역이 바뀌었는지 — 다시 물어볼 이유가 생겼다고 알려 준다 */
   cropChanged?: boolean
-  /** 지금 이름 칸의 값 — 결과를 이미 넣었는지 보려고 */
+  /** 지금 이름 — 후보 칩 중 지금 이름인 것을 눌린 모양으로 보여 준다 */
   name: string
+  /**
+   * 이 판정을 이미 넣었는지. **부르는 쪽이 정한다** — 기록 화면은 이름 칸이 판정의 국명과 같은지(저장하면 근거가 붙는지),
+   * 기록 상세는 이 판정이 기록에 들어 있는지. 상세에서 이름만 같다고 넣은 것으로 치면, 직접 적은 같은 이름에 근거를 붙일 길이 없다.
+   */
+  applied: boolean
+  /** 판정·후보가 들어가는 곳을 화면에 보이는 말로. 없으면 '이름 칸' */
+  into?: string
   /** 시작 전 안내를 바꿔 쓴다 (저장된 기록에서는 자를 수 없다). 없으면 기본 문구 */
   idleHint?: string
   onAsk: () => void
@@ -44,7 +51,7 @@ function useElapsed(startedAt: number | null): { text: string; ms: number } {
  * AI 종 판정. 시작 전 · 진행 중 · 결과 · 실패의 네 모습을 가진다. 기록하기와 기록 상세 두 곳에서 같은 것을 쓴다.
  * v1에 있던 provider·모델·최대 호출 수·시간 제한 입력은 없다 — 사용자가 정할 것은 "내 키를 쓸지"뿐이고 그건 설정에 있다.
  */
-export default function IdentifyPanel({ ask, hasCrop, cropChanged, name, idleHint, onAsk, onApply, onPickName, onOpenSettings }: Props) {
+export default function IdentifyPanel({ ask, hasCrop, cropChanged, name, applied, into = '이름 칸', idleHint, onAsk, onApply, onPickName, onOpenSettings }: Props) {
   const elapsed = useElapsed(ask.state === 'running' ? ask.startedAt : null)
   if (ask.state === 'server-down') {
     return (
@@ -82,8 +89,6 @@ export default function IdentifyPanel({ ask, hasCrop, cropChanged, name, idleHin
   }
   if (ask.state === 'done' && ask.verdict) {
     const v = ask.verdict
-    // 국명을 확인하지 못한 판정은 이름 칸에 넣을 것이 없다 — 학명·영어 이름을 이름 자리에 넣지 않는다 (작업 20)
-    const applied = v.speciesKo !== '' && name === v.speciesKo
     return (
       <div className="verdict">
         <p className="verdict-kind"><Icon name="sparkle" size={16} /> AI 판정 · {v.kind}</p>
@@ -97,7 +102,7 @@ export default function IdentifyPanel({ ask, hasCrop, cropChanged, name, idleHin
         <p>{v.summary}</p>
         {v.others.length > 0 && (
           <div className="verdict-others">
-            <p className="hint">남은 후보 — 누르면 이름 칸에 들어갑니다</p>
+            <p className="hint">남은 후보 — 누르면 {into}에 들어갑니다</p>
             {/* 후보 칩: '좁힘'에서 사용자가 눈으로 가려낸 후보를 다시 타이핑하지 않게 */}
             <div className="chips">{v.others.map((o) => <button key={o} type="button" className={`chip${name === o ? ' is-on' : ''}`} onClick={() => onPickName(o)}>{o}</button>)}</div>
           </div>
@@ -107,8 +112,9 @@ export default function IdentifyPanel({ ask, hasCrop, cropChanged, name, idleHin
         {cropChanged && <p className="status-line is-warn">자른 영역이 바뀌었습니다 — 다시 물어볼 수 있습니다.</p>}
         <div className="row-actions">
           {applied
-            ? <p className="status-line is-ok"><Icon name="check" size={16} /> 이름 칸에 넣었습니다</p>
-            // 이 이름으로: 사용자가 이미 적은 이름을 말없이 덮어쓰지 않으려고 누르게 한다. 넣을 국명이 없으면 버튼도 없다
+            ? <p className="status-line is-ok"><Icon name="check" size={16} /> {into}에 넣었습니다</p>
+            // 이 이름으로: 사용자가 이미 적은 이름을 말없이 덮어쓰지 않으려고 누르게 한다.
+            // 국명을 확인하지 못한 판정은 넣을 것이 없어 버튼도 없다 — 학명·영어 이름을 이름 자리에 넣지 않는다 (작업 20)
             : v.speciesKo && <Button icon="check" onClick={() => onApply(v)}>이 이름으로</Button>}
           {/* 다시 물어보기: 영역을 고친 뒤(또는 답이 미심쩍을 때) 다시 물을 유일한 길 */}
           <Button variant="quiet" icon="sparkle" onClick={onAsk}>다시 물어보기</Button>

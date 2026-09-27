@@ -1,5 +1,5 @@
 /**
- * 모든 테마의 글자·바탕 조합이 대비 기준을 넘는지, `colorScheme`이 바탕 밝기와 맞는지 검사한다.
+ * 모든 테마의 글자·바탕 조합이 대비 기준을 넘는지, `colorScheme`과 폰 위쪽 띠 색(`bar`)이 바탕 밝기와 맞는지 검사한다.
  * 테마를 더하거나 값을 고친 뒤 `npm run check`로 돌린다. 하나라도 못 넘으면 종료 코드 1.
  *
  * 반투명·그라데이션 바탕은 계산할 수 없어서 themes.ts의 `solid`에 적어 둔 단색을 쓴다.
@@ -62,6 +62,13 @@ for (const theme of THEMES) {
   if (t.colorScheme !== scheme) {
     failed++
     console.log(`✗ ${theme.name.padEnd(4)} colorScheme '${t.colorScheme}' — 바탕이 ${scheme === 'dark' ? '어두워' : '밝아'} '${scheme}'여야 한다  (${t.text1} on ${theme.solid.app})`)
+  }
+  // 폰 위쪽 띠(theme-color)도 같은 쪽 밝기여야 한다 — 다른 테마의 값을 옮겨 적으면 어두운 화면 위에 밝은 띠가 얹힌다.
+  // 단색 hex가 아니면 toLinear가 던진다 (meta 태그에 그라데이션은 안 된다)
+  const barScheme = luminance(t.text1) > luminance(theme.bar) ? 'dark' : 'light'
+  if (t.colorScheme !== barScheme) {
+    failed++
+    console.log(`✗ ${theme.name.padEnd(4)} bar ${theme.bar} — colorScheme '${t.colorScheme}'인데 ${barScheme === 'dark' ? '어둡다' : '밝다'}`)
   }
 }
 console.log(failed ? `\n대비 미달 ${failed}건` : `대비 검사 통과 — 테마 ${THEMES.length}개`)

@@ -6,8 +6,8 @@ import { Card } from '../../ui/bits'
 import Button from '../../ui/Button'
 import { daysAgoOf, fileDateToday } from '../../ui/when'
 import { saveFile } from '../dex/saveFile'
-
-type Message = { tone: 'ok' | 'warn'; text: string }
+import TaskResult from './TaskResult'
+import { useTask, type TaskMessage } from './useTask'
 
 /**
  * 백업. 기록이 이 기기에만 있어서, 이 앱에서 잃으면 안 되는 단 하나의 기능이다.
@@ -17,16 +17,13 @@ type Message = { tone: 'ok' | 'warn'; text: string }
 export default function BackupSection() {
   const { sightings, unsaved, lastBackupAt, persisted, markBackedUp, reload } = useJournal()
   const fileInput = useRef<HTMLInputElement>(null)
-  const [busy, setBusy] = useState(false)
-  const [message, setMessage] = useState<Message | null>(null)
+  const { busy, message, run: runTask } = useTask()
   const [awaitingConfirm, setAwaitingConfirm] = useState(false)
 
-  /** 작업을 돌리고 결과나 실패 이유를 아래 줄에 적는다 (조용히 실패하지 않는다) */
-  async function run(work: () => Promise<Message>) {
-    setBusy(true)
-    setMessage(null)
+  /** 일을 돌리고 결과나 실패 이유를 아래 줄에 적는다 (useTask). 새 일을 시작하면 "백업했습니다" 확인은 거둔다 — 내려받기가 다시 켤 수 있다 */
+  function run(work: () => Promise<TaskMessage>) {
     setAwaitingConfirm(false)
-    try { setMessage(await work()) } catch (e) { setMessage({ tone: 'warn', text: e instanceof Error ? e.message : '실패했습니다.' }) } finally { setBusy(false) }
+    return runTask(work)
   }
 
   const download = () => run(async () => {
@@ -72,7 +69,7 @@ export default function BackupSection() {
         <Button variant={unsaved ? 'primary' : 'secondary'} icon="download" onClick={() => void download()} disabled={busy}>백업 파일 내려받기</Button>
         <Button icon="upload" onClick={() => fileInput.current?.click()} disabled={busy}>백업 파일 불러오기</Button>
       </div>
-      {message && <p className={`status-line is-${message.tone}`} role="status">{message.text}</p>}
+      <TaskResult message={message} />
       {/* 백업했습니다: 폰에서는 앱이 저장 여부를 알 수 없다 — 사용자가 확인해 줘야 "백업됨"을 적을 수 있다 */}
       {awaitingConfirm && <Button icon="check" onClick={() => void confirm()} disabled={busy}>백업했습니다</Button>}
     </Card>

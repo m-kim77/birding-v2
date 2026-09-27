@@ -6,9 +6,9 @@ import { daysAgoOf } from '../../ui/when'
 import { importTimelineFile, type ImportProgress } from '../tracks/importTracks'
 import { pointCountText, trackRangeText } from '../tracks/trackText'
 import { useTracksMeta } from '../tracks/useTracksMeta'
+import TaskResult from './TaskResult'
 import { notifyStorageChanged } from './useStorageStatus'
-
-type Message = { tone: 'ok' | 'warn'; text: string }
+import { useTask } from './useTask'
 
 /**
  * 진행 단계를 막대 값과 문구로. 읽기·파싱은 워커가 진행률을 줄 수 없어 고정값(0.1·0.5)으로 "멈추지 않았다"만 보인다 — 부정확한 진행이다.
@@ -36,19 +36,10 @@ function summaryOf(meta: TracksMeta): string {
 export default function TracksSection() {
   const { meta, refresh } = useTracksMeta()
   const fileInput = useRef<HTMLInputElement>(null)
-  const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState<ImportProgress | null>(null)
-  const [message, setMessage] = useState<Message | null>(null)
-
-  /**
-   * 작업을 돌리고 결과나 실패 이유를 아래 줄에 적는다 (조용히 실패하지 않는다). 끝나면 요약을 다시 읽는다 — 성공·실패 모두, 화면은 저장소가 지금 말하는 것만 보여 준다.
-   * 저장 공간 카드에도 다시 재라고 알린다 (넣기·지우기가 기기 공간을 바꾼다).
-   */
-  async function run(work: () => Promise<Message>) {
-    setBusy(true)
-    setMessage(null)
-    try { setMessage(await work()) } catch (e) { setMessage({ tone: 'warn', text: e instanceof Error ? e.message : '실패했습니다.' }) } finally { setBusy(false); setProgress(null); await refresh(); notifyStorageChanged() }
-  }
+  // 끝나면(성공·실패 모두) 진행 막대를 거두고 요약을 다시 읽는다 — 화면은 저장소가 지금 말하는 것만 보여 준다.
+  // 저장 공간 카드에도 다시 재라고 알린다 (넣기·지우기가 기기 공간을 바꾼다)
+  const { busy, message, run } = useTask({ after: async () => { setProgress(null); await refresh(); notifyStorageChanged() } })
 
   const upload = (file: File) => run(async () => {
     const { added, meta: next } = await importTimelineFile(file, setProgress)
@@ -77,7 +68,7 @@ export default function TracksSection() {
         {meta && <Button variant="quiet" icon="trash" onClick={() => void clear()} disabled={busy}>지우기</Button>}
       </div>
       {bar && <div className="status-line"><span>{bar.text}</span><Progress value={bar.value} label={bar.text} /></div>}
-      {message && <p className={`status-line is-${message.tone}`} role="status">{message.text}</p>}
+      <TaskResult message={message} />
       {/* 내보내는 방법: 구글 앱의 메뉴 깊이가 5단계라 안 적으면 못 찾는다. 버튼이 아니라 펼침이다 — 한 번 보면 되는 내용이다 */}
       <details className="howto">
         <summary>내보내는 방법</summary>

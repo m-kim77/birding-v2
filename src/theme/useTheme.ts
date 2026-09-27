@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { applyTokens, loadChoice, resolveTheme, saveChoice } from './applyTheme'
+import { applyBarColor, applyTokens, loadChoice, resolveTheme, saveChoice } from './applyTheme'
 
 /**
  * 기기의 다크 모드 설정을 구독한다. 설정이 바뀌면 다시 그린다.
@@ -17,7 +17,7 @@ function usePrefersDark(): boolean {
 }
 
 /**
- * 테마 선택 상태를 들고, 바뀔 때마다 문서 루트에 토큰을 적용한다.
+ * 테마 선택 상태를 들고, 바뀔 때마다 문서 루트에 토큰을 적용하고 폰 위쪽 띠 색을 맞춘다.
  * `forceDark`는 초안 보기 도구가 "심플·모던"의 다크 쪽을 기기 설정과 무관하게 확인할 때만 쓴다.
  */
 export function useTheme(forceDark: boolean | null = null) {
@@ -26,7 +26,9 @@ export function useTheme(forceDark: boolean | null = null) {
   const dark = forceDark ?? systemDark
 
   useEffect(() => {
-    applyTokens(document.documentElement, resolveTheme(choice, dark).tokens)
+    const theme = resolveTheme(choice, dark)
+    applyTokens(document.documentElement, theme.tokens)
+    applyBarColor(document, theme.bar)
   }, [choice, dark])
 
   /** 선택을 바꾸고 저장한다 */
