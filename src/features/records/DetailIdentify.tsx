@@ -1,13 +1,12 @@
 import { useState } from 'react'
 import { useJournal } from '../../data/journal'
 import { getBestPhoto } from '../../data/photos'
-import { latinOf } from '../../data/species'
 import { bitmapToJpeg, blobToDataUrl } from '../../lib/resize'
 import { Banner, Card } from '../../ui/bits'
 import type { Sighting, Verdict } from '../../types'
-import { dexNoFor } from '../dex/dexNo'
 import { IDENTIFY_MAX_EDGE } from '../identify/loop'
 import IdentifyPanel from '../record/IdentifyPanel'
+import { nameFields } from '../record/nameFields'
 import { useAsk } from '../record/useAsk'
 
 interface Props {
@@ -47,16 +46,18 @@ export default function DetailIdentify({ sighting, onOpenSettings }: Props) {
    * 국명을 확인하지 못한 판정이면 아무것도 하지 않는다 — 학명을 이름 자리에 넣지 않는다 (작업 20. 그때는 화면에 '이 이름으로'도 없다).
    */
   async function apply(v: Verdict) {
-    const name = v.speciesKo
-    if (!name) return
-    const others = (sightings ?? []).filter((x) => x.id !== sighting.id)
-    await update(sighting.id, { speciesKo: name, latin: v.latin, verdict: v, identify: 'done', dexNo: dexNoFor(name, others) })
+    if (!v.speciesKo) return
+    await update(sighting.id, nameFields(v.speciesKo, v, others()))
   }
 
-  /** 후보 이름을 고르면 그 이름만 넣는다 — AI 근거는 그 후보에 대한 것이 아니므로 뗀다 (buildSighting과 같은 원칙) */
+  /** 후보 이름을 고르면 그 이름만 넣는다 — AI 근거는 그 후보에 대한 것이 아니므로 뗀다 (nameFields에 판정 없이) */
   async function pickName(name: string) {
-    const others = (sightings ?? []).filter((x) => x.id !== sighting.id)
-    await update(sighting.id, { speciesKo: name, latin: latinOf(name), verdict: undefined, identify: 'done', dexNo: dexNoFor(name, others) })
+    await update(sighting.id, nameFields(name, null, others()))
+  }
+
+  /** 이 기록을 뺀 기록들 — 도감 번호를 매길 때 */
+  function others() {
+    return (sightings ?? []).filter((x) => x.id !== sighting.id)
   }
 
   return (

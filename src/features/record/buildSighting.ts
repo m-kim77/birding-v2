@@ -1,8 +1,7 @@
-// 확장자를 적는 이유: node --test가 이 파일을 직접 읽는다 (Vite는 어느 쪽이든 된다)
-import { latinOf } from '../../data/species.ts'
 import type { ExifInfo } from '../../lib/exif'
 import type { CardStyle, NormalizedBox, ShotInfo, Sighting, Verdict } from '../../types'
-import { dexNoFor } from '../dex/dexNo.ts'
+// 확장자를 적는 이유: node --test가 이 파일을 직접 읽는다 (Vite는 어느 쪽이든 된다)
+import { nameFields } from './nameFields.ts'
 import type { PlaceValue } from './usePlace'
 
 interface Input {
@@ -33,23 +32,20 @@ function shotOf(exif: ExifInfo): ShotInfo {
 /**
  * 화면의 입력으로 기록 한 건을 만든다. 순수 함수다 (시각과 기존 기록을 밖에서 받는다).
  * - 촬영 시각이 없는 사진은 기록한 시각을 쓴다.
- * - 학명은 AI의 이름을 그대로 받아들였으면 AI의 것을, 아니면 종 표에서 찾는다.
- * - AI 근거는 사용자가 그 이름을 그대로 받아들였을 때만 남긴다. 직접 고친 이름에 AI 근거를 붙이면 거짓이 된다.
- * - 국명을 확인하지 못한 판정(`speciesKo`가 빈 것)은 받아들일 이름이 없다 — 이름 없이 저장해도 그 학명·근거를 붙이지 않는다 (작업 20).
+ * - 이름·학명·AI 근거·도감 번호는 nameFields가 정한다 — AI 근거는 사용자가 그 이름을 그대로 받아들였을 때만 남고,
+ *   국명을 확인하지 못한 판정은 이름 없이 저장해도 학명·근거를 붙이지 않는다 (작업 20).
  */
 export function buildSighting(input: Input): Sighting {
-  const name = input.name.trim()
-  const accepted = input.verdict && input.verdict.speciesKo !== '' && input.verdict.speciesKo === name ? input.verdict : null
   const stamp = input.now.toISOString()
   const capturedAt = input.exif.capturedAt ?? stamp
   return {
-    id: crypto.randomUUID(), speciesKo: name, latin: accepted ? accepted.latin : latinOf(name),
+    id: crypto.randomUUID(), ...nameFields(input.name, input.verdict, input.existing),
     capturedAt, capturedAtOffset: input.exif.capturedAtOffset ?? null, createdAt: stamp, updatedAt: stamp,
     place: input.place.name, lat: input.place.lat, lng: input.place.lng, locationSource: input.place.source,
     shot: shotOf(input.exif), note: input.note.trim(),
     cropBox: input.crop?.box ?? null, detectorModel: input.crop?.by ?? null,
     // tier는 옛 백업 호환용으로만 남았다 — 새 기록은 늘 1 (types.ts)
     tier: 1, cardStyle: input.cardStyle, stamps: [], sensitive: false,
-    identify: name ? 'done' : 'none', verdict: accepted ?? undefined, fromSound: false, dexNo: dexNoFor(name, input.existing),
+    fromSound: false,
   }
 }
