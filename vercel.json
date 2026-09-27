@@ -5,6 +5,7 @@
   "outputDirectory": "dist",
   "functions": {
     "api/llm.ts": { "maxDuration": 300 },
-    "api/place.ts": { "maxDuration": 15 }
+    "api/place.ts": { "maxDuration": 15 },
+    "api/drive.ts": { "maxDuration": 15 }
   }
 }
