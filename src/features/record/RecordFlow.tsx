@@ -11,6 +11,7 @@ import CardResult from './CardResult'
 import DetectView from './DetectView'
 import IdentifyPanel from './IdentifyPanel'
 import LocationSheet from './LocationSheet'
+import { acceptsVerdict } from './nameFields'
 import PhotoStart from './PhotoStart'
 import { FactsCard, NoteCard } from './RecordFacts'
 import SpeciesInput from './SpeciesInput'
@@ -114,7 +115,7 @@ export default function RecordFlow({ onCancel, onDone, onOpenSettings }: Props) 
           <FactsCard photo={photo} place={loc.place} placeNote={placeNote} placeHint={placeHint} onEditPlace={() => setEditingPlace(true)} />
           <Card>
             <SpeciesInput value={name} known={known} onChange={setName} />
-            <IdentifyPanel ask={ask} hasCrop={picked !== null} cropChanged={ask.state === 'done' && !sameBox(askedBox, picked?.box ?? null)} name={name}
+            <IdentifyPanel ask={ask} hasCrop={picked !== null} cropChanged={ask.state === 'done' && !sameBox(askedBox, picked?.box ?? null)} name={name} applied={acceptsVerdict(name, ask.verdict)}
               onAsk={() => void askAI()} onApply={(v) => setName(v.speciesKo)} onPickName={setName} onOpenSettings={onOpenSettings} />
           </Card>
           <NoteCard value={note} onChange={setNote} />

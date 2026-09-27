@@ -53,3 +53,13 @@ test('도감 번호: 이미 본 종이면 그 번호, 처음 보는 종이면 �
   assert.equal(nameFields('해오라기', null, others).dexNo, 3)
   assert.equal(nameFields('까치', null, others).dexNo, 6)
 })
+
+test('저장한 기록을 고칠 때 이름이 그대로면 도감 번호도 그대로 — 이 종의 기록이 그것뿐이어도 다음 번호로 바뀌지 않는다', () => {
+  // 까치(4번)는 이 기록뿐이라 others에 없다. current 없이 매기면 6번이 된다
+  const others = [other('해오라기', 3), other('박새', 5)]
+  const current = { speciesKo: '까치', dexNo: 4 }
+  assert.equal(nameFields('까치', verdict({ speciesKo: '까치' }), others, current).dexNo, 4)
+  assert.equal(nameFields('까치', null, others).dexNo, 6)
+  // 이름이 바뀌면 current가 있어도 다시 매긴다
+  assert.equal(nameFields('해오라기', null, others, current).dexNo, 3)
+})
