@@ -32,6 +32,21 @@ test('readEntry: 모르는 키는 떨군다 — 칸에서 읽은 값을 그대�
   assert.deepEqual(readEntry({ ...dex, extra: 1 }), dex)
 })
 
+test('readEntry: 떠날 때 적어 둔 스크롤 위치를 읽고, 이상한 값은 버리기만 한다 (칸은 살린다)', () => {
+  assert.deepEqual(readEntry({ ...records, scroll: 812.5 }), { ...records, scroll: 812.5 })
+  assert.deepEqual(readEntry({ ...records, scroll: -3 }), records)
+  assert.deepEqual(readEntry({ ...records, scroll: '812' }), records)
+  assert.deepEqual(readEntry({ ...records, scroll: Number.NaN }), records)
+})
+
+test('새 칸에는 스크롤이 따라가지 않는다 — 새로 연 화면은 맨 위에서', () => {
+  const scrolled = { ...records, scroll: 900 }
+  const step = planOpen(scrolled, { name: 'detail', id: 'a' })
+  assert.equal(step.kind === 'push' && 'scroll' in step.entry, false)
+  const tab = planTab(scrolled, 'dex')
+  assert.equal(tab.kind === 'push' && 'scroll' in tab.entry, false)
+})
+
 test('planOpen: 화면을 열면 한 칸 쌓는다', () => {
   assert.deepEqual(planOpen(records, { name: 'detail', id: 'a' }), { kind: 'push', entry: detailOnRecords })
   assert.deepEqual(planOpen(dex, { name: 'detail', id: 'a' }), { kind: 'push', entry: detailOnDex })

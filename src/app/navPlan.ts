@@ -24,6 +24,8 @@ export interface NavEntry {
   layer?: string
   /** 겹 칸이 올라앉은 화면 칸의 depth */
   base?: number
+  /** 이 화면 위에 다른 칸을 쌓을 때의 스크롤 위치 — 뒤로 돌아오면 AppShell이 되살린다 */
+  scroll?: number
 }
 
 /** 방문 기록에 할 일 */
@@ -53,6 +55,8 @@ export function readEntry(state: unknown): NavEntry | null {
   const s = state as Record<string, unknown>
   if (s.mark !== NAV_MARK || !isRoute(s.route) || !isDepth(s.depth)) return null
   const entry = screenEntry(s.route, s.depth)
+  // 스크롤은 없어도 된다 (맨 위로 연다). 이상한 값이면 버리기만 한다 — 이것 때문에 칸을 버릴 일은 아니다
+  if (typeof s.scroll === 'number' && Number.isFinite(s.scroll) && s.scroll >= 0) entry.scroll = s.scroll
   if (s.layer === undefined) return entry
   if (typeof s.layer !== 'string' || !isDepth(s.base) || s.base >= s.depth) return null
   return { ...entry, layer: s.layer, base: s.base }

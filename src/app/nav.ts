@@ -12,6 +12,8 @@ const listeners = new Set<() => void>()
 /** 열린 겹들 — 뒤로가기가 도착할 때만 부른다 (쌓기·바꿔 끼우기로는 겹이 닫히지 않는다) */
 const popListeners = new Set<() => void>()
 let started = false
+/** 지금 화면의 스크롤 위치를 읽는 함수 — 스크롤 영역을 가진 AppShell이 건다 */
+let readScroll: () => number = () => 0
 
 /**
  * 우리가 건 뒤로 이동(history.go)이 도착하기를 기다리는 중. 그동안 새 이동은 받지 않는다 —
@@ -43,8 +45,11 @@ function apply(step: NavStep, again?: () => void): void {
   if (step.kind === 'none') return
   if (step.kind === 'go') { traverse(step.delta, step.again ? again : undefined); return }
   if (isWaiting()) return
-  if (step.kind === 'push') history.pushState(step.entry, '')
-  else history.replaceState(step.entry, '')
+  if (step.kind === 'push') {
+    // 떠나는 칸에 지금 스크롤 위치를 적어 둔다 — 뒤로 돌아오면 AppShell이 그 자리로 되살린다
+    history.replaceState({ ...current, scroll: readScroll() }, '')
+    history.pushState(step.entry, '')
+  } else history.replaceState(step.entry, '')
   current = step.entry
   notify()
 }
@@ -79,6 +84,11 @@ export function startNav(): void {
 /** 지금 칸. 칸이 바뀔 때만 새 객체다 (useSyncExternalStore의 스냅숏) */
 export function currentEntry(): NavEntry {
   return current
+}
+
+/** 스크롤 위치를 읽을 함수를 건다 (AppShell). 다른 화면을 열 때 떠나는 칸에 적는 데 쓴다 */
+export function setScrollReader(read: () => number): void {
+  readScroll = read
 }
 
 /** 칸이 바뀌면 부를 함수를 건다. 떼는 함수를 돌려준다 */
