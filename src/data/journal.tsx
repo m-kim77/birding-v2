@@ -3,6 +3,10 @@ import type { Sighting } from '../types'
 import { dbGet, dbGetAll, dbPut } from './db'
 import { normalizeStored } from './normalizeSighting'
 import { deleteSightingWithPhotos, writeSightingWithPhotos, type PhotoFile } from './photos'
+import { useAutoSync } from './useAutoSync'
+import { queueChange } from './syncPlan'
+import { isDriveLinked, noteChange } from './syncQueue'
+import { syncSoon } from './sync'
 
 /**
  * 백업 안 된 기록이 이 수 이상일 때만 첫 화면에 알림을 띄운다.
@@ -88,6 +92,8 @@ export function JournalProvider({ children }: { children: ReactNode }) {
   }, [])
   useEffect(() => { void reload() }, [reload])
   useEffect(() => { void readPersisted().then(setPersisted) }, [])
+  // 드라이브 동기화 — 받아서 기기가 바뀌면 다시 읽는다
+  useAutoSync(reload)
 
   const journal = useMemo<Journal>(() => ({
     sightings, error, reload, lastBackupAt, persisted,
@@ -95,6 +101,7 @@ export function JournalProvider({ children }: { children: ReactNode }) {
     add: async (s, photos) => {
       await writeSightingWithPhotos(s, photos)
       setSightings((list) => [s, ...(list ?? [])])
+      void noteChange(s.id, 'put', true).then(syncSoon)
       // 지킬 것이 생겼다 — 지금 저장소 보존을 요청한다 (첫 화면에서 묻지 않는 이유는 requestPersist 주석)
       if (persisted !== true && !askedPersist.current) { askedPersist.current = true; void requestPersist().then((ok) => { if (ok !== null) setPersisted(ok) }) }
     },
@@ -104,10 +111,14 @@ export function JournalProvider({ children }: { children: ReactNode }) {
       const next = { ...cur, ...patch, updatedAt: new Date().toISOString() }
       await dbPut('sightings', next)
       setSightings((list) => (list ?? []).map((s) => (s.id === id ? next : s)))
+      // 기록만 고쳤다 — 사진은 다시 올리지 않는다 (사진을 바꾸는 고침은 없다. 드라이브에 없는 판은 어차피 올라간다)
+      void noteChange(id, 'put', false).then(syncSoon)
     },
     remove: async (id) => {
-      await deleteSightingWithPhotos(id)
+      // 드라이브에서도 지우라는 일은 기록을 지우는 트랜잭션에 함께 넣는다 (photos.ts deleteSightingWithPhotos)
+      await deleteSightingWithPhotos(id, (await isDriveLinked()) ? queueChange(undefined, id, 'delete', false, new Date()) : undefined)
       setSightings((list) => (list ?? []).filter((s) => s.id !== id))
+      syncSoon()
     },
     markBackedUp: async () => {
       const now = new Date().toISOString()

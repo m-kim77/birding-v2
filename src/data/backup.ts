@@ -4,6 +4,7 @@ import type { PhotoKind, Sighting } from '../types'
 import { JOURNAL_FILE, buildJournal, parseJournal, parsePhotoPath, photoPath, planMerge, shouldCopyPhoto, type MergePlan } from './backupFormat'
 import { dbGetAll } from './db'
 import { allPhotosOf, hasPhoto, putPhoto, writeSightingWithPhotos, type PhotoFile } from './photos'
+import { noteChange } from './syncQueue'
 
 /** 불러오기 결과: 합친 내용과, 읽지 못해 건너뛴 기록 수 */
 export interface ImportResult extends MergePlan {
@@ -48,6 +49,8 @@ export async function importBackup(file: Blob): Promise<ImportResult> {
   const photos = photosById(entries)
   for (const s of [...plan.add, ...plan.update]) {
     await writeSightingWithPhotos(s, (photos.get(s.id) ?? []).map(({ kind, bytes }) => ({ kind, blob: jpeg(bytes) })))
+    // 드라이브를 연결했으면 올릴 일로 적는다 (안 했으면 아무것도 안 한다 — syncQueue.ts)
+    await noteChange(s.id, 'put', true)
   }
   const writing = new Set([...plan.add, ...plan.update].map((s) => s.id))
   for (const s of journal.sightings) {
