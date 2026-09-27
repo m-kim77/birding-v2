@@ -50,9 +50,10 @@ export function drawPlate(ctx: CanvasRenderingContext2D, img: ImageBitmap | null
 
 /**
  * 카드 앞면을 그린다. 화면의 BirdCard와 같은 배치·같은 값(cardLook.ts · cardStyle.ts)이다.
+ * `dexNo`는 화면의 카드와 같은 계산값(dex/useDexNo.ts)을 부르는 쪽이 넘긴다 — 기록에 저장된 옛 번호를 쓰지 않는다.
  * `shine`은 빛 줄기의 위치(0~1), null이면 그리지 않는다 ("빛나게"를 고른 카드만 그린다). 글꼴은 부르는 쪽이 미리 불러 둔다 (loadCardFonts).
  */
-export function drawCardFront(ctx: CanvasRenderingContext2D, s: Sighting, img: ImageBitmap | null, shine: number | null): void {
+export function drawCardFront(ctx: CanvasRenderingContext2D, s: Sighting, dexNo: number | undefined, img: ImageBitmap | null, shine: number | null): void {
   const { accent, glow } = styleOf(s)
   const bg = ctx.createLinearGradient(0, 0, 0, CARD_H)
   bg.addColorStop(0, CARD_BASE.bgTop)
@@ -64,7 +65,7 @@ export function drawCardFront(ctx: CanvasRenderingContext2D, s: Sighting, img: I
   ctx.fillStyle = bg
   ctx.fillRect(0, 0, CARD_W, CARD_H)
 
-  mono(ctx, dexLabel(s.dexNo).toUpperCase(), PAD, 70, 34, CARD_BASE.sub)
+  mono(ctx, dexLabel(dexNo).toUpperCase(), PAD, 70, 34, CARD_BASE.sub)
   mono(ctx, CARD_MARK, CARD_W - PAD, 70, 34, accent, 'right', '0.2em', 700)
   drawPlate(ctx, img, accent)
   s.stamps.forEach((stamp, i) => drawStamp(ctx, stamp, accent, PLATE.x + PLATE.w - 26, PLATE.y + 56 + i * 70))

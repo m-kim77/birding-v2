@@ -12,7 +12,7 @@ function verdict(over: Partial<Verdict> = {}): Verdict {
 function build(name: string, v: Verdict | null) {
   return buildSighting({
     name, note: '', exif: {}, place: { lat: null, lng: null, name: '', source: 'none' }, crop: null, verdict: v,
-    cardStyle: { accent: '#000000', glow: false }, existing: [], now: new Date('2026-09-27T00:00:00Z'),
+    cardStyle: { accent: '#000000', glow: false }, now: new Date('2026-09-27T00:00:00Z'),
   })
 }
 
@@ -41,4 +41,11 @@ test('학명을 이름 칸에 직접 적어도 AI 판정으로 치지 않는다 
   const s = build('Otus semitorques', verdict({ speciesKo: '', latin: 'Otus semitorques' }))
   assert.equal(s.speciesKo, 'Otus semitorques')
   assert.equal(s.verdict, undefined)
+})
+
+test('새 기록에는 이름이 붙은 시각(도감 순서)을 적고, 도감 번호는 적지 않는다 — 번호는 볼 때 계산한다 (작업 29)', () => {
+  const s = build('해오라기', null)
+  assert.equal(s.namedAt, '2026-09-27T00:00:00.000Z')
+  assert.ok(!('dexNo' in s))
+  assert.equal(build('', null).namedAt, undefined)
 })

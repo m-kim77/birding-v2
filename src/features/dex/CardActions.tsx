@@ -4,6 +4,7 @@ import { fileDateOf } from '../../ui/when'
 import type { Sighting } from '../../types'
 import { cardImage, cardVideo } from './cardExport'
 import { saveFile } from './saveFile'
+import { useDexNo } from './useDexNo'
 
 /** 파일 이름에 못 쓰는 글자를 뺀다. 날짜는 촬영지 기준 (UTC로 자르면 새벽 사진이 전날이 된다) */
 function fileBase(s: Sighting): string {
@@ -20,6 +21,8 @@ function fileBase(s: Sighting): string {
 export default function CardActions({ sighting, primary = true }: { sighting: Sighting; /** 같은 화면에 이미 주 버튼이 있으면 false (주 버튼은 화면마다 하나) */ primary?: boolean }) {
   const [busy, setBusy] = useState<'image' | 'video' | null>(null)
   const [error, setError] = useState('')
+  // 내보내는 카드에도 화면의 카드와 같은 번호를 적는다 (계산값 — dex/dexNo.ts)
+  const dexNo = useDexNo(sighting.speciesKo)
 
   /** 파일을 만들어 넘긴다. 실패하면 이유를, 공유 창을 닫았으면 그 사실을 버튼 아래에 적는다 (조용히 끝나지 않는다) */
   async function run(kind: 'image' | 'video') {
@@ -27,8 +30,8 @@ export default function CardActions({ sighting, primary = true }: { sighting: Si
     setError('')
     try {
       const outcome = kind === 'image'
-        ? await saveFile(await cardImage(sighting), `${fileBase(sighting)}.png`)
-        : await (async () => { const v = await cardVideo(sighting); return saveFile(v.blob, `${fileBase(sighting)}.${v.ext}`) })()
+        ? await saveFile(await cardImage(sighting, dexNo), `${fileBase(sighting)}.png`)
+        : await (async () => { const v = await cardVideo(sighting, dexNo); return saveFile(v.blob, `${fileBase(sighting)}.${v.ext}`) })()
       if (outcome === 'cancelled') setError('저장을 취소했습니다.')
     } catch (e) {
       setError(e instanceof Error ? e.message : '저장하지 못했습니다')

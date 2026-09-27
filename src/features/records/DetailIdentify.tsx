@@ -25,7 +25,7 @@ function holds(s: Sighting, v: Verdict | null): boolean {
  * 기록의 이름이 판정과 같아도 '이 이름으로'가 있다 — 직접 적어 저장한 이름에 AI 근거를 붙이는 길이다. 넣었는지는 기록의 판정으로 본다 (holds).
  */
 export default function DetailIdentify({ sighting, onOpenSettings }: Props) {
-  const { sightings, update } = useJournal()
+  const { update } = useJournal()
   const ask = useAsk()
   const [error, setError] = useState('')
 
@@ -42,22 +42,17 @@ export default function DetailIdentify({ sighting, onOpenSettings }: Props) {
   }
 
   /**
-   * 판정 결과를 기록에 넣는다. 도감 번호는 다른 기록들을 기준으로 다시 매긴다 (처음 보는 종이면 다음 번호).
+   * 판정 결과를 기록에 넣는다. 이름이 바뀌면 이름이 붙은 시각도 지금으로 (도감 번호의 순서 — 처음 보는 종이면 도감 맨 뒤).
    * 국명을 확인하지 못한 판정이면 아무것도 하지 않는다 — 학명을 이름 자리에 넣지 않는다 (작업 20. 그때는 화면에 '이 이름으로'도 없다).
    */
   async function apply(v: Verdict) {
     if (!v.speciesKo) return
-    await update(sighting.id, nameFields(v.speciesKo, v, others(), sighting))
+    await update(sighting.id, nameFields(v.speciesKo, v, new Date(), sighting))
   }
 
   /** 후보 이름을 고르면 그 이름만 넣는다 — AI 근거는 그 후보에 대한 것이 아니므로 뗀다 (nameFields에 판정 없이) */
   async function pickName(name: string) {
-    await update(sighting.id, nameFields(name, null, others(), sighting))
-  }
-
-  /** 이 기록을 뺀 기록들 — 도감 번호를 매길 때 */
-  function others() {
-    return (sightings ?? []).filter((x) => x.id !== sighting.id)
+    await update(sighting.id, nameFields(name, null, new Date(), sighting))
   }
 
   return (

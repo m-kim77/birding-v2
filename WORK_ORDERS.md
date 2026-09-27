@@ -254,6 +254,12 @@ OpenAI의 v2 검토 의견(저장·복원, 배포 운영, 기능 제안)을 코�
 - 검토의 터널 지적은 맞았다 — Cloudflare 문서: 빠른 터널은 "테스트·개발 전용"이고 "SSE를 지원하지 않는다". 앱은 스트림(SSE)으로 받는다(`api/llm.ts:43,58`, `llmClient.ts:20`). 9-26에 이미 Tailscale Funnel(고정 주소)로 바꿨다 — 검토는 바뀌기 전 문서를 봤다.
 - 남은 것: (1) 배포 사이트에서 **실제 새 사진으로** 판정 한 번 (2) 진행 글자가 조금씩 나오는지(스트림이 뭉쳐 오지 않는지) (3) 운영 문서에 "확인 중"으로 남은 두 줄. 작업 9는 이 경로 위에서 확인하므로 먼저 한다.
 
+**완료 (2026-09-27).** 배포 사이트(작업 9·20·21까지 올라간 판)에서:
+(1) 동고비 사진(`test/fixtures/exif-sample.jpg`)으로 'AI에게 물어보기' → 동고비 *Sitta europaea*, 확정, 근거 2개 · 참고 자료 1건, **약 40초** (작업 9 로컬 확인 때 126초 — 작업 21의 생각 세기 low가 들어간 뒤다). 판정 요청 3번 모두 200.
+(2) 배포 주소에 글 질문을 스트림으로 — 첫 조각 3.4초, 조각 145개가 약 4초에 걸쳐 나눠 왔다. 뭉쳐 오지 않는다.
+(3) 운영 문서(`../v2 docs/llm-connection-tunnel.md`)의 "확인 중"·"진행 중" 두 줄을 닫았다 — Unsloth 기록에 세 요청 모두 `/v1/chat/completions` 200, 맥의 키는 작업 9 확인 때 이미 유효.
+보지 못한 것: 폰에서의 판정, 다른 사람의 네트워크. 확인하며 생긴 초안(저장 안 한 새 기록)이 확인에 쓴 브라우저에 남아 있다.
+
 ---
 
 ## 작업 9 — 기본 제공 AI 통로 보호
@@ -746,6 +752,33 @@ ROADMAP의 "AI 판정 메모"와 조사 문서(`../v2 docs/community/fable-final
 **이번에 하지 않은 것** (메모의 "같이 볼 것"): 이동 기록·저장 공간 카드가 지우기를 `data`에서 직접 부르고 다시 읽기를 화면이 챙기는 것은 그대로다(`after`로 옮겼을 뿐). AI 카드의 연결 확인 요청을 `identify/connection.ts`로 옮겨 테스트하는 것과, 그 요청에 시간 제한을 두는 것(동작이 바뀐다)은 하지 않았다.
 
 **닿는 파일**: 새 `src/features/settings/useTask.ts`·`TaskResult.tsx`. 고침 `src/features/settings/{AiSection,BackupSection,DriveSection,StorageSection,TracksSection}.tsx`. 문서 `ROADMAP.md`, `WORK_ORDERS.md`, `README.md`.
+
+## 작업 29 — 도감 번호가 기기끼리 겹치거나 갈리는 문제
+
+ROADMAP의 작업 29 줄(작업 19 확인 중 발견)을 옮겨 쓴 것이다. 지시와 완료를 한 세션에 썼다 (2026-09-27).
+
+**왜**: 번호는 새 종을 저장하는 순간 그 기기의 가장 큰 번호 + 1로 정해 기록에 적었다(`dexNoFor`). 기기 둘이 각자 기록하면 — PC가 물총새에, 폰이 황조롱이에 똑같이 12를 준다. 드라이브 동기화(작업 19)나 백업 불러오기로 합치면 **다른 종이 같은 No.**가 되고, 같은 종이 기기마다 다른 번호가 된다. 도감 화면은 종마다 가장 최근 기록의 번호를 보여 줘서 어느 쪽이 보일지도 기록 순서에 달렸다. v1 기록 가져오기(작업 17)도 같은 문제를 만든다.
+
+**정한 것 (사용자, 2026-09-27)**:
+- **번호를 저장하지 않고 볼 때마다 모든 기록으로 계산한다.** 기록이 같은 기기끼리는 번호도 늘 같다. "합칠 때 다시 매겨 저장"은 고른 기록을 다시 올려야 하고(두 기기가 서로 고쳐 주고받다 꼬일 수 있다) 합치는 순간 번호가 바뀌는 것은 같아서 버렸다.
+- **순서는 그 종을 저장한 순서** (촬영 순서가 아니라). 한 기기에서 쓰던 번호가 대부분 그대로 남고, 나중에 옛 사진을 넣어도 앞 번호가 밀리지 않는다.
+- 대가: 한 종의 기록을 모두 지우면 뒤 번호가 당겨진다 (빈 번호가 없다). 전의 "앞 기록을 지워도 번호가 바뀌지 않는다"를 버렸다. 이미 내보낸 카드 그림의 번호와 달라질 수 있다.
+
+**완료 (2026-09-27).** `npm run check` 통과 (테스트 290 — 전보다 6개 늘었다).
+- `dex/dexNo.ts dexNumbers(기록들)` — 종마다 도감에 처음 들어온 시각으로 줄 세워 1, 2, 3 …. 같은 시각이면 이름의 글자 순(`localeCompare`는 브라우저마다 다를 수 있어 쓰지 않는다), 읽을 수 없는 시각은 맨 뒤. `dexNoFor`는 지웠다.
+- **계획과 다르게 한 것 — "저장한 순서"를 기록을 만든 시각이 아니라 이름이 붙은 시각으로 쟀다.** 새 칸 `Sighting.namedAt`(가산 확장). 이름 없이 저장했다가 나중에 이름을 붙이면(상세의 'AI에게 물어보기' → '이 이름으로') 만든 시각으로는 그 종이 앞에 끼어들어 뒤 번호가 줄줄이 밀린다 — 전 방식도 이름을 붙일 때 다음 번호를 줬으니, 이쪽이 "쓰던 번호가 대부분 그대로"에 맞다. `namedAt`이 없는 옛 기록은 `createdAt`을 쓴다.
+- `record/nameFields.ts` — 도감 번호 대신 `namedAt`을 정한다: 새 이름이면 지금, 이름이 그대로면 그대로(같은 이름을 다시 받아들여도 뒤로 밀리지 않게 — 작업 27이 번호로 막던 것), 이름을 비우면 없음. 번호를 매기려고 받던 "다른 기록들" 인자가 없어졌다 (`buildSighting`의 `existing`, `editPatch`의 `others`, `DetailIdentify`의 `others()`) — 대신 지금 시각을 받는다.
+- 화면: `dex/useDexNo.ts`(`useDexNumbers`·`useDexNo`, 기록 목록마다 한 번만 계산) → `BirdCard`, 도감 순서(`DexScreen`), 내보내는 이미지·영상(`CardActions` → `cardExport` → `cardCanvas drawCardFront`에 번호를 넘긴다).
+- `Sighting.dexNo`는 읽지도 쓰지도 않는다. 옛 기록·옛 백업의 값은 그대로 둔다 (`normalizeSighting`이 계속 받아 준다 — 가산 확장만).
+
+브라우저 확인 (5194 포트, 시험 DB에 가짜 기록 넷을 넣고 끝나서 지움):
+- 저장된 번호가 딱새 1·물총새 12·황조롱이 12이고, 참새는 2월에 만들고 9/22에 이름을 붙인 기록 → 도감 "No. 001 딱새 · 002 물총새 · 003 황조롱이 · 004 참새". 큰 카드와 상세의 카드도 같은 번호.
+- 물총새 기록을 '수정'에서 박새로 → 상세 카드 No. 004, 도감 "딱새 1 · 황조롱이 2 · 참새 3 · 박새 4" (물총새가 빠져 당겨짐). DB에는 `namedAt`이 수정한 시각으로 들어가고 옛 `dexNo: 12`는 남아 있다(읽지 않음).
+- 이미지·영상 저장은 누르지 않았다 — 파일이 사용자의 내려받기 폴더에 생긴다. 화면의 카드와 같은 `useDexNo` 값을 넘긴다.
+
+**이번에 하지 않은 것**: 드라이브에서 받은 기록의 `namedAt`이 기기 시계에 따른다 — 두 기기의 시계가 몇 분 어긋나면 비슷한 때 붙인 두 종의 순서가 기기 시계에 달린다(두 기기 모두 같은 답은 낸다). 옛 기록의 번호를 한 번 옮겨 적는 일(옛 `dexNo` 순서를 `namedAt`으로)은 하지 않았다 — 이름 없이 저장했다가 나중에 이름을 붙인 옛 기록은 번호가 한 번 바뀔 수 있다.
+
+**닿는 파일**: 새 `src/features/dex/useDexNo.ts`. 고침 `src/types.ts`, `src/features/dex/{dexNo.ts,BirdCard.tsx,CardActions.tsx,DexScreen.tsx,cardCanvas.ts,cardExport.ts}`, `src/features/record/{nameFields.ts,buildSighting.ts,RecordFlow.tsx}`, `src/features/records/{editPatch.ts,RecordEdit.tsx,DetailIdentify.tsx}`, `src/data/normalizeSighting.ts`. 테스트 `test/{dexNo,nameFields,editPatch,buildSighting,normalizeSighting}.test.ts`. 문서 `ROADMAP.md`, `WORK_ORDERS.md`, `CLAUDE.md`, `README.md`.
 
 ---
 

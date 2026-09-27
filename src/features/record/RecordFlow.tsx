@@ -78,7 +78,7 @@ export default function RecordFlow({ onCancel, onDone, onOpenSettings }: Props) 
       const cut = picked ? await makeCrop(photo, picked.box) : null
       // 자른 영역이 없으면(모델을 안 받았거나 새를 못 찾았거나 여러 마리 중 안 골랐으면) 사진 전체에서 뽑는다 — imageForAI·getBestPhoto와 같은 규칙
       const cardStyle = styleFromAccent(await accentFromImage(cut?.blob ?? photo.bitmap))
-      const sighting = buildSighting({ name, note, exif: photo.exif, place: loc.place, crop: cut && picked ? { box: cut.box, by: picked.by } : null, verdict: ask.verdict, cardStyle, existing, now: new Date() })
+      const sighting = buildSighting({ name, note, exif: photo.exif, place: loc.place, crop: cut && picked ? { box: cut.box, by: picked.by } : null, verdict: ask.verdict, cardStyle, now: new Date() })
       // 사진을 다 만든 뒤 기록과 함께 한 번에 쓴다 — 끊겨도 반쪽(사진만·기록만)이 남지 않는다
       await journal.add(sighting, await makePhotos(photo, cut?.blob ?? null))
       setSaved({ sighting, firstMeet: isFirstMeet(sighting.speciesKo, existing) })
