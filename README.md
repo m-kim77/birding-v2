@@ -7,7 +7,7 @@ Vercel에 올려 쓰며, 폰 홈 화면에 추가하면 앱처럼 열린다.
 npm install
 cp .env.example .env.local   # 기본 제공 AI가 갈 LLM 서버 주소 (LM Studio면 그대로)
 npm run dev                  # http://localhost:5173 — /api/* 도 같은 서버에서 돈다
-npm run check                # 타입 + 테마 대비 + 파일 크기 + 테스트
+npm run check                # 타입 + 테마 대비 + 파일·함수 크기 + 테스트
 npm run build
 ```
 
@@ -60,7 +60,7 @@ src/
   lib/                v1에서 가져온 순수 로직 (exif · crop · format) + resize · place
     tracklog/         타임라인 파싱·보간 (순수, v1 이식)
   features/
-    record/           사진으로 기록: 훅 넷(usePhotoPick · useDetection · useAsk · usePlace)이 상태를, 컴포넌트가 그리기를 맡는다
+    record/           사진으로 기록: 훅(usePhotoPick · useDetection · useAsk · useRecordPlace — 위치 · useRecordFields — 쓰는 값과 초안)이 상태를, 컴포넌트가 그리기를 맡는다. RecordFlow는 잇고 저장만 한다
     tracks/           워커·가져오기·60일 알림 (이동 기록)
     detect/           탐지 모델 어댑터. 모델을 바꾸면 mediapipeDetector.ts만 바뀐다
     identify/         판정 루프 · 프롬프트 · 연결 · 답 읽기

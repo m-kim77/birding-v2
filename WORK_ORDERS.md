@@ -677,6 +677,31 @@ ROADMAP의 "AI 판정 메모"와 조사 문서(`../v2 docs/community/fable-final
 
 ---
 
+## 작업 26 — 기록 화면(`RecordFlow`) 나누기
+
+"코드 정리 메모"의 작업 26을 옮겨 쓴 것이다. 지시와 완료를 한 세션에 썼다 (2026-09-27). **앱 동작은 그대로다.**
+
+**완료 (2026-09-27).** 메모의 계획대로 했다. `npm run check` 통과 (테스트 276). `RecordFlow` 함수 122줄 → 77줄, 파일 155줄 → 목표(150) 안.
+- `record/useRecordPlace.ts` — 위치 배선: `usePlace`·`useTrackMatch`, 이동 기록에서 찾은 좌표 넣기 effect, 위치 줄의 근거·안내(`placeNote`·`placeHint`), '직전 기록 위치'. `usePlace.ts`에는 넣지 않았다 — RecordEdit(첫 화면 묶음)이 그 파일을 부른다.
+- `record/useRecordFields.ts` — 초안 배선: 영역·이름·메모·판정을 보낸 영역·되살리는 중 상태, 되살리기·자동 저장 effect, `choose`·`resume`. 초안에 칸을 더할 때 고칠 세 곳이 이 파일에 모였다. **위치 훅 뒤에 부른다** (머리말에 이유). 저장을 마쳤는지(`saved`)는 RecordFlow가 참거짓으로 넘긴다 — 자동 저장이 저장 뒤에 멈추게.
+- `record/PhotoStart.tsx` — 사진을 고르기 전 화면. 숨은 파일 칸은 작성 화면의 '사진 바꾸기'와 같은 칸이라 RecordFlow가 만들어 넘긴다.
+- effect의 의존성 배열은 글자 그대로 옮겼다. effect가 도는 순서는 이동 기록 넣기가 초안 effect들 앞으로 온 것 하나만 달라졌다 — 둘이 같은 커밋에 돌아도 넣는 쪽이 `fillIfEmpty`(비어 있을 때만)라 결과가 같다.
+- `scripts/check-size.ts`가 함수 길이도 잰다 — `typescript` 파서로 함수를 찾아 빈 줄·주석을 뺀 줄 수. 80 초과는 실패, 40 초과는 표시. 옛 `RecordFlow`를 넣어 보면 "함수 122줄 > 상한 80"으로 종료 코드 1. 지금 40줄을 넘는 함수: IdentifyPanel 80 · RecordsScreen 78 · RecordFlow 77 · RecordEdit 69 · CardStylePicker 64 · AiSection 63 · BackupSection 56 · RecordDetail 55 · StorageSection 55 · TracksSection 49 · JournalProvider 48 · useAsk 45 · runIdentify 41 · parseExif 41.
+
+브라우저 확인 (다른 세션과 섞이지 않게 따로 띄운 5226 포트 — 그 주소의 저장소는 비어 있었다. PC 크롬 방식, 파일은 페이지에서 파일 칸에 넣었다):
+- 사진 고르기: 깨진 파일 → 첫 화면에 "이 사진 형식은 열 수 없습니다", 제대로 된 사진(`test/fixtures/exif-sample.jpg`) → 작성 화면, 시각·촬영 정보가 채워지고 위치 없음.
+- 새 찾기: 모델을 받으니 "새 2마리" → 새를 눌러 고름 ("이 부분으로 판정합니다").
+- 이름·메모를 쓰고 지도에서 위치를 고른 뒤 뒤로 → 다시 새 기록 → "쓰던 기록이 있습니다 — "동고비" · 메모" → 이어 쓰기: 이름·메모·고른 영역·직접 고른 위치가 돌아왔다. 판정은 AI 서버가 이 복사본에 연결돼 있지 않아 초안에 시험용 판정을 넣고 새로고침한 뒤 이어 쓰기 — 판정 칸이 "AI 판정 · 확정"으로 돌아왔다.
+- 사진 바꾸기에 깨진 파일 → 안내가 뜨고 사진·영역·판정이 그대로.
+- 저장 → 카드(이름·학명·장소) → 초안이 지워졌다 (기록 1건·사진 3판).
+- 위치 훅 순서: 가짜 GPS를 넣은 사진(부산, 시험용으로 만든 파일 — 저장소에 넣지 않았다)으로 새 기록 → "사진 정보에서" → 시트의 "직전 기록 위치로 (서울특별시 중구 약수동)" → 새로고침 → 이어 쓰기: 위치가 "지도에서 직접 고름"으로 남았다 (사진 좌표가 덮지 않았다). 3초 뒤에도 그대로 — 사진 좌표의 장소 이름이 늦게 와도 버려진다.
+- 콘솔: MediaPipe의 시작 알림(INFO)만.
+- **이동 기록으로 위치 찾기는 이번에 누르지 않았다** — 옮긴 코드는 글자 그대로다. 폰에서는 보지 않았다.
+
+**닿는 파일**: 새 `src/features/record/{useRecordPlace,useRecordFields}.ts`·`PhotoStart.tsx`. 고침 `src/features/record/RecordFlow.tsx`, `scripts/check-size.ts`. 문서 `ROADMAP.md`, `WORK_ORDERS.md`, `README.md`, `CLAUDE.md`(check가 재는 것).
+
+---
+
 ## 코드 정리 메모 (작업 26~28과 나머지) — 순서는 ROADMAP.md
 
 2026-09-27 점검(읽기 전용, main `f147342`)의 근거다. 줄 번호는 그날 기준이다 — 작업을 시작하면 다시 확인하고, 그 작업의 새 "작업 N" 절로 옮겨 자세히 쓴다 (위 "다음 기능 메모"와 같은 방식).
@@ -687,12 +712,7 @@ ROADMAP의 "AI 판정 메모"와 조사 문서(`../v2 docs/community/fable-final
 - 같은 화면을 만지는 다른 작업과 동시에 돌리지 않는다 — 코드를 파일 사이로 옮기므로 서로 덮는다.
 - 점검에서 이미 지켜지고 있던 것: 파일 크기 전부 상한 안, `lib`·`data`가 위층을 부르지 않음, `history` 직접 호출·컴포넌트 안 테마 id 분기·`api/`의 확장자 없는 import 없음.
 
-- **작업 26 — 기록 화면(`RecordFlow`) 나누기**: 함수 122줄(`RecordFlow.tsx:44`, 상한 80 — 점검 때 유일한 위반), 파일 155줄(목표 150). 한 함수가 사진·영역·AI·위치·초안 되살리기·자동 저장·저장·세 화면을 다 한다. 초안에 칸 하나를 더하면 상태·되살리기 effect(L80-90)·자동 저장 effect(L96-99) 세 곳을 같이 고친다.
-  - 뗄 것: (1) 초안 배선 → 새 훅 `record/useRecordFields.ts` — `useDraft`(L53), crop·name·note·askedBox·restoring 상태(L55-59·L65), 두 effect, `choose`·`resume`(L139-148). 모두 `data/draft.ts`의 초안 칸과 같이 바뀐다. (2) 위치 배선 → 새 훅 `record/useRecordPlace.ts` — `usePlace`·`useTrackMatch`(L51-52), `lastPlace`(L71-74), 이동 기록 넣기 effect(L93), `placeNote`·`placeHint`(L170-171). **`usePlace.ts`에 넣지 않는다** — RecordEdit(첫 화면 묶음)이 부르는 파일이라 이동 기록 매칭 코드가 첫 화면에 딸려 온다(`bfbdb2d`에서 막은 문제). (3) 사진 고르기 첫 화면(L155-167) → `record/PhotoStart.tsx`. 예상: 함수 약 77줄, 파일 약 115줄.
-  - 남길 것: 작성 화면 JSX(넘길 값이 20개가 넘는다), `picked`(AI·저장·탐지·판정 칸이 다 쓴다), `save`와 saving·saveError·saved(떼면 초안 훅과 서로 부른다).
-  - **함정**: 초안 훅은 위치 훅 **뒤에** 부른다 — 같은 커밋의 effect는 훅을 부른 순서대로 돌아서, 앞에 부르면 `usePlace`의 EXIF effect가 되살린 위치를 덮는다(L76-79 주석). effect 의존성 배열은 글자 그대로 옮긴다 — ESLint가 설치돼 있지 않아 `eslint-disable-line` 6곳은 아무 효과가 없고, 틀려도 안 잡힌다.
-  - 마지막 커밋: `scripts/check-size.ts`가 함수 길이도 잰다 — 이미 있는 `typescript` 파서로(새 패키지 없음) 함수마다 빈 줄·주석을 뺀 줄 수를 세어 80 초과는 실패, 40 초과는 표시. 머리 주석의 "함수 길이는 재지 않는다 — … ESLint로 한다"도 고친다. 26보다 먼저 넣으면 check가 바로 실패한다. 점검 때 40줄을 넘은 함수: RecordFlow 122 · IdentifyPanel 80 · RecordsScreen 78 · RecordEdit 69 · CardStylePicker 64 · AiSection 63 · BackupSection 56 · RecordDetail 55 · StorageSection 55 · TracksSection 49 · useAsk 45 · JournalProvider 44 · runIdentify 41 · parseExif 41.
-  - 확인: 사진 고르기 → 새 찾기(한 마리·여러 마리) → AI → 위치(사진 좌표·이동 기록·지도에서 고르기·직전 위치) → 저장 → 카드. 쓰다가 뒤로 → "이어 쓰기"로 이름·메모·영역·판정·직접 고른 위치가 모두 돌아오는지. 사진 바꾸기에 실패하면 옛 사진·영역이 남는지.
+- **작업 26 — 기록 화면(`RecordFlow`) 나누기**: 끝 (2026-09-27) → 위 "작업 26" 절. 점검 때의 계획(뗄 것·남길 것·함정·확인 순서)대로 했다.
 - **작업 27 — AI 판정을 기록에 넣는 규칙 한 곳으로**: 이름과 판정으로 {speciesKo, latin, verdict, identify, dexNo}를 정하는 규칙이 네 곳에 있다 — 새 기록 `record/buildSighting.ts:42,46,53`, 수정 `records/editPatch.ts:45-47`, 상세의 '이 이름으로' `records/DetailIdentify.tsx:49-54`, 후보 칩 `:57-60`. 뒤의 둘은 테스트 없는 화면 안에 있고, 후보 칩은 앞뒤 빈칸도 안 지운다. 작업 20 규칙(국명 없는 판정은 이름에 넣지 않는다·이름을 바꾸면 근거를 뗀다)을 순수 함수 하나로 모으고 테스트한다.
   - AI에 보낼 그림 만들기가 두 벌이다 — `record/savePhotos.ts` `imageForAI` ↔ `records/DetailIdentify.tsx:33-36` (1024px·품질 0.88이 두 곳). CLAUDE.md가 가리키는 `imageForAI` 쪽으로 모은다.
   - **같이 고칠 버그** (동작이 바뀌므로 따로 `fix` 커밋): 판정 칸의 "넣었다" 판단(`IdentifyPanel.tsx:86` `name === v.speciesKo`)에 상세가 기록의 이름(`DetailIdentify.tsx:65`)을 넘긴다. AI 서버가 쉬어서 '까치'라고 직접 적어 저장 → 상세에서 물었더니 '까치' → "이름 칸에 넣었습니다"만 뜨고 '이 이름으로'가 없어 판정 근거를 기록에 붙일 수 없고, 나가면 사라진다. "이름 칸"이라는 말도 상세와 맞지 않는다. 방향: '넣었는지'를 부르는 쪽이 정해 넘긴다.

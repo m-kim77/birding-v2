@@ -6,7 +6,7 @@
 - 지금 할 순서·진행 상태·git에 올리는 법: [`ROADMAP.md`](ROADMAP.md). **작업을 시작하기 전에 읽는다. 순서는 이 파일만 정한다.** 작업마다의 자세한 지시는 [`WORK_ORDERS.md`](WORK_ORDERS.md).
 - 결정의 배경·근거·미정 사항: [`HANDOFF.md`](HANDOFF.md). 계획서가 생기면 계획서가 우선한다.
 - 버튼마다의 존재 이유: [`ref_design/design_v01/BUTTONS.md`](ref_design/design_v01/BUTTONS.md). **동작하지 않는 버튼을 미리 만들어 두지 않는다.**
-- 끝내기 전에 `npm run check` (타입 · 테마 대비 · 파일 크기 · 테스트).
+- 끝내기 전에 `npm run check` (타입 · 테마 대비 · 파일·함수 크기 · 테스트).
 - v1은 `../bird_app v1/`에 있다. **참조·복사 전용이다. v2 작업 중에 v1 파일을 고치지 않는다.**
 - 계획서에서 새로 확정되는 결정 중 **매 세션 지켜야 하는 것만** 이 파일에 추가한다. 배경 설명은 넣지 않는다.
 
