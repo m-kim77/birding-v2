@@ -77,6 +77,7 @@ ref_design/design_v01 디자인 초안과 BUTTONS.md (버튼마다 존재 이유
 - **탐지 모델 바꾸기**: `features/detect/detector.ts`의 모양을 따르는 파일을 만들고, `useDetection.ts`·`ModelSection.tsx`의 import 한 줄을 바꾼다. 설정 > 출처에도 한 줄.
 - **테마 더하기**: `theme/themes.ts`에 항목 하나(폰 위쪽 띠 색 `bar` 포함) → `npm run check`가 대비와 밝기 짝(`colorScheme`·`bar`)을 검사한다.
 - **카드 색 바꾸기**: 추천 색·기본색·옛 기록의 색은 `features/dex/cardStyle.ts` 한 곳. 사진에서 뽑는 방법은 `accentFromPhoto.ts`. 모든 카드가 함께 쓰는 값(바탕·글꼴)은 `cardLook.ts`.
+- **설정 카드 더하기**: "누르면 → 진행 중 → 결과 한 줄"은 `features/settings/useTask.ts`(실패는 결과 줄에, 끝난 뒤 할 일은 `after`)와 `TaskResult.tsx`를 쓴다 — 카드마다 복사하지 않는다.
 - **백업 형식 바꾸기**: `data/backupFormat.ts` — 가산 확장만. 키를 바꾸면 옛 백업이 안 열린다.
 - **타임라인 형식 바꾸기**: `lib/tracklog/parse.ts` 한 곳. 아이폰 모양을 읽게 되면 `detectShape`·`extractPoints`에 갈래를 더한다.
 
