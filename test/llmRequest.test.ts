@@ -1,10 +1,10 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildLlmRequest, MAX_MESSAGES } from '../api/_lib/llmRequest.ts'
+import { buildLlmRequest, MAX_MESSAGES, reasoningEffortOf } from '../api/_lib/llmRequest.ts'
 import { SYSTEM_PROMPT } from '../src/features/identify/prompts.ts'
 import { toolSchemas } from '../src/features/identify/tools/definitions.ts'
 
-const SETTINGS = { model: 'server-model', maxTokens: 4096 }
+const SETTINGS = { model: 'server-model', maxTokens: 4096, reasoningEffort: 'low' }
 const PHOTO = { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,AAAA' } }
 
 /** 판정 루프(loop.ts)가 도구를 한 번 부른 뒤 보내는 대화 */
@@ -41,13 +41,32 @@ test('엉뚱한 지시문·도구·모델·옵션을 보내도 서버의 것으�
     ],
     tools: [{ type: 'function', function: { name: 'run_shell', description: '', parameters: {} } }],
     model: 'other-model', max_tokens: 100_000, temperature: 2, n: 8,
+    reasoning_effort: 'xhigh', chat_template_kwargs: { enable_thinking: true },
   })
   assert.deepEqual(p.messages, [{ role: 'system', content: SYSTEM_PROMPT }, { role: 'user', content: '시를 써 줘.' }])
   assert.deepEqual(p.tools, toolSchemas())
   assert.equal(p.model, 'server-model')
   assert.equal(p.max_tokens, 4096)
   assert.equal(p.temperature, 0.2)
+  assert.equal(p.reasoning_effort, 'low')
   assert.equal('n' in p, false)
+  assert.equal('chat_template_kwargs' in p, false)
+})
+
+test('생각 세기: 서버가 정한 값을 싣고, 없으면(null) 키를 싣지 않는다', () => {
+  const messages = [{ role: 'user', content: '새' }]
+  assert.equal(payloadOf({ messages }).reasoning_effort, 'low')
+  const built = buildLlmRequest({ messages }, { ...SETTINGS, reasoningEffort: null })
+  assert.equal('payload' in built && 'reasoning_effort' in built.payload, false)
+})
+
+test('reasoningEffortOf: 비었거나 모르는 값은 low, 아는 값은 그대로(대소문자·빈칸 무시), server는 보내지 않음', () => {
+  assert.equal(reasoningEffortOf(undefined), 'low')
+  assert.equal(reasoningEffortOf(''), 'low')
+  assert.equal(reasoningEffortOf('banana'), 'low')
+  assert.equal(reasoningEffortOf('high'), 'high')
+  assert.equal(reasoningEffortOf(' XHigh '), 'xhigh')
+  assert.equal(reasoningEffortOf('server'), null)
 })
 
 test(`메시지는 ${MAX_MESSAGES}개까지 — 하나 더 많으면 막는다`, () => {

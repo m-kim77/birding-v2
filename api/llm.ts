@@ -10,10 +10,11 @@
  * IP마다의 요청 수 제한은 코드가 아니라 Vercel Firewall 규칙이 맡는다 (README "Vercel 배포").
  *
  * 환경변수: LOCAL_LLM_URL(예: https://llm.example.com/v1), LOCAL_LLM_KEY(선택), LOCAL_LLM_MODEL,
- * LOCAL_LLM_MAX_TOKENS(선택, 기본 4096), LOCAL_LLM_FIRST_RESPONSE_SECONDS(선택, 기본 90)
+ * LOCAL_LLM_MAX_TOKENS(선택, 기본 4096), LOCAL_LLM_FIRST_RESPONSE_SECONDS(선택, 기본 90),
+ * LOCAL_LLM_REASONING_EFFORT(선택, 기본 low — low·medium·high·xhigh, 'server'면 보내지 않음. `_lib/llmRequest.ts reasoningEffortOf`)
  */
 // 경로에 .ts를 적는다 — 확장자 없는 경로는 배포된 함수에서 못 찾는다 (_lib/llmRequest.ts 머리말)
-import { buildLlmRequest } from './_lib/llmRequest.ts'
+import { buildLlmRequest, reasoningEffortOf } from './_lib/llmRequest.ts'
 
 /** 요청 본문의 상한. 1024px JPEG 한 장 + 대화 기록이면 2MB를 넘지 않는다 */
 const MAX_BODY_BYTES = 4_000_000
@@ -80,7 +81,11 @@ export async function POST(request: Request): Promise<Response> {
   if (text.length > MAX_BODY_BYTES) return fail(413, '사진이 너무 큽니다.')
   let body: unknown
   try { body = JSON.parse(text) } catch { return fail(400, '요청 형식이 잘못되었습니다.') }
-  const built = buildLlmRequest(body, { model, maxTokens: Number(process.env.LOCAL_LLM_MAX_TOKENS) || DEFAULT_MAX_TOKENS })
+  const built = buildLlmRequest(body, {
+    model,
+    maxTokens: Number(process.env.LOCAL_LLM_MAX_TOKENS) || DEFAULT_MAX_TOKENS,
+    reasoningEffort: reasoningEffortOf(process.env.LOCAL_LLM_REASONING_EFFORT),
+  })
   if ('error' in built) return fail(400, built.error)
 
   // 첫 응답의 마감. 마감이 지나도, 브라우저가 떠나도(request.signal) LLM 서버로 가는 요청을 끊는다

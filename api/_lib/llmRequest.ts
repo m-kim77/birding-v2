@@ -25,6 +25,28 @@ export interface ServerSettings {
   model: string
   /** 한 턴의 토큰 상한 — 생각(reasoning) 토큰도 여기에 든다 */
   maxTokens: number
+  /** 생각 세기(`reasoning_effort`). null이면 보내지 않는다 — LLM 서버의 기본값을 쓴다 */
+  reasoningEffort: string | null
+}
+
+/** 보낼 수 있는 생각 세기. Unsloth의 Qwen3.8 Flash가 받는 값이다 (작업 21에서 서버 기록으로 확인) */
+export const REASONING_EFFORTS = ['low', 'medium', 'high', 'xhigh']
+
+/**
+ * 생각 세기의 기본값. 작업 21 시험(사진 5장 × 2회)에서 서버 기본(high)보다 평균 86초 → 53초로 빨랐고,
+ * 맞힌 수는 줄지 않았으며(6 → 8/10), high에서 생긴 "생각이 상한에 잘려 답이 깨짐"이 없었다.
+ */
+export const DEFAULT_REASONING_EFFORT = 'low'
+
+/**
+ * 환경변수 값(`LOCAL_LLM_REASONING_EFFORT`)을 보낼 생각 세기로 바꾼다. 대소문자·앞뒤 빈칸은 무시한다.
+ * 비었거나 목록에 없는 값이면 기본값(low) — 잘못 적은 값 때문에 느린 서버 기본으로 조용히 돌아가지 않게.
+ * 'server'면 null(보내지 않음) — 이 옵션을 모르는 서버로 바꿨을 때 끄는 길이다.
+ */
+export function reasoningEffortOf(value: string | undefined): string | null {
+  const v = (value ?? '').trim().toLowerCase()
+  if (v === 'server') return null
+  return REASONING_EFFORTS.includes(v) ? v : DEFAULT_REASONING_EFFORT
 }
 
 /** 검사 결과: LLM 서버로 보낼 본문, 또는 브라우저에 돌려줄 한국어 안내 (→ 400) */
@@ -36,7 +58,7 @@ const ROLES = new Set(['system', 'user', 'assistant', 'tool'])
 
 /**
  * 브라우저가 보낸 본문(OpenAI chat.completions 형식)으로 LLM 서버에 보낼 본문을 만든다.
- * 지시문·도구·모델·토큰 상한·온도는 서버의 것으로 바꾸고, 대화에서는 system이 아닌 메시지만 넘긴다.
+ * 지시문·도구·모델·토큰 상한·온도·생각 세기는 서버의 것으로 바꾸고, 대화에서는 system이 아닌 메시지만 넘긴다.
  * 메시지가 `MAX_MESSAGES`개를 넘거나, 그림이 `MAX_IMAGES`장을 넘거나, `tool_choice`가 auto·none(없으면 auto)이 아니거나,
  * 메시지 모양이 틀리면 `{ error }`를 준다.
  */
@@ -57,9 +79,13 @@ export function buildLlmRequest(body: unknown, settings: ServerSettings): LlmReq
   }
   if (images > MAX_IMAGES) return { error: '사진은 한 장만 보낼 수 있습니다.' }
 
-  // 넘기는 키는 여기서 정한 것뿐이다 — 브라우저가 보낸 모르는 키를 넘기면 LLM 서버의 옵션을 바깥에서 조작할 수 있다
+  // 넘기는 키는 여기서 정한 것뿐이다 — 브라우저가 보낸 모르는 키를 넘기면 LLM 서버의 옵션을 바깥에서 조작할 수 있다.
+  // 생각 세기는 채팅 템플릿의 앞부분을 바꾼다 — 요청마다 다르면 KV 캐시가 깨지므로 서버가 정한 한 값만 쓴다
   return {
-    payload: { model: settings.model, messages, tools: toolSchemas(), tool_choice: toolChoice, temperature: 0.2, max_tokens: settings.maxTokens, stream: true },
+    payload: {
+      model: settings.model, messages, tools: toolSchemas(), tool_choice: toolChoice, temperature: 0.2, max_tokens: settings.maxTokens, stream: true,
+      ...(settings.reasoningEffort ? { reasoning_effort: settings.reasoningEffort } : {}),
+    },
   }
 }
 
