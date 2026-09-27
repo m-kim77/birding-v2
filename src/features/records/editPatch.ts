@@ -31,17 +31,17 @@ export function formOf(s: Sighting): EditForm {
 }
 
 /**
- * 수정 칸의 값으로 기록에 넣을 변경을 만든다. `others`는 이 기록을 뺀 나머지 기록이다 (도감 번호를 다시 매길 때).
+ * 수정 칸의 값으로 기록에 넣을 변경을 만든다. `now`는 이름을 바꿨을 때 이름이 붙은 시각이 된다 (도감 번호의 순서, dex/dexNo.ts).
  * - 이름(앞뒤 공백 뺌)이 바뀌면 학명은 종 표에서 다시 찾고 AI 근거는 뗀다 — 근거는 그 이름에 대한 것이다 (nameFields에 판정 없이).
- *   도감 번호도 다시 매긴다. 이름을 비우면 '이름 미정'으로 돌아간다.
+ *   이름이 붙은 시각도 지금으로 바뀐다 — 새 종이면 도감 맨 뒤에 들어간다. 이름을 비우면 '이름 미정'으로 돌아간다.
  * - 메모는 입력한 글 그대로 넣는다.
  * - 시각은 입력칸이 처음 값(toTimeInput)과 다를 때만 다시 계산한다 — 같으면 저장된 초·오프셋이 그대로 남는다.
  *   다시 계산할 수 없는 값(빈칸, 2월 30일)이면 **null** — 부르는 쪽이 저장을 막는다.
  * - 위치는 좌표·장소 이름·출처 중 하나라도 바뀌면 넷을 함께 넣는다 (이름만 늦게 도착한 경우도 바뀐 것이다).
  */
-export function editPatch(s: Sighting, form: EditForm, others: Sighting[]): Partial<Sighting> | null {
+export function editPatch(s: Sighting, form: EditForm, now: Date): Partial<Sighting> | null {
   const name = form.name.trim()
-  const renamed: Partial<Sighting> = name === s.speciesKo ? {} : nameFields(name, null, others)
+  const renamed: Partial<Sighting> = name === s.speciesKo ? {} : nameFields(name, null, now)
   let retimed: Partial<Sighting> = {}
   if (form.time !== toTimeInput(s.capturedAt, s.capturedAtOffset)) {
     const time = fromTimeInput(form.time, s.capturedAtOffset)

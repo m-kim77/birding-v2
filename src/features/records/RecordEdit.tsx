@@ -36,7 +36,7 @@ export default function RecordEdit({ sighting: s, onClose, onDeleted }: Props) {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [error, setError] = useState('')
 
-  const patch = editPatch(s, { name, note, time, place: loc.place }, (sightings ?? []).filter((x) => x.id !== s.id))
+  const patch = editPatch(s, { name, note, time, place: loc.place }, new Date())
   // 이동 기록에서 온 위치는 고치기 전 시각으로 찾은 것이다 — 시각만 고치면 둘이 어긋난다 (다시 찾지는 않는다 — WORK_ORDERS 작업 12)
   const staleTrack = patch?.capturedAt !== undefined && patch.locationSource === undefined && s.locationSource === 'tracklog'
 

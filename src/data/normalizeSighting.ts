@@ -39,12 +39,15 @@ export function normalizeSighting(raw: unknown): Sighting | null {
   // 선택 필드는 모양이 맞을 때만 남긴다 — 틀린 값을 두면 카드·판정 화면이 그 값을 믿고 읽다 멈춘다
   setOrDrop(s, 'cardStyle', cardStyleOf(raw.cardStyle))
   setOrDrop(s, 'verdict', verdictOf(raw.verdict))
+  // 이름이 붙은 시각은 이름이 있을 때만 뜻이 있다 (도감 순서, dex/dexNo.ts). 틀린 값이면 버린다 — 그때는 createdAt을 쓴다
+  setOrDrop(s, 'namedAt', speciesKo && isTime(raw.namedAt) ? raw.namedAt : undefined)
+  // 옛 판이 저장한 도감 번호 — 쓰지 않지만 백업을 돌고 와도 남게 둔다 (가산 확장만, types.ts)
   setOrDrop(s, 'dexNo', Number.isInteger(raw.dexNo) && (raw.dexNo as number) > 0 ? raw.dexNo as number : undefined)
   return s
 }
 
 /** 값이 있으면 넣고, 없으면 키 자체를 지운다 (undefined 값을 남기지 않는다) */
-function setOrDrop<K extends 'cardStyle' | 'verdict' | 'dexNo'>(s: Sighting, key: K, value: Sighting[K] | undefined) {
+function setOrDrop<K extends 'cardStyle' | 'verdict' | 'namedAt' | 'dexNo'>(s: Sighting, key: K, value: Sighting[K] | undefined) {
   if (value === undefined) delete s[key]
   else s[key] = value
 }

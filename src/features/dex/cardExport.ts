@@ -27,11 +27,11 @@ function makeCanvas(): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2
   return { canvas, ctx }
 }
 
-/** 카드를 PNG로 만든다. 모서리 바깥은 투명하다. 인코딩에 실패하면 한국어 Error */
-export async function cardImage(s: Sighting): Promise<Blob> {
+/** 카드를 PNG로 만든다 (`dexNo`는 화면에 보이는 도감 번호). 모서리 바깥은 투명하다. 인코딩에 실패하면 한국어 Error */
+export async function cardImage(s: Sighting, dexNo: number | undefined): Promise<Blob> {
   const [img] = await Promise.all([loadPhoto(s.id), loadCardFonts(s.speciesKo)])
   const { canvas, ctx } = makeCanvas()
-  drawCardFront(ctx, s, img, 0.62)
+  drawCardFront(ctx, s, dexNo, img, 0.62)
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('이미지를 만들지 못했습니다'))), 'image/png')
   })
@@ -66,7 +66,7 @@ function withCard(ctx: CanvasRenderingContext2D, scale: number, squeeze: number,
 }
 
 /** 영상의 한 장면. `sec`는 시작부터 흐른 초 */
-function drawFrame(ctx: CanvasRenderingContext2D, s: Sighting, img: ImageBitmap | null, sec: number): void {
+function drawFrame(ctx: CanvasRenderingContext2D, s: Sighting, dexNo: number | undefined, img: ImageBitmap | null, sec: number): void {
   const accent = styleOf(s).accent
   drawStage(ctx)
   if (sec < T.scanEnd) {
@@ -86,7 +86,7 @@ function drawFrame(ctx: CanvasRenderingContext2D, s: Sighting, img: ImageBitmap 
   } else if (sec < T.revealStart) {
     // 03 플립 — 가로로 눌렸다 펴지며 앞면으로 바뀐다
     const p = (sec - T.flipStart) / (T.revealStart - T.flipStart)
-    withCard(ctx, 0.88 + 0.04 * Math.sin(p * Math.PI), Math.abs(Math.cos(p * Math.PI)), 1, () => (p < 0.5 ? drawCardBack(ctx, accent) : drawCardFront(ctx, s, img, null)))
+    withCard(ctx, 0.88 + 0.04 * Math.sin(p * Math.PI), Math.abs(Math.cos(p * Math.PI)), 1, () => (p < 0.5 ? drawCardBack(ctx, accent) : drawCardFront(ctx, s, dexNo, img, null)))
   } else {
     // 04 공개 — 강조색 빛이 번지고 빛 줄기가 지나간다
     const p = Math.min(1, (sec - T.revealStart) / (T.revealEnd - T.revealStart))
@@ -97,20 +97,20 @@ function drawFrame(ctx: CanvasRenderingContext2D, s: Sighting, img: ImageBitmap 
     ctx.fillStyle = accent
     ctx.fillRect(CARD_W * 0.12, CARD_H * 0.12, CARD_W * 0.76, CARD_H * 0.76)
     ctx.restore()
-    withCard(ctx, 0.88, 1, 1, () => drawCardFront(ctx, s, img, p))
+    withCard(ctx, 0.88, 1, 1, () => drawCardFront(ctx, s, dexNo, img, p))
   }
 }
 
 /**
- * 카드가 나타나는 영상을 만든다 (약 3.6초). 녹화를 지원하지 않는 브라우저에서는 Error를 던진다 — 부르는 쪽이 사용자에게 알린다.
+ * 카드가 나타나는 영상을 만든다 (약 3.6초, `dexNo`는 화면에 보이는 도감 번호). 녹화를 지원하지 않는 브라우저에서는 Error를 던진다 — 부르는 쪽이 사용자에게 알린다.
  * 실시간으로 녹화하므로 영상 길이만큼 시간이 걸린다.
  */
-export async function cardVideo(s: Sighting): Promise<{ blob: Blob; ext: string }> {
+export async function cardVideo(s: Sighting, dexNo: number | undefined): Promise<{ blob: Blob; ext: string }> {
   const type = pickVideoType()
   if (!type) throw new Error('이 브라우저는 영상 저장을 지원하지 않습니다')
   const [img] = await Promise.all([loadPhoto(s.id), loadCardFonts(s.speciesKo)])
   const { canvas, ctx } = makeCanvas()
-  drawFrame(ctx, s, img, 0)
+  drawFrame(ctx, s, dexNo, img, 0)
 
   const recorder = new MediaRecorder(canvas.captureStream(30), { mimeType: type.mime, videoBitsPerSecond: 6_000_000 })
   const chunks: Blob[] = []
@@ -123,7 +123,7 @@ export async function cardVideo(s: Sighting): Promise<{ blob: Blob; ext: string 
     /** 한 장면을 그리고 다음 장면을 예약한다 */
     function tick(now: number) {
       const sec = (now - started) / 1000
-      drawFrame(ctx, s, img, Math.min(sec, T.hold))
+      drawFrame(ctx, s, dexNo, img, Math.min(sec, T.hold))
       if (sec < T.hold) requestAnimationFrame(tick); else resolve()
     }
     requestAnimationFrame(tick)

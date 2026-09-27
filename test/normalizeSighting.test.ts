@@ -13,7 +13,7 @@ const FULL: Sighting = {
   shot: { cameraModel: 'CAM', focalLength: 400, fNumber: 6.3, exposureTime: 0.005, iso: 1000 },
   note: '메모', cropBox: { x1: 0.1, y1: 0.2, x2: 0.5, y2: 0.6 }, detectorModel: 'manual',
   tier: 1, cardStyle: { accent: '#3a7bd5', glow: true }, stamps: ['천연기념물'], sensitive: false,
-  identify: 'done', dexNo: 2, fromSound: false,
+  identify: 'done', namedAt: '2026-08-02T03:00:00.000Z', dexNo: 2, fromSound: false,
   verdict: { kind: '확정', speciesKo: '물총새', latin: 'Alcedo atthis', summary: '요약', evidence: [{ text: '근거', source: '위키' }], others: [], model: 'm', references: [{ title: '물총새', url: 'https://ko.wikipedia.org/wiki/물총새' }] },
 }
 
@@ -49,6 +49,11 @@ test('normalizeSighting: id나 읽을 수 있는 시각이 없으면 버린다',
 
 test('normalizeSighting: 촬영 시각이 없으면 기록한 시각으로', () => {
   assert.equal(normalizeSighting({ id: 'd', createdAt: '2026-08-02T03:00:00.000Z' })!.capturedAt, '2026-08-02T03:00:00.000Z')
+})
+
+test('normalizeSighting: 이름이 붙은 시각은 이름이 있고 시각으로 읽힐 때만 남는다 (도감 순서, 작업 29)', () => {
+  assert.ok(!('namedAt' in normalizeSighting({ ...FULL, namedAt: '어제' })!))
+  assert.ok(!('namedAt' in normalizeSighting({ ...FULL, speciesKo: '' })!))
 })
 
 test('normalizeSighting: 모양이 틀린 선택 필드는 뗀다', () => {

@@ -132,7 +132,15 @@ export interface Sighting {
   identify: IdentifyStatus
   /** AI의 이름을 그대로 받아들였을 때만 남긴다 */
   verdict?: Verdict
-  /** 도감 번호 — 이 종이 내 도감에 몇 번째로 들어왔는지 (카드의 No.). 이름 없는 기록과 옛 기록에는 없다 */
+  /**
+   * 지금 이름(`speciesKo`)이 이 기록에 붙은 시각 (UTC ISO). 도감 번호의 순서를 정한다 (dex/dexNo.ts).
+   * 이름을 바꾸면 새 시각, 이름이 그대로면 그대로, 이름을 비우면 없다. 옛 기록에는 없다 — 그때는 `createdAt`을 쓴다.
+   */
+  namedAt?: string
+  /**
+   * 쓰지 않는다 (옛 기록·옛 백업 호환). 도감 번호는 저장하지 않고 볼 때 계산한다 (dex/dexNo.ts dexNumbers, 작업 29) —
+   * 기기마다 따로 매겨 저장하면 드라이브·백업으로 합칠 때 번호가 겹친다. 이 값을 다시 읽거나 쓰지 말 것.
+   */
   dexNo?: number
   fromSound: boolean
 }

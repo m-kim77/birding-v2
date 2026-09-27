@@ -9,6 +9,7 @@ import BirdCard from './BirdCard'
 import CardActions from './CardActions'
 import CardStylePicker from './CardStylePicker'
 import SyncBanner from './SyncBanner'
+import { useDexNumbers } from './useDexNo'
 
 interface SpeciesEntry {
   name: string
@@ -18,14 +19,14 @@ interface SpeciesEntry {
   all: Sighting[]
 }
 
-/** 기록을 종별로 묶는다. 이름 없는 기록은 도감에 넣지 않는다. 도감 번호 순으로 늘어놓는다 */
-function bySpecies(sightings: Sighting[]): SpeciesEntry[] {
+/** 기록을 종별로 묶는다. 이름 없는 기록은 도감에 넣지 않는다. 도감 번호(`numbers` — dex/dexNo.ts의 계산값) 순으로 늘어놓는다 */
+function bySpecies(sightings: Sighting[], numbers: Map<string, number>): SpeciesEntry[] {
   const groups = new Map<string, Sighting[]>()
   for (const s of sightings) if (s.speciesKo) groups.set(s.speciesKo, [...(groups.get(s.speciesKo) ?? []), s])
   return [...groups.entries()].map(([name, list]) => {
     const all = [...list].sort((a, b) => b.capturedAt.localeCompare(a.capturedAt))
     return { name, all, best: all[0] }
-  }).sort((a, b) => (a.best.dexNo ?? 9999) - (b.best.dexNo ?? 9999))
+  }).sort((a, b) => (numbers.get(a.name) ?? 0) - (numbers.get(b.name) ?? 0))
 }
 
 /**
@@ -35,7 +36,8 @@ function bySpecies(sightings: Sighting[]): SpeciesEntry[] {
  */
 export default function DexScreen({ onOpenRecord }: { onOpenRecord: (id: string) => void }) {
   const { sightings } = useJournal()
-  const species = useMemo(() => bySpecies(sightings ?? []), [sightings])
+  const numbers = useDexNumbers()
+  const species = useMemo(() => bySpecies(sightings ?? [], numbers), [sightings, numbers])
   const [openName, setOpenName] = useState('')
   const open = species.find((e) => e.name === openName) ?? null
 
