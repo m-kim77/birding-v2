@@ -2,7 +2,6 @@ import { useMemo, useRef, useState } from 'react'
 import { useJournal } from '../../data/journal'
 import { Banner, Card, ScreenHead } from '../../ui/bits'
 import Button from '../../ui/Button'
-import Icon from '../../ui/Icon'
 import type { NormalizedBox, Sighting } from '../../types'
 import { accentFromImage } from '../dex/accentFromPhoto'
 import { styleFromAccent } from '../dex/cardStyle'
@@ -10,9 +9,9 @@ import { isFirstMeet } from '../dex/dexNo'
 import { buildSighting } from './buildSighting'
 import CardResult from './CardResult'
 import DetectView from './DetectView'
-import DraftNotice from './DraftNotice'
 import IdentifyPanel from './IdentifyPanel'
 import LocationSheet from './LocationSheet'
+import PhotoStart from './PhotoStart'
 import { FactsCard, NoteCard } from './RecordFacts'
 import SpeciesInput from './SpeciesInput'
 import { imageForAI, makeCrop, makePhotos } from './savePhotos'
@@ -100,17 +99,8 @@ export default function RecordFlow({ onCancel, onDone, onOpenSettings }: Props) 
   // 열기 실패 안내는 사진이 없을 때도, 바꾸다 실패했을 때도 같은 것을 쓴다
   const pickError = picker.error ? <Banner tone="err" icon="alert">{picker.error}</Banner> : null
   if (!photo) {
-    return (
-      <div className="screen">
-        <ScreenHead title="새 기록" onBack={onCancel} />
-        {input}
-        {draft.pending && <DraftNotice draft={draft.pending} onResume={() => void resume()} onDiscard={() => void draft.clear()} />}
-        <button type="button" className="photo-drop" onClick={() => fileInput.current?.click()}>
-          <Icon name="camera" size={40} /><strong>사진 고르기</strong><span>시각·위치·촬영 정보는 사진에서 자동으로 읽습니다</span>
-        </button>
-        {pickError}
-      </div>
-    )
+    return <PhotoStart onBack={onCancel} onPick={() => fileInput.current?.click()} input={input} draft={draft.pending}
+      onResume={() => void resume()} onDiscard={() => void draft.clear()} error={pickError} />
   }
 
   return (
