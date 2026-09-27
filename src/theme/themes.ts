@@ -74,6 +74,12 @@ export interface ThemeDef {
    * "실제로 글자 뒤에 깔리는 색에 가장 가까운 단색"을 사람이 적어 둔다.
    */
   solid: { app: string; card: string; tab: string }
+  /**
+   * 폰 주소창·상태 표시줄 색 (`<meta name="theme-color">`, applyTheme.ts applyBarColor). 단색 hex만 된다.
+   * 화면 맨 위에 실제로 깔리는 색을 적는다 — 배경 장식이 맨 위를 덮으면(팝의 노란 띠) 그 색, 그라데이션이면 시작 색.
+   * 밝기는 colorScheme과 같은 쪽이어야 한다 (check-contrast가 본다) — 반대면 어두운 화면 위에 밝은 띠가 얹힌다.
+   */
+  bar: string
 }
 
 const SANS = "'Pretendard', -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif"
@@ -82,7 +88,7 @@ const SERIF = "'Noto Serif KR', 'AppleMyungjo', 'Nanum Myeongjo', Georgia, serif
 export const THEMES: ThemeDef[] = [
   {
     id: 'dogam', name: '도감', desc: '자연 도감 · 필드 노트',
-    solid: { app: '#F8F2E0', card: '#FFFCF0', tab: '#F8F2E0' },
+    solid: { app: '#F8F2E0', card: '#FFFCF0', tab: '#F8F2E0' }, bar: '#F8F2E0',
     tokens: {
       colorScheme: 'light',
       bgApp: '#F8F2E0', bgCard: '#FFFCF0', bgSurface: '#F0E8D0', bgInput: '#FFFCF0',
@@ -102,7 +108,7 @@ export const THEMES: ThemeDef[] = [
   {
     // 새벽·해 질 녘 탐조용. 도감의 성격(명조 제목, 각진 카드)은 그대로 두고 밝기만 뒤집었다
     id: 'dogam-night', name: '도감 (밤)', desc: '새벽 탐조용',
-    solid: { app: '#17150F', card: '#211E16', tab: '#17150F' },
+    solid: { app: '#17150F', card: '#211E16', tab: '#17150F' }, bar: '#17150F',
     tokens: {
       colorScheme: 'dark',
       bgApp: '#17150F', bgCard: '#211E16', bgSurface: '#2C281D', bgInput: '#1B1912',
@@ -120,7 +126,7 @@ export const THEMES: ThemeDef[] = [
   },
   {
     id: 'forest', name: '숲속', desc: '내추럴 그린',
-    solid: { app: '#F5F7F0', card: '#FFFFFF', tab: '#F5F7F0' },
+    solid: { app: '#F5F7F0', card: '#FFFFFF', tab: '#F5F7F0' }, bar: '#F5F7F0',
     tokens: {
       colorScheme: 'light',
       bgApp: '#F5F7F0', bgCard: '#FFFFFF', bgSurface: '#E6EFE2', bgInput: '#FFFFFF',
@@ -137,7 +143,7 @@ export const THEMES: ThemeDef[] = [
   },
   {
     id: 'cute', name: '귀여운', desc: '따뜻한 파스텔',
-    solid: { app: '#FFF8F0', card: '#FFFFFF', tab: '#FFF8F0' },
+    solid: { app: '#FFF8F0', card: '#FFFFFF', tab: '#FFF8F0' }, bar: '#FFF8F0',
     tokens: {
       colorScheme: 'light',
       bgApp: '#FFF8F0', bgCard: '#FFFFFF', bgSurface: '#F6EBDA', bgInput: '#FFFFFF',
@@ -156,7 +162,7 @@ export const THEMES: ThemeDef[] = [
   },
   {
     id: 'simple', name: '심플', desc: '미니멀 화이트',
-    solid: { app: '#F7F7F7', card: '#FFFFFF', tab: '#FFFFFF' },
+    solid: { app: '#F7F7F7', card: '#FFFFFF', tab: '#FFFFFF' }, bar: '#F7F7F7',
     tokens: {
       colorScheme: 'light',
       bgApp: '#F7F7F7', bgCard: '#FFFFFF', bgSurface: '#F0F1F3', bgInput: '#FFFFFF',
@@ -173,7 +179,7 @@ export const THEMES: ThemeDef[] = [
   },
   {
     id: 'modern', name: '모던', desc: '다크 네이비',
-    solid: { app: '#0F1117', card: '#1A1D2E', tab: '#0F1117' },
+    solid: { app: '#0F1117', card: '#1A1D2E', tab: '#0F1117' }, bar: '#0F1117',
     tokens: {
       colorScheme: 'dark',
       bgApp: '#0F1117', bgCard: '#1A1D2E', bgSurface: '#252840', bgInput: '#14172A',
@@ -192,6 +198,8 @@ export const THEMES: ThemeDef[] = [
     id: 'glass', name: '유리', desc: '글라스모피즘',
     // 그라데이션 위 반투명 카드 — 가장 밝아지는 지점 기준으로 적었다
     solid: { app: '#14183A', card: '#2A2F55', tab: '#10122E' },
+    // 맨 위는 그라데이션(bgApp)의 시작 색이다
+    bar: '#1A0A3A',
     tokens: {
       colorScheme: 'dark',
       bgApp: 'linear-gradient(160deg, #1A0A3A 0%, #0A1A3A 50%, #0A2A2A 100%)',
@@ -211,6 +219,8 @@ export const THEMES: ThemeDef[] = [
   {
     id: 'pop', name: '팝', desc: '볼드 팝아트',
     solid: { app: '#FFF8E0', card: '#FFFFFF', tab: '#FFFFFF' },
+    // 맨 위 140px는 배경 장식(backdrop)의 노란 띠라, 바탕색이 아니라 그 색이 폰 위쪽 띠와 이어진다
+    bar: '#FFE000',
     tokens: {
       colorScheme: 'light',
       bgApp: '#FFF8E0', bgCard: '#FFFFFF', bgSurface: '#FFE880', bgInput: '#FFFFFF',
