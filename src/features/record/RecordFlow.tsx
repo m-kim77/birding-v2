@@ -21,8 +21,7 @@ import { useAsk } from './useAsk'
 import { useDetection } from './useDetection'
 import { useDraft } from './useDraft'
 import { usePhotoPick } from './usePhotoPick'
-import { usePlace, type PlaceValue } from './usePlace'
-import { useTrackMatch } from './useTrackMatch'
+import { useRecordPlace } from './useRecordPlace'
 import './record.css'
 
 interface Props {
@@ -48,8 +47,7 @@ export default function RecordFlow({ onCancel, onDone, onOpenSettings }: Props) 
   const photo = picker.photo
   const detection = useDetection(photo?.bitmap ?? null)
   const ask = useAsk()
-  const loc = usePlace(photo?.exif ?? null)
-  const track = useTrackMatch(photo)
+  const { loc, lastPlace, placeNote, placeHint } = useRecordPlace(photo, existing)
   const draft = useDraft()
   const fileInput = useRef<HTMLInputElement>(null)
   const [crop, setCrop] = useState<Crop | null>(null)
@@ -68,10 +66,6 @@ export default function RecordFlow({ onCancel, onDone, onOpenSettings }: Props) 
   const only = detection.boxes?.length === 1 ? detection.boxes[0] : null
   const picked = crop ?? (only ? { box: only, by: detection.detectorId } : null)
   const known = useMemo(() => [...new Set(existing.map((s) => s.speciesKo).filter(Boolean))], [existing])
-  const lastPlace = useMemo<PlaceValue | null>(() => {
-    const last = [...existing].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).find((s) => s.lat !== null)
-    return last ? { lat: last.lat, lng: last.lng, name: last.place, source: 'manual' } : null
-  }, [existing])
 
   /**
    * 초안의 나머지 값을 채운다 — 사진이 열린 **다음 렌더**에서. usePlace의 EXIF effect가 먼저 돌고 나서 초안의 위치를 덮어야
@@ -88,9 +82,6 @@ export default function RecordFlow({ onCancel, onDone, onOpenSettings }: Props) 
     if (restoring.verdict) ask.restore(restoring.verdict)
     setRestoring(null)
   }, [photo, restoring]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // 이동 기록에서 찾았으면 바로 넣는다 — 자동으로 할 수 있는 일에 버튼을 두지 않는다 (BUTTONS.md). 이미 위치가 있으면 fillIfEmpty가 거른다
-  useEffect(() => { if (track.status === 'found') void loc.fillIfEmpty(track.lat, track.lng, 'tracklog') }, [track]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // 값이 바뀔 때마다 초안을 (0.5초 모아서) 덮어쓴다. 사진이 없으면 남길 것이 없다. 되살리는 중에는 반쪽 값을 쓰지 않는다
   useEffect(() => {
@@ -165,10 +156,6 @@ export default function RecordFlow({ onCancel, onDone, onOpenSettings }: Props) 
       </div>
     )
   }
-
-  // 위치 줄에 붙는 근거와 안내. "못 찾은 이유"는 위치가 비어 있을 때만 말한다 — 사용자가 고른 위치에 이동 기록 얘기를 붙이지 않는다
-  const placeNote = loc.place.source === 'tracklog' && track.status === 'found' ? track.note : undefined
-  const placeHint = loc.place.source === 'none' && track.status === 'missed' ? track.hint ?? undefined : undefined
 
   return (
     <div className="screen screen-record">
