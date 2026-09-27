@@ -1,5 +1,5 @@
 /**
- * 모든 테마의 글자·바탕 조합이 대비 기준을 넘는지 검사한다.
+ * 모든 테마의 글자·바탕 조합이 대비 기준을 넘는지, `colorScheme`이 바탕 밝기와 맞는지 검사한다.
  * 테마를 더하거나 값을 고친 뒤 `npm run check`로 돌린다. 하나라도 못 넘으면 종료 코드 1.
  *
  * 반투명·그라데이션 바탕은 계산할 수 없어서 themes.ts의 `solid`에 적어 둔 단색을 쓴다.
@@ -55,6 +55,13 @@ for (const theme of THEMES) {
       failed++
       console.log(`✗ ${theme.name.padEnd(4)} ${label.padEnd(22)} ${ratio.toFixed(2)} < ${min}  (${fg} on ${bg})`)
     }
+  }
+  // 글자가 바탕보다 밝으면 어두운 테마다. colorScheme이 반대면 브라우저가 그리는 부품
+  // (날짜 칸의 달력 아이콘·검색 칸의 지우기 단추·스크롤바)이 바탕과 같은 쪽 밝기로 그려져 묻힌다
+  const scheme = luminance(t.text1) > luminance(theme.solid.app) ? 'dark' : 'light'
+  if (t.colorScheme !== scheme) {
+    failed++
+    console.log(`✗ ${theme.name.padEnd(4)} colorScheme '${t.colorScheme}' — 바탕이 ${scheme === 'dark' ? '어두워' : '밝아'} '${scheme}'여야 한다  (${t.text1} on ${theme.solid.app})`)
   }
 }
 console.log(failed ? `\n대비 미달 ${failed}건` : `대비 검사 통과 — 테마 ${THEMES.length}개`)
