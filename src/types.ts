@@ -65,8 +65,14 @@ export interface ShotInfo {
 export interface Verdict {
   /** '확정'이면 한 종으로 좁혀졌고, '좁힘'이면 후보가 남았다 */
   kind: '확정' | '좁힘'
+  /** 확인된 국명. 확인하지 못했으면 빈 문자열이다 — 학명이나 영어 이름을 대신 넣지 않는다 (작업 20, `identify/parseVerdict.ts`) */
   speciesKo: string
   latin: string
+  /**
+   * 모델이 국명 자리에 적었지만 버린 글 (영어 이름이거나, 자료에서 확인되지 않은 이름). 있으면 `speciesKo`는 비어 있다.
+   * 화면이 "무엇을 왜 안 넣었는지" 알리는 재료다. 이름이 빈 판정은 기록에 붙지 않으므로 저장된 기록에는 없다.
+   */
+  unverifiedName?: string
   summary: string
   /** 근거 문장과 출처. 결과를 믿을지 사용자가 판단하는 재료다 */
   evidence: Array<{ text: string; source: string }>

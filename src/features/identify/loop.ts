@@ -1,5 +1,7 @@
 import type { Reference, Verdict } from '../../types'
+import { SPECIES } from '../../data/species'
 import type { OwnKey } from './connection'
+import { koNamesIn } from './koName'
 import { chat, type ChatMessage } from './llmClient'
 import { parseVerdict } from './parseVerdict'
 import { RETRY_PROMPT, SYSTEM_PROMPT, WRAP_UP_PROMPT, userPrompt } from './prompts'
@@ -52,6 +54,8 @@ export async function runIdentify(opts: {
     { role: 'user', content: [{ type: 'text', text: userPrompt(opts.context) }, { type: 'image_url', image_url: { url: opts.imageDataUrl } }] },
   ]
   const references: Reference[] = []
+  // 국명으로 받아들일 이름: 종 표의 이름 + 이번 판정에서 도구가 돌려준 이름. 모델이 지어낸 이름은 여기에 없다 (작업 20)
+  const knownKo = new Set(SPECIES.map((s) => s.ko))
   let calls = 0
   let retried = false
   for (;;) {
@@ -59,7 +63,7 @@ export async function runIdentify(opts: {
     if (wrapUp && !retried) { messages.push({ role: 'user', content: WRAP_UP_PROMPT }); opts.onEvent({ type: 'wrap-up' }) }
     const reply = await chat(opts.own, messages, tools, wrapUp ? 'none' : 'auto', opts.signal, (text) => opts.onEvent({ type: 'thinking', text }))
     if (reply.toolCalls.length === 0 || wrapUp) {
-      const verdict = parseVerdict(reply.content, reply.model)
+      const verdict = parseVerdict(reply.content, reply.model, knownKo)
       if (verdict) return { ...verdict, references }
       // 답을 읽지 못했다 — 생각하는 모델이 토큰 상한을 생각에 다 써서 답이 비는 일이 실제로 있었다. 한 번만 다시 청한다
       if (retried) return null
@@ -76,6 +80,7 @@ export async function runIdentify(opts: {
       opts.onEvent({ type: 'tool', name: call.function.name, args })
       const result = await runTool(call.function.name, args)
       collectReference(references, result)
+      for (const name of koNamesIn(result)) knownKo.add(name)
       messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(result) })
       calls += 1
     }
