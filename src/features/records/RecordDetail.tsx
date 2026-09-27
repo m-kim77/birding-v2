@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useBackLayer } from '../../app/useNav'
 import { useJournal } from '../../data/journal'
 import { latinOf } from '../../data/species'
 import { formatShot } from '../../lib/format'
@@ -40,6 +41,8 @@ export default function RecordDetail({ id, onBack, onOpenSettings }: Props) {
   const [note, setNote] = useState('')
   const [name, setName] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
+  // 수정 모드도 겹이다 — 폰의 뒤로가기가 화면을 떠나기 전에 수정부터 닫는다. 고치던 값은 저장하지 않는다 (다음 startEdit이 다시 채운다)
+  useBackLayer(editing, () => setEditing(false))
 
   if (!s) return <div className="screen"><ScreenHead title="기록을 찾을 수 없습니다" onBack={onBack} /></div>
 

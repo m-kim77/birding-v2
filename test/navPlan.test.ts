@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { HOME, NAV_MARK, planLeave, planOpen, planReplace, planTab, readEntry, screenEntry } from '../src/app/navPlan.ts'
+import { HOME, NAV_MARK, planDropStaleLayer, planLayer, planLeave, planOpen, planReplace, planTab, readEntry, screenEntry } from '../src/app/navPlan.ts'
 import { isRoute } from '../src/app/routes.ts'
 
 const records = screenEntry(HOME, 0)
@@ -68,4 +68,42 @@ test('planTab: 더 위에서 누르면 depth 1까지 걷고 다시 계획한다'
 test('planTab: 일지 탭은 맨 아래 칸까지 걷는다 — 거기서 뒤로 한 번이면 앱을 떠난다', () => {
   assert.deepEqual(planTab(detailOnDex, 'records'), { kind: 'go', delta: -2 })
   assert.deepEqual(planTab(records, 'records'), { kind: 'none' })
+})
+
+// 겹(시트·수정 모드): 도감(1) 위의 종 시트(2), 도감에서 연 상세(2) 위의 카드 시트(3)
+const sheetOnDex = { ...screenEntry({ name: 'dex' }, 2), layer: 't1', base: 1 }
+const sheetOnDetail = { ...screenEntry({ name: 'detail', id: 'a' }, 3), layer: 't2', base: 2 }
+
+test('planLayer: 같은 화면의 겹 칸을 쌓는다 — 뒤로가기가 이 칸부터 걷는다', () => {
+  assert.deepEqual(planLayer(dex, 't1'), { kind: 'push', entry: sheetOnDex })
+  assert.deepEqual(planLayer(detailOnDex, 't2'), { kind: 'push', entry: sheetOnDetail })
+})
+
+test('readEntry: 겹 칸은 표와 밑 화면의 depth까지 읽고, 어긋나면 null', () => {
+  assert.deepEqual(readEntry(sheetOnDex), sheetOnDex)
+  assert.equal(readEntry({ ...sheetOnDex, base: 2 }), null, '밑 화면이 자기보다 위')
+  assert.equal(readEntry({ ...sheetOnDex, base: undefined }), null, '밑 화면 모름')
+  assert.equal(readEntry({ ...sheetOnDex, layer: 3 }), null)
+})
+
+test('planOpen: 겹 안에서 화면을 열면 겹 칸을 바꿔 끼운다 — 도감 시트 → 기록 → 뒤로 = 도감', () => {
+  assert.deepEqual(planOpen(sheetOnDex, { name: 'detail', id: 'a' }), { kind: 'replace', entry: detailOnDex })
+})
+
+test('planLeave: 겹이 열린 채 떠나면 겹 칸까지 걷는다 — 수정 중 삭제·수정 중 뒤로 화살표', () => {
+  assert.deepEqual(planLeave(sheetOnDetail), { kind: 'go', delta: -2 })
+  assert.deepEqual(planLeave(sheetOnDex), { kind: 'go', delta: -2 })
+  const sheetOnHome = { ...screenEntry(HOME, 1), layer: 't3', base: 0 }
+  assert.deepEqual(planLeave(sheetOnHome), { kind: 'go', delta: -1 }, '일지 위의 겹은 겹만 걷는다')
+})
+
+test('planTab: 겹이 열려 있어도 탭 규칙 그대로 — 겹 칸도 함께 걷힌다', () => {
+  assert.deepEqual(planTab(sheetOnDex, 'map'), { kind: 'go', delta: -1, again: true })
+  assert.deepEqual(planTab(sheetOnDex, 'dex'), { kind: 'go', delta: -1, again: true }, '같은 탭을 누르면 시트가 닫힌다')
+  assert.deepEqual(planTab(sheetOnDetail, 'records'), { kind: 'go', delta: -3 })
+})
+
+test('planDropStaleLayer: 새로고침 전에 열려 있던 겹의 칸은 걷는다, 화면 칸이면 할 일 없음', () => {
+  assert.deepEqual(planDropStaleLayer(sheetOnDetail), { kind: 'go', delta: -1 })
+  assert.deepEqual(planDropStaleLayer(detailOnDex), { kind: 'none' })
 })
