@@ -86,6 +86,7 @@ ref_design/design_v01 디자인 초안과 BUTTONS.md (버튼마다 존재 이유
    - `LOCAL_LLM_KEY` — LLM 서버의 키. LM Studio는 키가 없으므로, 터널 쪽에서 토큰 검사를 걸거나 키가 있는 서버(Unsloth 등)를 쓴다. 키 없이 열면 누구나 그 GPU를 쓴다.
    - `LOCAL_LLM_MODEL` — 쓸 모델 이름. 사진을 볼 수 있고(vision) 도구 호출을 지원해야 한다.
    - `LOCAL_LLM_FIRST_RESPONSE_SECONDS` (선택, 기본 90) — LLM 서버가 이 시간 안에 답을 시작하지 않으면 "판정 서버가 바쁩니다"로 끝낸다. 앞 요청이 밀린 동안 함수가 300초를 붙잡지 않게 하는 값이다. 모델을 처음 올리는 데 더 걸리면 올린다. 생각하는 모델도 생각을 조각으로 바로 흘려보내 긴 생각에는 걸리지 않는다 (실측: 첫 조각 4초).
+   - `LOCAL_LLM_REASONING_EFFORT` (선택, 기본 `low`) — 생각(reasoning) 세기: low·medium·high·xhigh. 서버 기본(high)보다 판정이 빠르고 판정은 나빠지지 않았다 (작업 21 시험 평균 86초 → 53초). `server`로 두면 보내지 않는다 — 이 옵션을 모르는 서버로 바꿨을 때. 값을 바꾸면 LLM 서버가 대화의 앞부분을 한 번 새로 계산한다.
 3. 환경변수가 없으면 앱은 그대로 돌고, 판정만 "기본 제공 AI가 아직 설정되지 않았습니다"로 나온다. 내 키를 넣은 사용자는 판정할 수 있다.
 4. **요청 수 제한 — 코드가 아니라 Vercel 대시보드에서 건다**: 프로젝트 → 왼쪽 **Firewall** → 오른쪽 위 **Configure** → **+ New Rule**.
    - 이름(예: `api-rate-limit`) / **If**: `Request Path` · `Starts with` · `/api/` / **Then**: **Rate Limit** (처음이면 요금 안내 창 → **Continue**)
@@ -110,5 +111,5 @@ ref_design/design_v01 디자인 초안과 BUTTONS.md (버튼마다 존재 이유
 - **KV 캐시 메모리**: `cache_type_kv`(q8_0 등)로 줄이면 같은 메모리에 더 긴 문맥·더 많은 슬롯이 들어간다. MLX는 `mlx_kv_bits`.
 - **밀려난 캐시 보관**: Unsloth의 `cache_ram`.
 - **문맥 길이**: 판정 한 건은 1~2만 토큰이면 충분하다. 26만 토큰으로 열어 두면 메모리만 먹는다.
-- **생각하는 모델(Qwen3 계열)**: 생각 토큰도 `max_tokens`에 들어간다. 2048로는 생각만 하다 답이 잘린 적이 있어 기본을 4096으로 올렸고(`LOCAL_LLM_MAX_TOKENS`), 답을 못 읽으면 한 번 다시 청한다. LM Studio에서는 요청 옵션(`enable_thinking`, `reasoning_effort`)으로 생각을 끌 수 없었다 — 끄려면 서버·모델 쪽에서 해야 한다.
+- **생각하는 모델(Qwen3 계열)**: 생각 토큰도 `max_tokens`에 들어간다. 2048로는 생각만 하다 답이 잘린 적이 있어 기본을 4096으로 올렸고(`LOCAL_LLM_MAX_TOKENS`), 답을 못 읽으면 한 번 다시 청한다. LM Studio에서는 요청 옵션(`enable_thinking`, `reasoning_effort`)으로 생각을 끌 수 없었다 — 끄려면 서버·모델 쪽에서 해야 한다. 지금 쓰는 Unsloth(llama.cpp)는 `reasoning_effort`를 받는다 — 기본 제공 AI는 low로 보낸다 (`LOCAL_LLM_REASONING_EFFORT`, 작업 21).
 - 슬라이딩 윈도우 어텐션 모델(Gemma 계열)은 캐시 재사용이 제한된다 — `ctx_checkpoints`(llama.cpp `--swa-full` 계열 옵션)를 본다.
