@@ -702,6 +702,29 @@ ROADMAP의 "AI 판정 메모"와 조사 문서(`../v2 docs/community/fable-final
 
 ---
 
+## 작업 27 — AI 판정을 기록에 넣는 규칙 한 곳으로
+
+"코드 정리 메모"의 작업 27을 옮겨 쓴 것이다. 지시와 완료를 한 세션에 썼다 (2026-09-27).
+
+**완료 (2026-09-27).** 메모의 계획대로 했고, 같이 고칠 버그에서 도감 번호 문제 하나를 더 찾아 같은 `fix` 커밋에 넣었다. `npm run check` 통과 (테스트 284 — 새 테스트 8).
+- **규칙 한 곳** (`refactor`, 동작 그대로): `record/nameFields.ts` — `nameFields(이름, 판정, 다른 기록들)`이 {국명·학명·근거·판정 상태·도감 번호}를 정하고, `acceptsVerdict`가 "이 이름으로 저장하면 근거가 붙는지"를 답한다. 새 기록(`buildSighting`)·수정(`editPatch`)·상세의 '이 이름으로'와 후보 고르기(`DetailIdentify`)가 모두 이것을 쓴다. 상세의 두 길은 테스트 없는 화면 안에 있었다. 후보 이름도 앞뒤 빈칸을 떼게 됐지만 판정을 읽을 때(`parseVerdict`) 이미 다듬은 이름이라 실제로 바뀌는 것은 없다.
+- **AI에 보낼 그림 한 곳** (`refactor`): `record/savePhotos.ts`의 `encodeForAI`(1024px·품질 0.88)를 기록 화면의 `imageForAI`와 상세의 `blobForAI`가 함께 지난다. 상세가 따로 적던 크기·품질이 없어졌다. `savePhotos.ts`가 부르는 것은 `lib/crop`·`lib/resize`뿐이라 첫 화면 묶음이 커지지 않는다.
+- **버그** (`fix`): 판정 칸의 "넣었다"를 부르는 쪽이 정한다 (`IdentifyPanel`의 `applied`) — 기록 화면은 `acceptsVerdict(이름 칸, 판정)`, 상세는 이 판정이 기록에 들어 있는지(값으로 견준다 — 새로고침하면 DB에서 읽은 다른 객체다). 상세의 문구는 `into="이 기록"`으로 "이 기록에 넣었습니다"·"누르면 이 기록에 들어갑니다".
+- **같이 찾은 것**: 상세에서 같은 이름을 다시 넣으면 도감 번호가 바뀔 수 있었다 — `dexNoFor`는 이 기록을 뺀 기록들만 봐서, 이 종의 기록이 그것 하나뿐이면 "처음 보는 종"으로 다음 번호를 준다. 위 버그를 고치면 같은 이름을 넣는 길이 열리므로 함께 막았다 — `nameFields`가 기록의 지금 이름·번호(`current`)를 받아 이름이 그대로면 번호도 그대로 둔다. 후보 칩으로 지금 이름을 다시 눌러도 같다.
+- 기록 화면의 "넣었다"는 전에 이름 칸 글자 그대로 견줬고 이제 앞뒤 빈칸을 뗀다 — 저장할 때의 규칙(`buildSighting`)과 같아졌다. '까치 '처럼 끝에 빈칸이 있어도 "넣었습니다"로 보이고, 저장하면 실제로 근거가 붙는다.
+
+브라우저 확인 (따로 띄운 5226 포트, 시험 기록만. AI 서버가 이 복사본에 연결돼 있지 않아 `/api/llm` 요청에 페이지 안에서 정해 둔 답 — 까치 · Pica serica, 후보 물까치 — 을 돌려줬다):
+- 직접 '까치'라고 적어 저장한 기록(No.2, 판정 없음)의 상세에서 AI에게 물어보기 → 답 '까치' → **'이 이름으로'가 있다** (고치기 전에는 "이름 칸에 넣었습니다"만 떴다). 후보 안내는 "누르면 이 기록에 들어갑니다".
+- '이 이름으로' → "이 기록에 넣었습니다", 버튼이 사라짐. 기록에 판정이 붙고 **번호는 No.2 그대로** (다른 기록 No.1·No.3 — 고치기 전 규칙이면 No.4가 됐다).
+- 후보 칩 '물까치' → 이름 물까치, 학명 Cyanopica cyanus(종 표), 판정 떼고 No.4, '이 이름으로'가 다시 보인다.
+- 보낸 그림: 저장된 사진에서 683×1024 JPEG (`blobForAI`).
+- 기록 화면: 이름 칸이 비어 있으면 '이 이름으로'와 "누르면 이름 칸에 들어갑니다" → 누르면 이름 칸이 '까치', "이름 칸에 넣었습니다" — 전과 같다.
+- 실제 AI 서버로는 보지 않았다 — 요청과 답의 모양은 같다 (SSE 한 번에 답 JSON).
+
+**닿는 파일**: 새 `src/features/record/nameFields.ts`·`test/nameFields.test.ts`. 고침 `src/features/record/{buildSighting,savePhotos}.ts`·`IdentifyPanel.tsx`·`RecordFlow.tsx`, `src/features/records/{editPatch.ts,DetailIdentify.tsx}`. 문서 `ROADMAP.md`, `WORK_ORDERS.md`, `README.md`, `CLAUDE.md`(AI 그림 규칙이 가리키는 곳).
+
+---
+
 ## 코드 정리 메모 (작업 26~28과 나머지) — 순서는 ROADMAP.md
 
 2026-09-27 점검(읽기 전용, main `f147342`)의 근거다. 줄 번호는 그날 기준이다 — 작업을 시작하면 다시 확인하고, 그 작업의 새 "작업 N" 절로 옮겨 자세히 쓴다 (위 "다음 기능 메모"와 같은 방식).
@@ -713,9 +736,7 @@ ROADMAP의 "AI 판정 메모"와 조사 문서(`../v2 docs/community/fable-final
 - 점검에서 이미 지켜지고 있던 것: 파일 크기 전부 상한 안, `lib`·`data`가 위층을 부르지 않음, `history` 직접 호출·컴포넌트 안 테마 id 분기·`api/`의 확장자 없는 import 없음.
 
 - **작업 26 — 기록 화면(`RecordFlow`) 나누기**: 끝 (2026-09-27) → 위 "작업 26" 절. 점검 때의 계획(뗄 것·남길 것·함정·확인 순서)대로 했다.
-- **작업 27 — AI 판정을 기록에 넣는 규칙 한 곳으로**: 이름과 판정으로 {speciesKo, latin, verdict, identify, dexNo}를 정하는 규칙이 네 곳에 있다 — 새 기록 `record/buildSighting.ts:42,46,53`, 수정 `records/editPatch.ts:45-47`, 상세의 '이 이름으로' `records/DetailIdentify.tsx:49-54`, 후보 칩 `:57-60`. 뒤의 둘은 테스트 없는 화면 안에 있고, 후보 칩은 앞뒤 빈칸도 안 지운다. 작업 20 규칙(국명 없는 판정은 이름에 넣지 않는다·이름을 바꾸면 근거를 뗀다)을 순수 함수 하나로 모으고 테스트한다.
-  - AI에 보낼 그림 만들기가 두 벌이다 — `record/savePhotos.ts` `imageForAI` ↔ `records/DetailIdentify.tsx:33-36` (1024px·품질 0.88이 두 곳). CLAUDE.md가 가리키는 `imageForAI` 쪽으로 모은다.
-  - **같이 고칠 버그** (동작이 바뀌므로 따로 `fix` 커밋): 판정 칸의 "넣었다" 판단(`IdentifyPanel.tsx:86` `name === v.speciesKo`)에 상세가 기록의 이름(`DetailIdentify.tsx:65`)을 넘긴다. AI 서버가 쉬어서 '까치'라고 직접 적어 저장 → 상세에서 물었더니 '까치' → "이름 칸에 넣었습니다"만 뜨고 '이 이름으로'가 없어 판정 근거를 기록에 붙일 수 없고, 나가면 사라진다. "이름 칸"이라는 말도 상세와 맞지 않는다. 방향: '넣었는지'를 부르는 쪽이 정해 넘긴다.
+- **작업 27 — AI 판정을 기록에 넣는 규칙 한 곳으로**: 끝 (2026-09-27) → 위 "작업 27" 절. 계획대로 했고, 같은 이름을 다시 넣을 때 도감 번호가 바뀌는 문제를 함께 막았다.
 - **작업 28 — 설정 카드들의 같은 틀 하나로**: "누르면 → 진행 중 → 결과 한 줄" 틀을 카드마다 복사해 쓴다 — `{tone, text}` 타입 4벌(`BackupSection.tsx:10`·`TracksSection.tsx:11`·`StorageSection.tsx:14`·`AiSection.tsx:7`), 진행 중 표시와 오류 잡기 3벌(`BackupSection.tsx:25`·`TracksSection.tsx:47`·`StorageSection.tsx:37`), 결과 줄 4벌(`AiSection.tsx:104`·`BackupSection.tsx:75`·`StorageSection.tsx:86`·`TracksSection.tsx:80`). 훅 하나(`useTask`)와 결과 줄 컴포넌트 하나로 모은다. 작업 19의 드라이브 카드(연결/해제·마지막 동기화·못 올린 건수)가 이 틀을 쓴다.
   - 같이 볼 것: `TracksSection`·`StorageSection`은 읽기 훅(`useTracksMeta`·`useStorageStatus`)을 두고, 지우기는 `data`를 직접 부르고 `refresh()`를 화면이 챙긴다. `AiSection.tsx:15-30`의 연결 확인 요청은 `identify/connection.ts` `endpointFor`와 주소 만들기가 겹친다 — identify 쪽으로 옮기면 테스트할 수 있다 (보내는 곳이 같으니 "무엇이 어디로 가나요"는 그대로). 이 요청에는 시간 제한이 없다 — 더하는 것은 동작이 바뀌니 따로.
 - **작업 18을 시작할 때**: AI 판정 칸(`IdentifyPanel.tsx`) 함수가 80줄로 상한이다. 18의 첫 커밋으로 같은 파일 안 하위 컴포넌트로 나눈다(작업 12의 `PlaceRow` 방식) — 답이 온 뒤 화면(L83-118) → `VerdictResult`, 묻는 중 화면(L67-82)과 `useElapsed` → `AskRunning` (지금의 `state === 'running' ? startedAt : null` 우회가 사라진다). 'AI 판정 · {kind}' 문구가 `IdentifyPanel.tsx:89`·`RecordDetail.tsx:67` 두 곳, '확정'을 문장에 쓰는 곳이 `VerdictDetails.tsx:15` — 보이는 말을 정하는 함수 하나로. (위 "다음 기능 메모"의 `RecordDetail.tsx:91`은 옛 줄 번호다.)
