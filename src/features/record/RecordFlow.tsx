@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useJournal } from '../../data/journal'
-import type { Draft } from '../../data/draft'
 import { Banner, Card, ScreenHead } from '../../ui/bits'
 import Button from '../../ui/Button'
 import Icon from '../../ui/Icon'
@@ -19,8 +18,8 @@ import SpeciesInput from './SpeciesInput'
 import { imageForAI, makeCrop, makePhotos } from './savePhotos'
 import { useAsk } from './useAsk'
 import { useDetection } from './useDetection'
-import { useDraft } from './useDraft'
 import { usePhotoPick } from './usePhotoPick'
+import { useRecordFields } from './useRecordFields'
 import { useRecordPlace } from './useRecordPlace'
 import './record.css'
 
@@ -31,14 +30,13 @@ interface Props {
   onOpenSettings: () => void
 }
 
-type Crop = { box: NormalizedBox; by: string }
 /** 상자 둘이 같은 영역인지 (참조가 아니라 값으로) */
 const sameBox = (a: NormalizedBox | null, b: NormalizedBox | null) => JSON.stringify(a) === JSON.stringify(b)
 
 /**
  * 사진으로 기록하기. 한 화면을 위에서 아래로 훑으면 끝난다 — 단계 이동(다음·이전) 버튼이 없다.
  * 사용자가 직접 적는 것은 이름과 메모뿐이고, 둘 다 비워도 저장된다. (뺀 버튼과 이유: ref_design/design_v01/BUTTONS.md)
- * 쓰던 것은 초안으로 남는다 — 뒤로 가거나 설정에 다녀와도 다음에 "이어 쓰기"로 돌아온다 (useDraft).
+ * 쓰던 것은 초안으로 남는다 — 뒤로 가거나 설정에 다녀와도 다음에 "이어 쓰기"로 돌아온다 (useRecordFields).
  */
 export default function RecordFlow({ onCancel, onDone, onOpenSettings }: Props) {
   const journal = useJournal()
@@ -48,46 +46,18 @@ export default function RecordFlow({ onCancel, onDone, onOpenSettings }: Props) 
   const detection = useDetection(photo?.bitmap ?? null)
   const ask = useAsk()
   const { loc, lastPlace, placeNote, placeHint } = useRecordPlace(photo, existing)
-  const draft = useDraft()
+  const [saved, setSaved] = useState<{ sighting: Sighting; firstMeet: boolean } | null>(null)
+  // 위치 훅 뒤에 부른다 — 되살린 위치가 사진 좌표에 밀리지 않게 (useRecordFields 머리말)
+  const { draft, crop, setCrop, name, setName, note, setNote, askedBox, setAskedBox, choose, resume } = useRecordFields({ picker, loc, ask, saved: saved !== null })
   const fileInput = useRef<HTMLInputElement>(null)
-  const [crop, setCrop] = useState<Crop | null>(null)
-  const [name, setName] = useState('')
-  const [note, setNote] = useState('')
-  // 판정을 보낼 때의 영역. 그 뒤 영역이 바뀌면 "다시 물어볼 수 있습니다"를 보여 준다
-  const [askedBox, setAskedBox] = useState<NormalizedBox | null>(null)
   const [editingPlace, setEditingPlace] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
-  const [saved, setSaved] = useState<{ sighting: Sighting; firstMeet: boolean } | null>(null)
-  // 되살리는 중인 초안. 사진이 열린 뒤에 나머지 값을 채운다 (아래 effect)
-  const [restoring, setRestoring] = useState<Draft | null>(null)
 
   // 새가 한 마리뿐이면 고를 것이 없으니 바로 그 상자를 쓴다
   const only = detection.boxes?.length === 1 ? detection.boxes[0] : null
   const picked = crop ?? (only ? { box: only, by: detection.detectorId } : null)
   const known = useMemo(() => [...new Set(existing.map((s) => s.speciesKo).filter(Boolean))], [existing])
-
-  /**
-   * 초안의 나머지 값을 채운다 — 사진이 열린 **다음 렌더**에서. usePlace의 EXIF effect가 먼저 돌고 나서 초안의 위치를 덮어야
-   * (같은 커밋에서 훅 선언 순서대로 effect가 돈다) 직접 고른 위치가 사진 좌표에 밀리지 않는다.
-   */
-  useEffect(() => {
-    if (!restoring || photo?.file !== restoring.file) return
-    setCrop(restoring.crop)
-    setName(restoring.name)
-    setNote(restoring.note)
-    setAskedBox(restoring.askedBox)
-    // 사진에서 읽은 위치는 방금 다시 읽었다. 사용자가 고른 것과 지난번에 이동 기록으로 찾은 것('tracklog')을 되살린다 — 뒤늦게 끝난 매칭은 이것을 덮지 않는다 (fillIfEmpty)
-    if (restoring.place.source !== 'exif' && restoring.place.source !== 'none') loc.copyFrom(restoring.place)
-    if (restoring.verdict) ask.restore(restoring.verdict)
-    setRestoring(null)
-  }, [photo, restoring]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // 값이 바뀔 때마다 초안을 (0.5초 모아서) 덮어쓴다. 사진이 없으면 남길 것이 없다. 되살리는 중에는 반쪽 값을 쓰지 않는다
-  useEffect(() => {
-    if (!photo || restoring || saved) return
-    draft.persist({ crop, name, note, place: loc.place, verdict: ask.state === 'done' ? ask.verdict : null, askedBox })
-  }, [photo, crop, name, note, loc.place, ask.state, ask.verdict, askedBox, restoring, saved]) // eslint-disable-line react-hooks/exhaustive-deps
 
   /** AI에 물어본다. 고른 영역이 있으면 그 부분을, 없으면 사진 전체를 보낸다 (새를 못 찾았어도 자르지 않고 물어볼 수 있다) */
   async function askAI() {
@@ -123,20 +93,6 @@ export default function RecordFlow({ onCancel, onDone, onOpenSettings }: Props) 
 
   if (saved) return <CardResult sighting={saved.sighting} firstMeet={saved.firstMeet} onDone={() => onDone(saved.sighting.id)} />
 
-  /**
-   * 사진을 고르거나 바꾼다. **열기에 성공한 뒤에만** 이전 사진에 딸린 영역·판정을 비운다 — 실패하면 옛 사진이 그대로 남으므로 그것들도 남아야 한다.
-   * 이름·메모는 사용자가 적은 것이라 남기고, 지도에서 직접 고른 위치도 남는다 (usePlace).
-   */
-  async function choose(f: File) {
-    if (await picker.pick(f)) { setCrop(null); setAskedBox(null); ask.cancel(); draft.persistPhoto(f) }
-  }
-  /** 초안을 되살린다. 사진부터 열고, 나머지는 위 effect가 채운다. 사진을 못 열면(파일이 깨졌으면) 초안을 버린다 */
-  async function resume() {
-    const d = draft.take()
-    if (!d) return
-    setRestoring(d)
-    if (!(await picker.pick(d.file))) { setRestoring(null); void draft.clear() }
-  }
   const input = (
     // 사진 고르기 하나만 둔다: 폰에서는 운영체제가 "촬영 / 보관함"을 물어본다
     <input ref={fileInput} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void choose(f); e.target.value = '' }} />
