@@ -753,6 +753,33 @@ ROADMAP의 "AI 판정 메모"와 조사 문서(`../v2 docs/community/fable-final
 
 **닿는 파일**: 새 `src/features/settings/useTask.ts`·`TaskResult.tsx`. 고침 `src/features/settings/{AiSection,BackupSection,DriveSection,StorageSection,TracksSection}.tsx`. 문서 `ROADMAP.md`, `WORK_ORDERS.md`, `README.md`.
 
+## 작업 29 — 도감 번호가 기기끼리 겹치거나 갈리는 문제
+
+ROADMAP의 작업 29 줄(작업 19 확인 중 발견)을 옮겨 쓴 것이다. 지시와 완료를 한 세션에 썼다 (2026-09-27).
+
+**왜**: 번호는 새 종을 저장하는 순간 그 기기의 가장 큰 번호 + 1로 정해 기록에 적었다(`dexNoFor`). 기기 둘이 각자 기록하면 — PC가 물총새에, 폰이 황조롱이에 똑같이 12를 준다. 드라이브 동기화(작업 19)나 백업 불러오기로 합치면 **다른 종이 같은 No.**가 되고, 같은 종이 기기마다 다른 번호가 된다. 도감 화면은 종마다 가장 최근 기록의 번호를 보여 줘서 어느 쪽이 보일지도 기록 순서에 달렸다. v1 기록 가져오기(작업 17)도 같은 문제를 만든다.
+
+**정한 것 (사용자, 2026-09-27)**:
+- **번호를 저장하지 않고 볼 때마다 모든 기록으로 계산한다.** 기록이 같은 기기끼리는 번호도 늘 같다. "합칠 때 다시 매겨 저장"은 고른 기록을 다시 올려야 하고(두 기기가 서로 고쳐 주고받다 꼬일 수 있다) 합치는 순간 번호가 바뀌는 것은 같아서 버렸다.
+- **순서는 그 종을 저장한 순서** (촬영 순서가 아니라). 한 기기에서 쓰던 번호가 대부분 그대로 남고, 나중에 옛 사진을 넣어도 앞 번호가 밀리지 않는다.
+- 대가: 한 종의 기록을 모두 지우면 뒤 번호가 당겨진다 (빈 번호가 없다). 전의 "앞 기록을 지워도 번호가 바뀌지 않는다"를 버렸다. 이미 내보낸 카드 그림의 번호와 달라질 수 있다.
+
+**완료 (2026-09-27).** `npm run check` 통과 (테스트 290 — 전보다 6개 늘었다).
+- `dex/dexNo.ts dexNumbers(기록들)` — 종마다 도감에 처음 들어온 시각으로 줄 세워 1, 2, 3 …. 같은 시각이면 이름의 글자 순(`localeCompare`는 브라우저마다 다를 수 있어 쓰지 않는다), 읽을 수 없는 시각은 맨 뒤. `dexNoFor`는 지웠다.
+- **계획과 다르게 한 것 — "저장한 순서"를 기록을 만든 시각이 아니라 이름이 붙은 시각으로 쟀다.** 새 칸 `Sighting.namedAt`(가산 확장). 이름 없이 저장했다가 나중에 이름을 붙이면(상세의 'AI에게 물어보기' → '이 이름으로') 만든 시각으로는 그 종이 앞에 끼어들어 뒤 번호가 줄줄이 밀린다 — 전 방식도 이름을 붙일 때 다음 번호를 줬으니, 이쪽이 "쓰던 번호가 대부분 그대로"에 맞다. `namedAt`이 없는 옛 기록은 `createdAt`을 쓴다.
+- `record/nameFields.ts` — 도감 번호 대신 `namedAt`을 정한다: 새 이름이면 지금, 이름이 그대로면 그대로(같은 이름을 다시 받아들여도 뒤로 밀리지 않게 — 작업 27이 번호로 막던 것), 이름을 비우면 없음. 번호를 매기려고 받던 "다른 기록들" 인자가 없어졌다 (`buildSighting`의 `existing`, `editPatch`의 `others`, `DetailIdentify`의 `others()`) — 대신 지금 시각을 받는다.
+- 화면: `dex/useDexNo.ts`(`useDexNumbers`·`useDexNo`, 기록 목록마다 한 번만 계산) → `BirdCard`, 도감 순서(`DexScreen`), 내보내는 이미지·영상(`CardActions` → `cardExport` → `cardCanvas drawCardFront`에 번호를 넘긴다).
+- `Sighting.dexNo`는 읽지도 쓰지도 않는다. 옛 기록·옛 백업의 값은 그대로 둔다 (`normalizeSighting`이 계속 받아 준다 — 가산 확장만).
+
+브라우저 확인 (5194 포트, 시험 DB에 가짜 기록 넷을 넣고 끝나서 지움):
+- 저장된 번호가 딱새 1·물총새 12·황조롱이 12이고, 참새는 2월에 만들고 9/22에 이름을 붙인 기록 → 도감 "No. 001 딱새 · 002 물총새 · 003 황조롱이 · 004 참새". 큰 카드와 상세의 카드도 같은 번호.
+- 물총새 기록을 '수정'에서 박새로 → 상세 카드 No. 004, 도감 "딱새 1 · 황조롱이 2 · 참새 3 · 박새 4" (물총새가 빠져 당겨짐). DB에는 `namedAt`이 수정한 시각으로 들어가고 옛 `dexNo: 12`는 남아 있다(읽지 않음).
+- 이미지·영상 저장은 누르지 않았다 — 파일이 사용자의 내려받기 폴더에 생긴다. 화면의 카드와 같은 `useDexNo` 값을 넘긴다.
+
+**이번에 하지 않은 것**: 드라이브에서 받은 기록의 `namedAt`이 기기 시계에 따른다 — 두 기기의 시계가 몇 분 어긋나면 비슷한 때 붙인 두 종의 순서가 기기 시계에 달린다(두 기기 모두 같은 답은 낸다). 옛 기록의 번호를 한 번 옮겨 적는 일(옛 `dexNo` 순서를 `namedAt`으로)은 하지 않았다 — 이름 없이 저장했다가 나중에 이름을 붙인 옛 기록은 번호가 한 번 바뀔 수 있다.
+
+**닿는 파일**: 새 `src/features/dex/useDexNo.ts`. 고침 `src/types.ts`, `src/features/dex/{dexNo.ts,BirdCard.tsx,CardActions.tsx,DexScreen.tsx,cardCanvas.ts,cardExport.ts}`, `src/features/record/{nameFields.ts,buildSighting.ts,RecordFlow.tsx}`, `src/features/records/{editPatch.ts,RecordEdit.tsx,DetailIdentify.tsx}`, `src/data/normalizeSighting.ts`. 테스트 `test/{dexNo,nameFields,editPatch,buildSighting,normalizeSighting}.test.ts`. 문서 `ROADMAP.md`, `WORK_ORDERS.md`, `CLAUDE.md`, `README.md`.
+
 ---
 
 ## 코드 정리 메모 (작업 26~28과 나머지) — 순서는 ROADMAP.md
