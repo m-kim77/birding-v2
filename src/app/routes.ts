@@ -1,6 +1,6 @@
 import type { IconName } from '../ui/iconPaths'
 
-/** 화면 주소. 초안이라 라우터 라이브러리 없이 상태 하나로 든다 */
+/** 화면 주소. 라우터 라이브러리 없이 방문 기록의 칸(history.state)에 적어 둔다 — 옮기는 곳은 app/nav.ts 한 곳 */
 export type Route =
   | { name: 'records' }
   | { name: 'detail'; id: string }
@@ -28,4 +28,18 @@ export function activeTab(route: Route): TabName | null {
   if (route.name === 'detail') return 'records'
   if (route.name === 'record') return null
   return route.name
+}
+
+/** id 없이 이름만으로 되는 화면들 */
+const PLAIN_ROUTES = new Set(['records', 'dex', 'map', 'settings', 'record'])
+
+/**
+ * 방문 기록에서 꺼낸 값이 이 앱의 화면 주소인지. 새로고침·뒤로가기 뒤에 app/navPlan.ts가 칸을 읽을 때 쓴다.
+ * 옛 판이 남긴 값이나 모르는 화면 이름은 false — 그러면 부르는 쪽이 첫 화면(일지)으로 연다.
+ */
+export function isRoute(x: unknown): x is Route {
+  if (typeof x !== 'object' || x === null) return false
+  const { name, id } = x as { name?: unknown; id?: unknown }
+  if (name === 'detail') return typeof id === 'string' && id !== ''
+  return typeof name === 'string' && PLAIN_ROUTES.has(name)
 }
