@@ -2,6 +2,7 @@ import type { PhotoKind, Sighting } from '../types'
 import { dbCount, dbGet, dbPut, dbWriteAll } from './db'
 // 키 모양은 점검·정리(photoCheck.ts)와 함께 쓴다 — 여기서 따로 만들면 둘이 어긋날 수 있다
 import { PHOTO_KINDS as KINDS, photoKey as key } from './photoKey'
+import type { QueueEntry } from './syncPlan'
 
 /** 저장할 사진 한 판. 만드는 쪽(record/savePhotos.ts)과 쓰는 쪽(여기)을 잇는다 */
 export interface PhotoFile { kind: PhotoKind; blob: Blob }
@@ -42,11 +43,16 @@ export function writeSightingWithPhotos(s: Sighting, photos: PhotoFile[]): Promi
   })
 }
 
-/** 기록과 딸린 사진 세 판을 트랜잭션 하나로 지운다. 없는 판이 있어도 성공한다 */
-export function deleteSightingWithPhotos(id: string): Promise<void> {
-  return dbWriteAll(['sightings', 'photos'], (store) => {
+/**
+ * 기록과 딸린 사진 세 판을 트랜잭션 하나로 지운다. 없는 판이 있어도 성공한다.
+ * `syncEntry`가 있으면(드라이브를 연결했을 때) 드라이브에서도 지우라는 일을 **같은 트랜잭션에** 줄에 넣는다 —
+ * 따로 넣다가 그 사이 탭이 닫히면 다음 동기화가 드라이브의 기록을 도로 받아 지운 기록이 되살아난다.
+ */
+export function deleteSightingWithPhotos(id: string, syncEntry?: QueueEntry): Promise<void> {
+  return dbWriteAll(syncEntry ? ['sightings', 'photos', 'syncQueue'] : ['sightings', 'photos'], (store) => {
     store('sightings').delete(id)
     for (const kind of KINDS) store('photos').delete(key(id, kind))
+    if (syncEntry) store('syncQueue').put(syncEntry, id)
   })
 }
 
