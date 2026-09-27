@@ -19,15 +19,29 @@ export async function makeCrop(photo: PickedPhoto, box: NormalizedBox): Promise<
 }
 
 /**
- * AI에 보낼 그림을 만든다: 자른 영역이 있으면 그 부분, 없으면 **사진 전체**.
- * 어느 쪽이든 캔버스에서 1024px로 줄여 다시 인코딩한다 — 그림 토큰을 아끼고, 원본의 EXIF(위치)가 따라가지 않게 한다.
+ * 비트맵을 AI에 보낼 그림(data URL)으로 — 캔버스에서 긴 변 1024px JPEG로 다시 인코딩한다.
+ * 그림 토큰을 아끼고, 원본의 EXIF(위치)가 따라가지 않게 한다. AI로 가는 그림은 모두 이 한 곳을 지난다.
+ */
+async function encodeForAI(bitmap: ImageBitmap): Promise<string> {
+  return blobToDataUrl(await bitmapToJpeg(bitmap, IDENTIFY_MAX_EDGE, 0.88))
+}
+
+/**
+ * 저장된 사진(Blob)을 AI에 보낼 그림으로 — 기록 상세에서 다시 물을 때(records/DetailIdentify)와 잘라 낸 판.
+ * 그림을 열지 못하면 던진다 (부르는 쪽이 안내한다).
+ */
+export async function blobForAI(blob: Blob): Promise<string> {
+  const bitmap = await createImageBitmap(blob)
+  try { return await encodeForAI(bitmap) } finally { bitmap.close() }
+}
+
+/**
+ * AI에 보낼 그림을 만든다: 자른 영역이 있으면 그 부분, 없으면 **사진 전체**. 어느 쪽이든 encodeForAI를 지난다.
  * 자르기에 실패하면(makeCrop이 null) 사진 전체로 떨어진다.
  */
 export async function imageForAI(photo: PickedPhoto, box: NormalizedBox | null): Promise<string> {
   const cut = box ? await makeCrop(photo, box) : null
-  if (!cut) return blobToDataUrl(await bitmapToJpeg(photo.bitmap, IDENTIFY_MAX_EDGE, 0.88))
-  const bitmap = await createImageBitmap(cut.blob)
-  try { return await blobToDataUrl(await bitmapToJpeg(bitmap, IDENTIFY_MAX_EDGE, 0.88)) } finally { bitmap.close() }
+  return cut ? blobForAI(cut.blob) : encodeForAI(photo.bitmap)
 }
 
 /**

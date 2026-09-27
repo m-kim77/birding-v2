@@ -1,12 +1,11 @@
 import { useState } from 'react'
 import { useJournal } from '../../data/journal'
 import { getBestPhoto } from '../../data/photos'
-import { bitmapToJpeg, blobToDataUrl } from '../../lib/resize'
 import { Banner, Card } from '../../ui/bits'
 import type { Sighting, Verdict } from '../../types'
-import { IDENTIFY_MAX_EDGE } from '../identify/loop'
 import IdentifyPanel from '../record/IdentifyPanel'
 import { nameFields } from '../record/nameFields'
+import { blobForAI } from '../record/savePhotos'
 import { useAsk } from '../record/useAsk'
 
 interface Props {
@@ -24,20 +23,15 @@ export default function DetailIdentify({ sighting, onOpenSettings }: Props) {
   const ask = useAsk()
   const [error, setError] = useState('')
 
-  /** 저장된 사진을 1024px로 다시 인코딩해 보낸다. 사진을 못 읽으면(지워졌거나 DB 오류) 안내만 하고 판정을 시작하지 않는다 */
+  /** 저장된 사진을 1024px로 다시 인코딩해 보낸다 (blobForAI). 사진을 못 읽으면(지워졌거나 DB 오류) 안내만 하고 판정을 시작하지 않는다 */
   async function askAI() {
     setError('')
-    let bitmap: ImageBitmap | null = null
     try {
       const blob = await getBestPhoto(sighting.id, 'full')
       if (!blob) { setError('이 기록의 사진을 찾을 수 없어 물어볼 수 없습니다.'); return }
-      bitmap = await createImageBitmap(blob)
-      const url = await blobToDataUrl(await bitmapToJpeg(bitmap, IDENTIFY_MAX_EDGE, 0.88))
-      void ask.start(url, { capturedAt: sighting.capturedAt, place: sighting.place })
+      void ask.start(await blobForAI(blob), { capturedAt: sighting.capturedAt, place: sighting.place })
     } catch (e) {
       setError(e instanceof Error ? e.message : '사진을 읽지 못했습니다.')
-    } finally {
-      bitmap?.close()
     }
   }
 
