@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { Card } from '../../ui/bits'
 import Button from '../../ui/Button'
 import { loadStoredKey, saveOwnKey, setOwnKeyEnabled, type OwnKey } from '../identify/connection'
+import TaskResult from './TaskResult'
+import { useTask, type TaskMessage } from './useTask'
 
 const EMPTY: OwnKey = { baseUrl: 'https://api.openai.com/v1', apiKey: '', model: '' }
-type Status = { tone: 'ok' | 'warn'; text: string }
 
 /**
  * 연결을 확인한다: 그 서비스의 모델 목록을 읽어 본다. 키가 맞으면 목록이 오고, 고른 모델이 거기 있는지도 본다.
@@ -12,7 +13,7 @@ type Status = { tone: 'ok' | 'warn'; text: string }
  * **던지는 것은 둘뿐이다** — 주소에 닿지 못함, 키가 틀림(401·403). 그때는 저장하지 않는다.
  * 그 밖의 실패(목록을 안 주는 서비스, 잠깐의 5xx, 목록에 없는 모델 이름)는 경고 문구와 함께 **저장은 한다** — 확인이 안 됐을 뿐 키가 틀린 것은 아니다.
  */
-async function checkConnection(own: OwnKey): Promise<Status> {
+async function checkConnection(own: OwnKey): Promise<TaskMessage> {
   let res: Response
   try { res = await fetch(`${own.baseUrl.replace(/\/$/, '')}/models`, { headers: { authorization: `Bearer ${own.apiKey}` } }) } catch {
     // 브라우저에서 직접 부르므로 오타·오프라인·그 서비스의 CORS 차단이 전부 여기로 온다 — 어느 쪽인지 앱은 모른다
@@ -38,7 +39,8 @@ export default function AiSection() {
   const [stored, setStored] = useState(loadStoredKey)
   const [useOwn, setUseOwn] = useState(stored.enabled)
   const [form, setForm] = useState<OwnKey>(stored.key ?? EMPTY)
-  const [status, setStatus] = useState<Status | null>(null)
+  // 확인하는 동안 버튼을 막지 않는다 (busy를 쓰지 않는다) — 전부터 그랬다
+  const { message: status, setMessage: setStatus, run } = useTask({ failText: '확인하지 못했습니다.' })
   const complete = form.baseUrl.trim() && form.apiKey.trim() && form.model.trim()
 
   /** 라디오 전환. 저장된 키는 켜고 끄기만 한다 */
@@ -50,19 +52,16 @@ export default function AiSection() {
   }
 
   /** 연결을 확인하고 저장한다. 닿지 못하거나 키가 틀린 것만 저장을 막는다 — 틀린 키로 판정이 조용히 실패하는 것을 막으려는 것이다 */
-  async function checkAndSave() {
-    setStatus(null)
+  function checkAndSave() {
     // 앞뒤 공백은 목록 대조도, 실제 요청도 깨뜨린다
     const clean: OwnKey = { baseUrl: form.baseUrl.trim(), apiKey: form.apiKey.trim(), model: form.model.trim() }
-    try {
+    return run(async () => {
       const result = await checkConnection(clean)
       saveOwnKey(clean)
       setForm(clean)
       setStored({ key: clean, enabled: true })
-      setStatus(result)
-    } catch (e) {
-      setStatus({ tone: 'warn', text: e instanceof Error ? e.message : '확인하지 못했습니다.' })
-    }
+      return result
+    })
   }
 
   /** 저장된 키를 지운다 (공용 PC 등). 기본 제공 AI로 돌아간다 */
@@ -101,7 +100,7 @@ export default function AiSection() {
         </div>
       )}
       {/* 결과 줄과 지우기는 폼 밖에 둔다 — 기본 제공 AI로 돌려 둔 상태에서도 키를 지울 수 있어야 하고(공용 PC), "지웠습니다"는 폼이 닫힌 뒤에 보여야 한다 */}
-      {status && <p className={`status-line is-${status.tone}`} role="status">{status.text}</p>}
+      <TaskResult message={status} />
       {stored.key && <Button variant="quiet" icon="trash" onClick={forget}>저장된 키 지우기</Button>}
     </Card>
   )

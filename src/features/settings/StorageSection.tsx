@@ -6,12 +6,13 @@ import { Card } from '../../ui/bits'
 import Button from '../../ui/Button'
 import { dayOf } from '../../ui/when'
 import { missingKindsText, usageLine } from './storageText'
+import TaskResult from './TaskResult'
 import { useStorageStatus } from './useStorageStatus'
+import { useTask } from './useTask'
 
 /** 사진이 빠진 기록은 이만큼만 줄로 보인다 — 수백 건이면 카드가 목록이 된다. 나머지는 "외 N건" */
 const SHOW_MISSING = 5
 
-type Message = { tone: 'ok' | 'warn'; text: string }
 /** 사진이 빠진 기록 한 줄: 그 기록과 없는 판 */
 type MissingRow = { s: Sighting; kinds: PhotoKind[] }
 
@@ -30,24 +31,14 @@ export default function StorageSection({ onOpenRecord }: Props) {
   const { sightings } = useJournal()
   const { estimate, check, refresh } = useStorageStatus()
   const [confirming, setConfirming] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [message, setMessage] = useState<Message | null>(null)
+  // 끝나면(성공·실패 모두) 묻던 것을 거두고 다시 잰다
+  const { busy, message, setMessage, run } = useTask({ failText: '지우지 못했습니다.', after: async () => { setConfirming(false); await refresh() } })
 
-  /** 기록이 없는 사진을 지운다. 지울 것은 지우는 순간에 다시 센다(deleteOrphanPhotos) — 알리는 수도 그 값이다. 끝나면 다시 잰다 */
-  async function clean() {
-    setBusy(true)
-    setMessage(null)
-    try {
-      const n = await deleteOrphanPhotos()
-      setMessage({ tone: 'ok', text: n ? `기록이 없는 사진 ${n}건을 지웠습니다.` : '지울 사진이 없었습니다.' })
-    } catch (e) {
-      setMessage({ tone: 'warn', text: e instanceof Error ? e.message : '지우지 못했습니다.' })
-    } finally {
-      setBusy(false)
-      setConfirming(false)
-      await refresh()
-    }
-  }
+  /** 기록이 없는 사진을 지운다. 지울 것은 지우는 순간에 다시 센다(deleteOrphanPhotos) — 알리는 수도 그 값이다 */
+  const clean = () => run(async () => {
+    const n = await deleteOrphanPhotos()
+    return { tone: 'ok', text: n ? `기록이 없는 사진 ${n}건을 지웠습니다.` : '지울 사진이 없었습니다.' }
+  })
 
   // undefined는 재는 중, null은 브라우저가 쓰는 양을 알려 주지 않음
   const usage = estimate ? usageLine(estimate) : estimate
@@ -83,7 +74,7 @@ export default function StorageSection({ onOpenRecord }: Props) {
           ) : <Button variant="quiet" icon="trash" onClick={() => { setMessage(null); setConfirming(true) }}>정리하기</Button>}
         </>
       )}
-      {message && <p className={`status-line is-${message.tone}`} role="status">{message.text}</p>}
+      <TaskResult message={message} />
     </Card>
   )
 }
