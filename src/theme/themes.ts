@@ -12,6 +12,13 @@
 
 /** CSS 변수로 내려가는 값들. 키 `bgCard`는 변수 `--bg-card`가 된다 */
 export interface ThemeTokens {
+  /**
+   * 브라우저가 직접 그리는 부품(날짜 칸의 달력 아이콘·검색 칸의 지우기 단추·스크롤바·체크박스·날짜 고르개 창)을
+   * 밝은 모양으로 그릴지 어두운 모양으로 그릴지. `--color-scheme` → CSS `color-scheme` (base.css).
+   * 기기의 다크 설정이 아니라 **이 테마의 바탕**으로 정한다 — 숲속·귀여운·팝은 기기가 다크여도 바탕이 밝다.
+   * 바탕이 어두운데 'light'면 검은 아이콘이 바탕에 묻힌다.
+   */
+  colorScheme: 'light' | 'dark'
   /** 앱 화면 바탕. 색 또는 그라데이션 */
   bgApp: string
   /** 카드 바탕. 유리 테마처럼 반투명일 수 있다 */
@@ -77,6 +84,7 @@ export const THEMES: ThemeDef[] = [
     id: 'dogam', name: '도감', desc: '자연 도감 · 필드 노트',
     solid: { app: '#F8F2E0', card: '#FFFCF0', tab: '#F8F2E0' },
     tokens: {
+      colorScheme: 'light',
       bgApp: '#F8F2E0', bgCard: '#FFFCF0', bgSurface: '#F0E8D0', bgInput: '#FFFCF0',
       text1: '#1A1008', text2: '#4A3418', text3: '#735426',
       primary: '#4C6A2E', onPrimary: '#FFFCF0', accent: '#8A4A18', onAccent: '#FFFCF0',
@@ -96,6 +104,7 @@ export const THEMES: ThemeDef[] = [
     id: 'dogam-night', name: '도감 (밤)', desc: '새벽 탐조용',
     solid: { app: '#17150F', card: '#211E16', tab: '#17150F' },
     tokens: {
+      colorScheme: 'dark',
       bgApp: '#17150F', bgCard: '#211E16', bgSurface: '#2C281D', bgInput: '#1B1912',
       text1: '#F3EBD3', text2: '#D2C6A4', text3: '#B0A37E',
       primary: '#A9C47F', onPrimary: '#17150F', accent: '#E0A66A', onAccent: '#17150F',
@@ -113,6 +122,7 @@ export const THEMES: ThemeDef[] = [
     id: 'forest', name: '숲속', desc: '내추럴 그린',
     solid: { app: '#F5F7F0', card: '#FFFFFF', tab: '#F5F7F0' },
     tokens: {
+      colorScheme: 'light',
       bgApp: '#F5F7F0', bgCard: '#FFFFFF', bgSurface: '#E6EFE2', bgInput: '#FFFFFF',
       text1: '#1E2E1A', text2: '#34502F', text3: '#4E6B48',
       primary: '#3F6E4D', onPrimary: '#FFFFFF', accent: '#8A5A00', onAccent: '#FFFFFF',
@@ -129,6 +139,7 @@ export const THEMES: ThemeDef[] = [
     id: 'cute', name: '귀여운', desc: '따뜻한 파스텔',
     solid: { app: '#FFF8F0', card: '#FFFFFF', tab: '#FFF8F0' },
     tokens: {
+      colorScheme: 'light',
       bgApp: '#FFF8F0', bgCard: '#FFFFFF', bgSurface: '#F6EBDA', bgInput: '#FFFFFF',
       // Figma 시안의 보조 글씨(#C49A6C)는 대비 2:1 남짓이라 진하게 고쳤다
       text1: '#3D2B1F', text2: '#6B4226', text3: '#80573A',
@@ -147,6 +158,7 @@ export const THEMES: ThemeDef[] = [
     id: 'simple', name: '심플', desc: '미니멀 화이트',
     solid: { app: '#F7F7F7', card: '#FFFFFF', tab: '#FFFFFF' },
     tokens: {
+      colorScheme: 'light',
       bgApp: '#F7F7F7', bgCard: '#FFFFFF', bgSurface: '#F0F1F3', bgInput: '#FFFFFF',
       text1: '#1A1A1A', text2: '#4B5563', text3: '#5F6875',
       primary: '#2563EB', onPrimary: '#FFFFFF', accent: '#B45309', onAccent: '#FFFFFF',
@@ -163,6 +175,7 @@ export const THEMES: ThemeDef[] = [
     id: 'modern', name: '모던', desc: '다크 네이비',
     solid: { app: '#0F1117', card: '#1A1D2E', tab: '#0F1117' },
     tokens: {
+      colorScheme: 'dark',
       bgApp: '#0F1117', bgCard: '#1A1D2E', bgSurface: '#252840', bgInput: '#14172A',
       text1: '#F0F2FF', text2: '#B4BBD8', text3: '#9098B8',
       primary: '#8AA4FF', onPrimary: '#0F1117', accent: '#FF8FB4', onAccent: '#0F1117',
@@ -180,6 +193,7 @@ export const THEMES: ThemeDef[] = [
     // 그라데이션 위 반투명 카드 — 가장 밝아지는 지점 기준으로 적었다
     solid: { app: '#14183A', card: '#2A2F55', tab: '#10122E' },
     tokens: {
+      colorScheme: 'dark',
       bgApp: 'linear-gradient(160deg, #1A0A3A 0%, #0A1A3A 50%, #0A2A2A 100%)',
       bgCard: 'rgba(255,255,255,0.09)', bgSurface: 'rgba(255,255,255,0.08)', bgInput: 'rgba(255,255,255,0.10)',
       text1: '#F0F4FF', text2: '#C2D0EC', text3: '#A9BBDD',
@@ -198,6 +212,7 @@ export const THEMES: ThemeDef[] = [
     id: 'pop', name: '팝', desc: '볼드 팝아트',
     solid: { app: '#FFF8E0', card: '#FFFFFF', tab: '#FFFFFF' },
     tokens: {
+      colorScheme: 'light',
       bgApp: '#FFF8E0', bgCard: '#FFFFFF', bgSurface: '#FFE880', bgInput: '#FFFFFF',
       text1: '#1A1A1A', text2: '#1A1A1A', text3: '#4D4D4D',
       // 빨강 위 흰 글씨는 대비 3.6:1이라 검정 글씨로 바꿨다

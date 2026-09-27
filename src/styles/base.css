@@ -6,6 +6,11 @@
   --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; --sp-6: 32px;
   /* 장갑 낀 손·한 손 조작 기준. 누를 수 있는 것은 모두 이 높이 이상 */
   --touch: 48px;
+  /* 브라우저가 직접 그리는 부품(날짜 칸의 달력 아이콘·검색 칸의 지우기 단추·스크롤바·체크박스)을
+     밝게 그릴지 어둡게 그릴지. 값은 테마가 정한다 (themes.ts colorScheme).
+     'light dark'처럼 기기 설정을 따르게 하지 않는다 — 숲속·귀여운·팝은 기기가 다크여도 바탕이 밝아 부품만 어두워진다.
+     테마를 넣기 전(변수가 없을 때)에는 이 줄이 무시되어 브라우저 기본(밝게)이다 */
+  color-scheme: var(--color-scheme);
 }
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
