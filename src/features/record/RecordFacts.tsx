@@ -13,17 +13,27 @@ import type { PickedPhoto } from './usePhotoPick'
 export function FactsCard({ photo, place, placeNote, placeHint, onEditPlace }: { photo: PickedPhoto; place: PlaceValue; placeNote?: string; placeHint?: string; onEditPlace: () => void }) {
   const when = photo.exif.capturedAt ? dateTimeOf({ capturedAt: photo.exif.capturedAt, capturedAtOffset: photo.exif.capturedAtOffset ?? null }) : '촬영 시각 없음 — 지금 시각으로 기록'
   const shot = formatShot({ focal_length: photo.exif.focalLength, f_number: photo.exif.fNumber, exposure_time: photo.exif.exposureTime, iso: photo.exif.iso })
-  const sub = [SOURCE_LABEL[place.source], placeNote].filter(Boolean).join(' · ')
   return (
     <Card>
       <Fact icon="clock">{when}</Fact>
-      <button type="button" className="fact-button" onClick={onEditPlace}>
-        <Fact icon="pin" sub={sub}>{place.name || (place.lat !== null ? `${place.lat.toFixed(4)}, ${place.lng!.toFixed(4)}` : '위치 없음')}</Fact>
-        <Icon name="chevron" size={18} />
-      </button>
+      <PlaceRow place={place} note={placeNote} onClick={onEditPlace} />
       {placeHint && <p className="hint">{placeHint}</p>}
       {shot && <Fact icon="aperture">{shot}</Fact>}
     </Card>
+  )
+}
+
+/**
+ * 위치 한 줄 — 줄 전체가 위치 시트를 여는 버튼이다. 없거나 틀렸을 때만 누른다.
+ * 기록 화면(FactsCard)과 저장한 기록의 수정 칸(records/RecordEdit)이 같이 쓴다. `note`는 출처 옆에 붙는 근거(이동 기록의 앞뒤 점 간격).
+ */
+export function PlaceRow({ place, note, onClick }: { place: PlaceValue; note?: string; onClick: () => void }) {
+  const sub = [SOURCE_LABEL[place.source], note].filter(Boolean).join(' · ')
+  return (
+    <button type="button" className="fact-button" onClick={onClick}>
+      <Fact icon="pin" sub={sub}>{place.name || (place.lat !== null ? `${place.lat.toFixed(4)}, ${place.lng!.toFixed(4)}` : '위치 없음')}</Fact>
+      <Icon name="chevron" size={18} />
+    </button>
   )
 }
 
