@@ -549,7 +549,7 @@ OpenAI의 v2 검토 의견(저장·복원, 배포 운영, 기능 제안)을 코�
 3. **기기 설정을 따르게 하지 않는다** (`color-scheme: light dark`를 쓰지 않는다) — 숲속·귀여운·팝은 기기가 다크여도 바탕이 밝은 테마라, 기기를 따르면 부품만 어두워진다.
 4. 대비 검사(`scripts/check-contrast.ts`): 글자(text1)가 바탕(solid.app)보다 밝으면 'dark'여야 한다. 새 테마를 더하며 값을 잘못 적으면 `npm run check`가 잡는다 — 타입 검사는 값이 빠진 것만 잡는다. 대비 검사는 이름을 찍은 색 토큰만 읽어 색이 아닌 토큰이 섞여도 된다 (글꼴·모서리·그림자가 이미 있다).
 
-**이번에 하지 않은 것**: 폰 주소창·상태 표시줄 색 — `index.html`의 `theme-color`(`#F8F2E0`)와 `manifest.webmanifest`의 `theme_color`가 도감 밝은 색에 고정이라, 어두운 테마에서도 폰 위쪽 띠는 밝을 것이다 (코드로만 확인, 폰에서는 안 봤다). 원인이 다르다(메타 태그).
+**이번에 하지 않은 것**: 폰 주소창·상태 표시줄 색 — `index.html`의 `theme-color`(`#F8F2E0`)와 `manifest.webmanifest`의 `theme_color`가 도감 밝은 색에 고정이라, 어두운 테마에서도 폰 위쪽 띠는 밝을 것이다 (코드로만 확인, 폰에서는 안 봤다). 원인이 다르다(메타 태그). → 작업 25에서 고쳤다.
 
 **닿는 파일**: 고침 `src/theme/themes.ts`, `src/styles/base.css`, `scripts/check-contrast.ts`. 문서 `ROADMAP.md`, `WORK_ORDERS.md`.
 **검증**: `npm run check`. 브라우저 — 위 "완료"에 적은 순서.
@@ -646,7 +646,106 @@ ROADMAP의 "AI 판정 메모"와 조사 문서(`../v2 docs/community/fable-final
 브라우저 확인: 개발 서버(5190)에서 DB가 판 3으로 올라가도 기존 기록 3건이 그대로, 설정 카드·도감 띠 모양(상태를 넣어 봄). **사용자가 PC 크롬에서 실제 구글 로그인 → 드라이브에 올라간 것을 확인.**
 **남은 확인 (배포 뒤)**: 실제 사이트에서 로그인 · 두 번째 브라우저(또는 기기)에서 같은 계정으로 받아 합치기 · 고치기·지우기가 다른 쪽에 반영 · 다음 날 다시 열었을 때 로그인 없이 이어지는지 · 폰 사파리(원래도 나중 — 홈 화면 앱은 팝업 대신 페이지 이동 방식이 필요할 수 있다).
 
-**이번에 하지 않은 것**: 큰 사진을 열 때 받기(지금은 받을 때 세 판을 다 받는다 — 기록이 수백 건이면 첫 연결이 길다) · 진행률 표시 · 설정 카드 틀 하나로(작업 28 — 드라이브 카드는 백업 카드의 틀을 따랐다, 28에서 같이 옮긴다) · 사진만 바꾸는 고침(지금은 없다 — 생기면 `noteChange(id, 'put', true)`).
+**이번에 하지 않은 것**: 큰 사진을 열 때 받기(지금은 받을 때 세 판을 다 받는다 — 기록이 수백 건이면 첫 연결이 길다) · 진행률 표시 · 설정 카드 틀 하나로(작업 28 — 드라이브 카드는 백업 카드의 틀을 따랐다, 28에서 같이 옮겼다) · 사진만 바꾸는 고침(지금은 없다 — 생기면 `noteChange(id, 'put', true)`).
+
+---
+
+## 작업 25 — 폰 주소창·상태 표시줄 색이 테마를 따르지 않는 문제
+
+작업 22의 "이번에 하지 않은 것"을 ROADMAP에 올린 것이다. 지시와 완료를 한 세션에 썼다 (2026-09-27).
+
+**완료 (2026-09-27).** 계획대로 했다. `npm run check` 통과 (테스트 276).
+브라우저 확인 (다른 세션과 섞이지 않게 따로 띄운 5226 포트, 기록 없이. PC 크롬 방식):
+- `<meta name="theme-color">`의 값 — 선택지 6 × 기기 라이트·다크 = 12가지를 새로고침으로: 도감 #F8F2E0 / 밤 #17150F, 숲속 #F5F7F0, 귀여운 #FFF8F0, 심플 #F7F7F7 / 모던 #0F1117, 유리 #1A0A3A, 팝 #FFE000 (기기가 다크여도 숲속·귀여운·팝·유리는 그대로). 태그는 늘 하나다.
+- 설정에서 팝을 누르면 새로고침 없이 #FFE000 — 화면 맨 위의 노란 띠와 같은 색이다. 콘솔 오류 없음.
+- 대비 검사: 복사본에 도감 밤 #F8F2E0·팝 #1A0A3A를 넣으면 두 건을 잡고 종료 코드 1.
+- **실제 폰에서는 보지 않았다** — 값이 태그에 들어가는 것까지만 봤다. 안드로이드 크롬은 이 태그로 주소창을 칠한다. 아이폰 사파리는 판에 따라 이 태그 대신 페이지 바탕을 쓰기도 한다.
+- 도구의 한계: 브라우저 창의 다크 흉내를 바꿨을 때는 새로고침 전까지 테마 전체(토큰 포함)가 그대로였다 — 흉내가 바뀜 알림을 보내지 않아서다. 띠 색은 토큰과 같은 자리(`useTheme`의 effect)에서 바뀌므로 둘은 함께 움직인다.
+
+**왜**: `index.html`의 `theme-color`가 도감의 밝은 색(`#F8F2E0`)에 고정이라, 어두운 테마(도감 밤·모던·유리)에서도 폰 위쪽 띠(주소창·상태 표시줄)가 밝았다 — 어두운 화면 위에 밝은 띠가 얹힌다. 작업 22의 `color-scheme`과 원인이 다르다(CSS가 아니라 메타 태그).
+
+**무엇이 바뀌나**:
+1. 테마 정의에 `bar` — 화면 **맨 위에 실제로 깔리는** 단색 (`theme/themes.ts`). 대부분은 바탕색(`solid.app`)과 같고, 팝은 맨 위 140px가 배경 장식의 노란 띠라 #FFE000, 유리는 그라데이션의 시작 색 #1A0A3A. 토큰(CSS 변수)이 아니라 `solid`처럼 테마 정의의 칸이다 — CSS로는 못 바꾸는 값이다.
+2. `applyBarColor` (`theme/applyTheme.ts`) — 태그의 값을 바꾼다 (없으면 만든다). `useTheme`가 토큰을 넣는 같은 effect에서 부른다 — 테마를 고를 때와 기기의 다크 설정이 바뀔 때.
+3. 대비 검사(`scripts/check-contrast.ts`): `bar`의 밝기가 `colorScheme`과 같은 쪽인지 본다 — 새 테마에서 다른 테마의 값을 옮겨 적으면 잡는다. hex가 아니면(그라데이션 등) 검사가 멈춘다.
+4. `index.html`의 값은 그대로 두고 "앱이 뜨기 전까지만"이라고 주석을 달았다.
+
+**이번에 하지 않은 것**: `manifest.webmanifest`의 `theme_color`·`background_color` — 고정 파일이라 테마마다 바꿀 수 없다. 홈 화면 앱을 여는 순간(시작 화면)과 앱 전환 화면에 쓰이고, 페이지가 뜨면 태그가 앞선다. 아이폰 홈 화면 앱의 상태 표시줄 모양(`apple-mobile-web-app-status-bar-style` "default")도 그대로 — 폰에서 보고 정한다.
+
+**닿는 파일**: 고침 `src/theme/themes.ts`, `src/theme/applyTheme.ts`, `src/theme/useTheme.ts`, `index.html`, `scripts/check-contrast.ts`. 문서 `ROADMAP.md`, `WORK_ORDERS.md`, `README.md`.
+**검증**: `npm run check`. 브라우저 — 위 "완료"에 적은 것.
+
+---
+
+## 작업 26 — 기록 화면(`RecordFlow`) 나누기
+
+"코드 정리 메모"의 작업 26을 옮겨 쓴 것이다. 지시와 완료를 한 세션에 썼다 (2026-09-27). **앱 동작은 그대로다.**
+
+**완료 (2026-09-27).** 메모의 계획대로 했다. `npm run check` 통과 (테스트 276). `RecordFlow` 함수 122줄 → 77줄, 파일 155줄 → 목표(150) 안.
+- `record/useRecordPlace.ts` — 위치 배선: `usePlace`·`useTrackMatch`, 이동 기록에서 찾은 좌표 넣기 effect, 위치 줄의 근거·안내(`placeNote`·`placeHint`), '직전 기록 위치'. `usePlace.ts`에는 넣지 않았다 — RecordEdit(첫 화면 묶음)이 그 파일을 부른다.
+- `record/useRecordFields.ts` — 초안 배선: 영역·이름·메모·판정을 보낸 영역·되살리는 중 상태, 되살리기·자동 저장 effect, `choose`·`resume`. 초안에 칸을 더할 때 고칠 세 곳이 이 파일에 모였다. **위치 훅 뒤에 부른다** (머리말에 이유). 저장을 마쳤는지(`saved`)는 RecordFlow가 참거짓으로 넘긴다 — 자동 저장이 저장 뒤에 멈추게.
+- `record/PhotoStart.tsx` — 사진을 고르기 전 화면. 숨은 파일 칸은 작성 화면의 '사진 바꾸기'와 같은 칸이라 RecordFlow가 만들어 넘긴다.
+- effect의 의존성 배열은 글자 그대로 옮겼다. effect가 도는 순서는 이동 기록 넣기가 초안 effect들 앞으로 온 것 하나만 달라졌다 — 둘이 같은 커밋에 돌아도 넣는 쪽이 `fillIfEmpty`(비어 있을 때만)라 결과가 같다.
+- `scripts/check-size.ts`가 함수 길이도 잰다 — `typescript` 파서로 함수를 찾아 빈 줄·주석을 뺀 줄 수. 80 초과는 실패, 40 초과는 표시. 옛 `RecordFlow`를 넣어 보면 "함수 122줄 > 상한 80"으로 종료 코드 1. 지금 40줄을 넘는 함수: IdentifyPanel 80 · RecordsScreen 78 · RecordFlow 77 · RecordEdit 69 · CardStylePicker 64 · AiSection 63 · BackupSection 56 · RecordDetail 55 · StorageSection 55 · TracksSection 49 · JournalProvider 48 · useAsk 45 · runIdentify 41 · parseExif 41.
+
+브라우저 확인 (다른 세션과 섞이지 않게 따로 띄운 5226 포트 — 그 주소의 저장소는 비어 있었다. PC 크롬 방식, 파일은 페이지에서 파일 칸에 넣었다):
+- 사진 고르기: 깨진 파일 → 첫 화면에 "이 사진 형식은 열 수 없습니다", 제대로 된 사진(`test/fixtures/exif-sample.jpg`) → 작성 화면, 시각·촬영 정보가 채워지고 위치 없음.
+- 새 찾기: 모델을 받으니 "새 2마리" → 새를 눌러 고름 ("이 부분으로 판정합니다").
+- 이름·메모를 쓰고 지도에서 위치를 고른 뒤 뒤로 → 다시 새 기록 → "쓰던 기록이 있습니다 — "동고비" · 메모" → 이어 쓰기: 이름·메모·고른 영역·직접 고른 위치가 돌아왔다. 판정은 AI 서버가 이 복사본에 연결돼 있지 않아 초안에 시험용 판정을 넣고 새로고침한 뒤 이어 쓰기 — 판정 칸이 "AI 판정 · 확정"으로 돌아왔다.
+- 사진 바꾸기에 깨진 파일 → 안내가 뜨고 사진·영역·판정이 그대로.
+- 저장 → 카드(이름·학명·장소) → 초안이 지워졌다 (기록 1건·사진 3판).
+- 위치 훅 순서: 가짜 GPS를 넣은 사진(부산, 시험용으로 만든 파일 — 저장소에 넣지 않았다)으로 새 기록 → "사진 정보에서" → 시트의 "직전 기록 위치로 (서울특별시 중구 약수동)" → 새로고침 → 이어 쓰기: 위치가 "지도에서 직접 고름"으로 남았다 (사진 좌표가 덮지 않았다). 3초 뒤에도 그대로 — 사진 좌표의 장소 이름이 늦게 와도 버려진다.
+- 콘솔: MediaPipe의 시작 알림(INFO)만.
+- **이동 기록으로 위치 찾기는 이번에 누르지 않았다** — 옮긴 코드는 글자 그대로다. 폰에서는 보지 않았다.
+
+**닿는 파일**: 새 `src/features/record/{useRecordPlace,useRecordFields}.ts`·`PhotoStart.tsx`. 고침 `src/features/record/RecordFlow.tsx`, `scripts/check-size.ts`. 문서 `ROADMAP.md`, `WORK_ORDERS.md`, `README.md`, `CLAUDE.md`(check가 재는 것).
+
+---
+
+## 작업 27 — AI 판정을 기록에 넣는 규칙 한 곳으로
+
+"코드 정리 메모"의 작업 27을 옮겨 쓴 것이다. 지시와 완료를 한 세션에 썼다 (2026-09-27).
+
+**완료 (2026-09-27).** 메모의 계획대로 했고, 같이 고칠 버그에서 도감 번호 문제 하나를 더 찾아 같은 `fix` 커밋에 넣었다. `npm run check` 통과 (테스트 284 — 새 테스트 8).
+- **규칙 한 곳** (`refactor`, 동작 그대로): `record/nameFields.ts` — `nameFields(이름, 판정, 다른 기록들)`이 {국명·학명·근거·판정 상태·도감 번호}를 정하고, `acceptsVerdict`가 "이 이름으로 저장하면 근거가 붙는지"를 답한다. 새 기록(`buildSighting`)·수정(`editPatch`)·상세의 '이 이름으로'와 후보 고르기(`DetailIdentify`)가 모두 이것을 쓴다. 상세의 두 길은 테스트 없는 화면 안에 있었다. 후보 이름도 앞뒤 빈칸을 떼게 됐지만 판정을 읽을 때(`parseVerdict`) 이미 다듬은 이름이라 실제로 바뀌는 것은 없다.
+- **AI에 보낼 그림 한 곳** (`refactor`): `record/savePhotos.ts`의 `encodeForAI`(1024px·품질 0.88)를 기록 화면의 `imageForAI`와 상세의 `blobForAI`가 함께 지난다. 상세가 따로 적던 크기·품질이 없어졌다. `savePhotos.ts`가 부르는 것은 `lib/crop`·`lib/resize`뿐이라 첫 화면 묶음이 커지지 않는다.
+- **버그** (`fix`): 판정 칸의 "넣었다"를 부르는 쪽이 정한다 (`IdentifyPanel`의 `applied`) — 기록 화면은 `acceptsVerdict(이름 칸, 판정)`, 상세는 이 판정이 기록에 들어 있는지(값으로 견준다 — 새로고침하면 DB에서 읽은 다른 객체다). 상세의 문구는 `into="이 기록"`으로 "이 기록에 넣었습니다"·"누르면 이 기록에 들어갑니다".
+- **같이 찾은 것**: 상세에서 같은 이름을 다시 넣으면 도감 번호가 바뀔 수 있었다 — `dexNoFor`는 이 기록을 뺀 기록들만 봐서, 이 종의 기록이 그것 하나뿐이면 "처음 보는 종"으로 다음 번호를 준다. 위 버그를 고치면 같은 이름을 넣는 길이 열리므로 함께 막았다 — `nameFields`가 기록의 지금 이름·번호(`current`)를 받아 이름이 그대로면 번호도 그대로 둔다. 후보 칩으로 지금 이름을 다시 눌러도 같다.
+- 기록 화면의 "넣었다"는 전에 이름 칸 글자 그대로 견줬고 이제 앞뒤 빈칸을 뗀다 — 저장할 때의 규칙(`buildSighting`)과 같아졌다. '까치 '처럼 끝에 빈칸이 있어도 "넣었습니다"로 보이고, 저장하면 실제로 근거가 붙는다.
+
+브라우저 확인 (따로 띄운 5226 포트, 시험 기록만. AI 서버가 이 복사본에 연결돼 있지 않아 `/api/llm` 요청에 페이지 안에서 정해 둔 답 — 까치 · Pica serica, 후보 물까치 — 을 돌려줬다):
+- 직접 '까치'라고 적어 저장한 기록(No.2, 판정 없음)의 상세에서 AI에게 물어보기 → 답 '까치' → **'이 이름으로'가 있다** (고치기 전에는 "이름 칸에 넣었습니다"만 떴다). 후보 안내는 "누르면 이 기록에 들어갑니다".
+- '이 이름으로' → "이 기록에 넣었습니다", 버튼이 사라짐. 기록에 판정이 붙고 **번호는 No.2 그대로** (다른 기록 No.1·No.3 — 고치기 전 규칙이면 No.4가 됐다).
+- 후보 칩 '물까치' → 이름 물까치, 학명 Cyanopica cyanus(종 표), 판정 떼고 No.4, '이 이름으로'가 다시 보인다.
+- 보낸 그림: 저장된 사진에서 683×1024 JPEG (`blobForAI`).
+- 기록 화면: 이름 칸이 비어 있으면 '이 이름으로'와 "누르면 이름 칸에 들어갑니다" → 누르면 이름 칸이 '까치', "이름 칸에 넣었습니다" — 전과 같다.
+- 실제 AI 서버로는 보지 않았다 — 요청과 답의 모양은 같다 (SSE 한 번에 답 JSON).
+
+**닿는 파일**: 새 `src/features/record/nameFields.ts`·`test/nameFields.test.ts`. 고침 `src/features/record/{buildSighting,savePhotos}.ts`·`IdentifyPanel.tsx`·`RecordFlow.tsx`, `src/features/records/{editPatch.ts,DetailIdentify.tsx}`. 문서 `ROADMAP.md`, `WORK_ORDERS.md`, `README.md`, `CLAUDE.md`(AI 그림 규칙이 가리키는 곳).
+
+---
+
+## 작업 28 — 설정 카드들의 같은 틀 하나로
+
+"코드 정리 메모"의 작업 28을 옮겨 쓴 것이다. 지시와 완료를 한 세션에 썼다 (2026-09-27). **앱 동작은 그대로다.**
+
+**완료 (2026-09-27).** `npm run check` 통과 (테스트 284).
+- `settings/useTask.ts` — "누르면 → 진행 중 → 결과 한 줄"의 훅: `run(work)`이 진행 중으로 두고 지난 결과를 지운 뒤 일을 돌리고, 돌려준 결과나 **던진 이유를 결과 줄에 적는다**(던지지 않는다). 끝난 뒤(성공·실패 모두) 할 일은 `after`, Error가 아닌 것을 던졌을 때의 말은 `failText`. 결과 타입 `TaskMessage`.
+- `settings/TaskResult.tsx` — 결과 한 줄 (`role="status"`).
+- 옮긴 카드 다섯: 백업·이동 기록·저장 공간·AI·드라이브(작업 19). `{tone, text}` 타입 5벌, 진행 중·오류 잡기 4벌, 결과 줄 5벌이 없어졌다. 카드마다 다른 것은 그 카드에 남겼다 — 백업은 새 일을 시작하면 '백업했습니다' 확인을 거두고, 이동 기록은 끝나면 막대를 거두고 요약을 다시 읽고 저장 공간 카드에 알리며(`after`), 저장 공간은 끝나면 묻기를 거두고 다시 잰다(`after`).
+- AI 카드는 전처럼 확인하는 동안 버튼을 막지 않는다 (`busy`를 쓰지 않는다) — 막는 것은 동작이 바뀌니 하지 않았다.
+- 함수 길이: AiSection 63 → 60, BackupSection 56 → 53, StorageSection 55 → 44, TracksSection 49 → 43.
+
+브라우저 확인 (따로 띄운 5226 포트, 시험용 자료만):
+- 백업: 깨진 ZIP을 불러오기 → 도는 동안 두 버튼이 막히고, 끝나면 풀리며 "백업 파일을 열 수 없습니다 (ZIP 파일이 아닙니다)." (주황). 내려받기는 누르지 않았다 — 파일이 사용자의 내려받기 폴더에 생긴다.
+- 이동 기록: `test/fixtures/timeline-slice.json`(좌표를 옮긴 가짜) 넣기 → 요약 "… 504점 · 넣은 날 오늘"과 "넣었습니다 — 새 점 504개 …", 막대는 끝나면 사라진다. 지우기 → "아직 넣은 파일 없음"과 "이동 기록을 지웠습니다.".
+- 저장 공간: 기록이 없는 사진 한 판을 시험 DB에 넣고 새로고침 → "기록이 없는 사진 1건" → 정리하기 → "지운 사진은 되돌릴 수 없습니다" → 정말 지우기 → "기록이 없는 사진 1건을 지웠습니다.", 다시 재서 "모든 기록의 사진이 제자리에 있습니다", 묻기가 닫힌다.
+- AI: 내 API 키 사용 → 닿지 않는 주소(`http://127.0.0.1:9/v1`)와 지어낸 키 → 연결 확인하고 저장 → "주소에 닿지 못했습니다 — …"(주황), 키는 저장되지 않았다. 기본 제공 AI로 돌리면 결과 줄이 비워진다.
+- **드라이브 카드는 보지 않았다** — 이 복사본에는 구글 설정(환경변수)이 없어 카드가 그려지지 않는다. 옮긴 모양은 다른 카드와 같다 (`run`이 null을 돌려주면 줄을 비우는 것까지 전과 같다).
+
+**이번에 하지 않은 것** (메모의 "같이 볼 것"): 이동 기록·저장 공간 카드가 지우기를 `data`에서 직접 부르고 다시 읽기를 화면이 챙기는 것은 그대로다(`after`로 옮겼을 뿐). AI 카드의 연결 확인 요청을 `identify/connection.ts`로 옮겨 테스트하는 것과, 그 요청에 시간 제한을 두는 것(동작이 바뀐다)은 하지 않았다.
+
+**닿는 파일**: 새 `src/features/settings/useTask.ts`·`TaskResult.tsx`. 고침 `src/features/settings/{AiSection,BackupSection,DriveSection,StorageSection,TracksSection}.tsx`. 문서 `ROADMAP.md`, `WORK_ORDERS.md`, `README.md`.
 
 ---
 
@@ -660,17 +759,9 @@ ROADMAP의 "AI 판정 메모"와 조사 문서(`../v2 docs/community/fable-final
 - 같은 화면을 만지는 다른 작업과 동시에 돌리지 않는다 — 코드를 파일 사이로 옮기므로 서로 덮는다.
 - 점검에서 이미 지켜지고 있던 것: 파일 크기 전부 상한 안, `lib`·`data`가 위층을 부르지 않음, `history` 직접 호출·컴포넌트 안 테마 id 분기·`api/`의 확장자 없는 import 없음.
 
-- **작업 26 — 기록 화면(`RecordFlow`) 나누기**: 함수 122줄(`RecordFlow.tsx:44`, 상한 80 — 점검 때 유일한 위반), 파일 155줄(목표 150). 한 함수가 사진·영역·AI·위치·초안 되살리기·자동 저장·저장·세 화면을 다 한다. 초안에 칸 하나를 더하면 상태·되살리기 effect(L80-90)·자동 저장 effect(L96-99) 세 곳을 같이 고친다.
-  - 뗄 것: (1) 초안 배선 → 새 훅 `record/useRecordFields.ts` — `useDraft`(L53), crop·name·note·askedBox·restoring 상태(L55-59·L65), 두 effect, `choose`·`resume`(L139-148). 모두 `data/draft.ts`의 초안 칸과 같이 바뀐다. (2) 위치 배선 → 새 훅 `record/useRecordPlace.ts` — `usePlace`·`useTrackMatch`(L51-52), `lastPlace`(L71-74), 이동 기록 넣기 effect(L93), `placeNote`·`placeHint`(L170-171). **`usePlace.ts`에 넣지 않는다** — RecordEdit(첫 화면 묶음)이 부르는 파일이라 이동 기록 매칭 코드가 첫 화면에 딸려 온다(`bfbdb2d`에서 막은 문제). (3) 사진 고르기 첫 화면(L155-167) → `record/PhotoStart.tsx`. 예상: 함수 약 77줄, 파일 약 115줄.
-  - 남길 것: 작성 화면 JSX(넘길 값이 20개가 넘는다), `picked`(AI·저장·탐지·판정 칸이 다 쓴다), `save`와 saving·saveError·saved(떼면 초안 훅과 서로 부른다).
-  - **함정**: 초안 훅은 위치 훅 **뒤에** 부른다 — 같은 커밋의 effect는 훅을 부른 순서대로 돌아서, 앞에 부르면 `usePlace`의 EXIF effect가 되살린 위치를 덮는다(L76-79 주석). effect 의존성 배열은 글자 그대로 옮긴다 — ESLint가 설치돼 있지 않아 `eslint-disable-line` 6곳은 아무 효과가 없고, 틀려도 안 잡힌다.
-  - 마지막 커밋: `scripts/check-size.ts`가 함수 길이도 잰다 — 이미 있는 `typescript` 파서로(새 패키지 없음) 함수마다 빈 줄·주석을 뺀 줄 수를 세어 80 초과는 실패, 40 초과는 표시. 머리 주석의 "함수 길이는 재지 않는다 — … ESLint로 한다"도 고친다. 26보다 먼저 넣으면 check가 바로 실패한다. 점검 때 40줄을 넘은 함수: RecordFlow 122 · IdentifyPanel 80 · RecordsScreen 78 · RecordEdit 69 · CardStylePicker 64 · AiSection 63 · BackupSection 56 · RecordDetail 55 · StorageSection 55 · TracksSection 49 · useAsk 45 · JournalProvider 44 · runIdentify 41 · parseExif 41.
-  - 확인: 사진 고르기 → 새 찾기(한 마리·여러 마리) → AI → 위치(사진 좌표·이동 기록·지도에서 고르기·직전 위치) → 저장 → 카드. 쓰다가 뒤로 → "이어 쓰기"로 이름·메모·영역·판정·직접 고른 위치가 모두 돌아오는지. 사진 바꾸기에 실패하면 옛 사진·영역이 남는지.
-- **작업 27 — AI 판정을 기록에 넣는 규칙 한 곳으로**: 이름과 판정으로 {speciesKo, latin, verdict, identify, dexNo}를 정하는 규칙이 네 곳에 있다 — 새 기록 `record/buildSighting.ts:42,46,53`, 수정 `records/editPatch.ts:45-47`, 상세의 '이 이름으로' `records/DetailIdentify.tsx:49-54`, 후보 칩 `:57-60`. 뒤의 둘은 테스트 없는 화면 안에 있고, 후보 칩은 앞뒤 빈칸도 안 지운다. 작업 20 규칙(국명 없는 판정은 이름에 넣지 않는다·이름을 바꾸면 근거를 뗀다)을 순수 함수 하나로 모으고 테스트한다.
-  - AI에 보낼 그림 만들기가 두 벌이다 — `record/savePhotos.ts` `imageForAI` ↔ `records/DetailIdentify.tsx:33-36` (1024px·품질 0.88이 두 곳). CLAUDE.md가 가리키는 `imageForAI` 쪽으로 모은다.
-  - **같이 고칠 버그** (동작이 바뀌므로 따로 `fix` 커밋): 판정 칸의 "넣었다" 판단(`IdentifyPanel.tsx:86` `name === v.speciesKo`)에 상세가 기록의 이름(`DetailIdentify.tsx:65`)을 넘긴다. AI 서버가 쉬어서 '까치'라고 직접 적어 저장 → 상세에서 물었더니 '까치' → "이름 칸에 넣었습니다"만 뜨고 '이 이름으로'가 없어 판정 근거를 기록에 붙일 수 없고, 나가면 사라진다. "이름 칸"이라는 말도 상세와 맞지 않는다. 방향: '넣었는지'를 부르는 쪽이 정해 넘긴다.
-- **작업 28 — 설정 카드들의 같은 틀 하나로**: "누르면 → 진행 중 → 결과 한 줄" 틀을 카드마다 복사해 쓴다 — `{tone, text}` 타입 4벌(`BackupSection.tsx:10`·`TracksSection.tsx:11`·`StorageSection.tsx:14`·`AiSection.tsx:7`), 진행 중 표시와 오류 잡기 3벌(`BackupSection.tsx:25`·`TracksSection.tsx:47`·`StorageSection.tsx:37`), 결과 줄 4벌(`AiSection.tsx:104`·`BackupSection.tsx:75`·`StorageSection.tsx:86`·`TracksSection.tsx:80`). 훅 하나(`useTask`)와 결과 줄 컴포넌트 하나로 모은다. 작업 19의 드라이브 카드(연결/해제·마지막 동기화·못 올린 건수)가 이 틀을 쓴다.
-  - 같이 볼 것: `TracksSection`·`StorageSection`은 읽기 훅(`useTracksMeta`·`useStorageStatus`)을 두고, 지우기는 `data`를 직접 부르고 `refresh()`를 화면이 챙긴다. `AiSection.tsx:15-30`의 연결 확인 요청은 `identify/connection.ts` `endpointFor`와 주소 만들기가 겹친다 — identify 쪽으로 옮기면 테스트할 수 있다 (보내는 곳이 같으니 "무엇이 어디로 가나요"는 그대로). 이 요청에는 시간 제한이 없다 — 더하는 것은 동작이 바뀌니 따로.
+- **작업 26 — 기록 화면(`RecordFlow`) 나누기**: 끝 (2026-09-27) → 위 "작업 26" 절. 점검 때의 계획(뗄 것·남길 것·함정·확인 순서)대로 했다.
+- **작업 27 — AI 판정을 기록에 넣는 규칙 한 곳으로**: 끝 (2026-09-27) → 위 "작업 27" 절. 계획대로 했고, 같은 이름을 다시 넣을 때 도감 번호가 바뀌는 문제를 함께 막았다.
+- **작업 28 — 설정 카드들의 같은 틀 하나로**: 끝 (2026-09-27) → 위 "작업 28" 절. "같이 볼 것"(이동 기록·저장 공간의 지우기 배선, AI 연결 확인을 identify로 옮기기·시간 제한)은 하지 않았다.
 - **작업 18을 시작할 때**: AI 판정 칸(`IdentifyPanel.tsx`) 함수가 80줄로 상한이다. 18의 첫 커밋으로 같은 파일 안 하위 컴포넌트로 나눈다(작업 12의 `PlaceRow` 방식) — 답이 온 뒤 화면(L83-118) → `VerdictResult`, 묻는 중 화면(L67-82)과 `useElapsed` → `AskRunning` (지금의 `state === 'running' ? startedAt : null` 우회가 사라진다). 'AI 판정 · {kind}' 문구가 `IdentifyPanel.tsx:89`·`RecordDetail.tsx:67` 두 곳, '확정'을 문장에 쓰는 곳이 `VerdictDetails.tsx:15` — 보이는 말을 정하는 함수 하나로. (위 "다음 기능 메모"의 `RecordDetail.tsx:91`은 옛 줄 번호다.)
 - **나머지 (ROADMAP "그 뒤")**:
   - 화면 문구 한 곳으로 — 위치 출처 문구 2벌(`usePlace.ts:15-17` ↔ `RecordDetail.tsx:19-21`, '없음' 문구가 이미 다르다), "장소 → 좌표 → 위치 없음" 3벌(`RecordFacts.tsx:34`·`RecordDetail.tsx:56`·`LocationSheet.tsx:32`), 촬영 정보 한 줄 3벌(`RecordFacts.tsx:15`·`RecordDetail.tsx:44`·`dex/cardText.ts:15`), 카드 글자 2쌍(`BirdCard.tsx:22,40` ↔ `cardCanvas.ts:76,86` — '위치 비공개'가 화면 카드와 내보낸 카드에 따로 있다. `cardText.ts`가 모으려던 자리다), '이름 미정' 9곳.

@@ -1,15 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { connect, disconnect, loadConfig, syncNow } from '../../data/sync'
 import { useSyncStatus, type SyncStatus } from '../../data/syncStatus'
 import { preloadGis } from '../../lib/google/gis'
 import { Card } from '../../ui/bits'
 import Button from '../../ui/Button'
 import { recentTimeOf } from '../../ui/when'
-
-type Message = { tone: 'ok' | 'warn'; text: string }
+import TaskResult from './TaskResult'
+import { useTask, type TaskMessage } from './useTask'
 
 /** 지금 상태를 한 줄로 */
-function statusLine(s: SyncStatus): Message {
+function statusLine(s: SyncStatus): TaskMessage {
   const last = recentTimeOf(s.lastSyncAt)
   if (s.phase === 'syncing') return { tone: 'ok', text: '동기화하는 중…' }
   if (s.phase === 'disconnected') return { tone: 'warn', text: '구글 로그인이 풀렸습니다. 다시 로그인하면 못 올린 기록부터 이어서 올립니다.' }
@@ -27,18 +27,10 @@ function statusLine(s: SyncStatus): Message {
  */
 export default function DriveSection() {
   const s = useSyncStatus()
-  const [busy, setBusy] = useState(false)
-  const [message, setMessage] = useState<Message | null>(null)
+  const { busy, message, run } = useTask()
 
   useEffect(() => { void loadConfig() }, [])
   useEffect(() => { if (s.configured) void preloadGis().catch(() => {}) }, [s.configured])
-
-  /** 작업을 돌리고 결과나 실패 이유를 아래 줄에 적는다 (조용히 실패하지 않는다) */
-  async function run(work: () => Promise<Message | null>) {
-    setBusy(true)
-    setMessage(null)
-    try { setMessage(await work()) } catch (e) { setMessage({ tone: 'warn', text: e instanceof Error ? e.message : '실패했습니다.' }) } finally { setBusy(false) }
-  }
 
   if (!s.configured) return null
   const needLogin = !s.linked || s.phase === 'disconnected'
@@ -53,7 +45,7 @@ export default function DriveSection() {
         {s.linked && !needLogin && <Button icon="upload" onClick={() => void run(async () => { await syncNow(true); return null })} disabled={busy || s.phase === 'syncing'}>지금 동기화</Button>}
         {s.linked && <Button variant="quiet" onClick={() => void run(async () => { await disconnect(); return { tone: 'ok', text: '연결을 끊었습니다. 드라이브의 사본과 이 기기의 기록은 그대로 있습니다.' } })} disabled={busy}>연결 끊기</Button>}
       </div>
-      {message && <p className={`status-line is-${message.tone}`} role="status">{message.text}</p>}
+      <TaskResult message={message} />
     </Card>
   )
 }

@@ -28,6 +28,21 @@ export function applyTokens(el: HTMLElement, tokens: ThemeTokens): void {
 }
 
 /**
+ * 폰 주소창·상태 표시줄 색(`<meta name="theme-color">`)을 테마의 맨 위 색으로 바꾼다 (themes.ts `bar`).
+ * CSS 변수로는 못 바꾸는 값이라 태그를 직접 고친다. 태그가 없으면 만든다 — index.html의 값은 테마를 넣기 전에만 쓰인다.
+ * 설치한 앱의 매니페스트(theme_color)는 고정 파일이라 바꾸지 못한다 — 페이지가 뜨면 이 태그가 앞선다.
+ */
+export function applyBarColor(doc: Document, color: string): void {
+  let meta = doc.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
+  if (!meta) {
+    meta = doc.createElement('meta')
+    meta.name = 'theme-color'
+    doc.head.appendChild(meta)
+  }
+  meta.content = color
+}
+
+/**
  * 저장해 둔 테마 선택을 읽는다.
  * 사생활 보호 모드 등으로 localStorage가 막혀 있으면 기본값을 돌려준다 (에러를 전파하지 않는다).
  */
