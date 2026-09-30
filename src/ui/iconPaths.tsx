@@ -32,6 +32,8 @@ export const ICON_PATHS = {
   wave: <path d="M3 12h2M7 8v8M11 4v16M15 9v6M19 7v10M22 12h-1"/>,
   bird: <><path d="M3 14c3 0 5-1 7-4 1.5-2.5 4-4 7-3l4-1-3 3c0 5-4 9-9 9H5l2-3"/><circle cx="16.5" cy="9.5" r=".6"/></>,
   lock: <><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></>,
+  // 보호종(법정 보호 지위) 줄 — 개체 수 줄의 새(bird)와 나란히 놓여도 가려지게. 경고(alert)는 오류 띠의 모양이라 쓰지 않는다
+  shield: <path d="M12 3 5 6v5c0 4.5 3 8.3 7 10 4-1.7 7-5.5 7-10V6Z"/>,
   alert: <><path d="M12 3 2 20h20Z"/><path d="M12 10v5M12 17.5v.5"/></>,
   chevron: <path d="m9 6 6 6-6 6"/>,
   phone: <><rect x="7" y="2" width="10" height="20" rx="2.5"/><path d="M11 18.5h2"/></>,

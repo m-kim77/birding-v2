@@ -66,7 +66,7 @@ export default function RecordDetail({ id, onBack, onOpenSettings }: Props) {
             {/* 개체 수는 세었을 때만 — 안 셌으면 줄이 없다 (옛 기록 포함) */}
             {counted && <Fact icon="bird">{counted}</Fact>}
             {/* 보호종이면 법정 이름과 급 — 저장하지 않고 볼 때 국명으로 찾는다 (data/protectedSpecies.ts). 이름을 고치면 따라 바뀐다. 카드에는 급을 적지 않는다 */}
-            {guarded && <Fact icon="bird" sub={protectionBy(s.speciesKo)}>{guarded}</Fact>}
+            {guarded && <Fact icon="shield" sub={protectionBy(s.speciesKo)}>{guarded}</Fact>}
             {/* 보호종이면 보호종 줄 바로 아래에 위치 숨기기 스위치(꺼져 있으면 권하는 한 줄까지) — 사진 없이 기록은 저장 직후 화면(CardResult)을 건너뛰고 곧장 여기로 와서,
                 카드 보기를 열지 않으면 권유를 한 번도 못 본 채 핀이 지도에 올라간다. 켠 뒤에도 보인다 (끌 곳). 저절로 켜지 않는다. 위치가 없으면 스위치가 그리지 않는다.
                 수정 중에는 뺀다 — 수정 칸의 '저장'과 따로 바로 저장되는 칸이 한 화면에 섞이지 않게 */}
