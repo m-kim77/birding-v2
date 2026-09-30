@@ -37,6 +37,8 @@ test('normalizeSighting: 빈 칸은 기본값으로 채운다', () => {
   assert.equal(s.createdAt, s.capturedAt)
   assert.equal(s.updatedAt, s.capturedAt)
   assert.ok(!('verdict' in s) && !('cardStyle' in s) && !('dexNo' in s))
+  // 개체 수·사진 없음 칸이 없던 옛 기록은 없는 채로 — 1마리로 채우지 않고(세지 않음), 사진 있는 기록으로 읽는다
+  assert.ok(!('count' in s) && !('noPhoto' in s))
 })
 
 test('normalizeSighting: id나 읽을 수 있는 시각이 없으면 버린다', () => {
@@ -71,6 +73,18 @@ test('normalizeSighting: 판정의 근거·후보는 모양이 맞는 것만, re
   assert.ok(!('references' in v))
 })
 
+test('normalizeSighting: 개체 수·사진 없음은 맞는 값이면 그대로, 틀리면 뗀다 (작업 39)', () => {
+  const quick = { ...FULL, cropBox: null, detectorModel: null, count: 3, noPhoto: true }
+  assert.deepEqual(normalizeSighting(structuredClone(quick)), quick)
+  for (const count of ['3', 0, -2, 2.5, 1_000_000, null]) {
+    assert.ok(!('count' in normalizeSighting({ ...FULL, count })!), `count: ${String(count)}`)
+  }
+  // true가 아닌 값은 사진 있는 기록 — 받아들이면 사진 점검에서 빠져 사진 유실을 못 찾는다
+  for (const noPhoto of ['yes', 1, false, null]) {
+    assert.ok(!('noPhoto' in normalizeSighting({ ...FULL, noPhoto })!), `noPhoto: ${String(noPhoto)}`)
+  }
+})
+
 test('normalizeSighting: 모르는 키는 남긴다 (가산 확장)', () => {
   assert.equal((normalizeSighting({ ...FULL, futureKey: 1 }) as unknown as Record<string, unknown>).futureKey, 1)
 })
@@ -96,4 +110,13 @@ test('parseJournal: 옛 백업 모양(cardStyle·dexNo·references 없음, tier�
   assert.equal(parsed.skipped, 0)
   assert.equal(parsed.sightings[0].tier, 3)
   assert.ok(!('references' in parsed.sightings[0].verdict!))
+  assert.ok(!('count' in parsed.sightings[0]) && !('noPhoto' in parsed.sightings[0]))
+})
+
+test('buildJournal → parseJournal: 사진 없는 기록과 개체 수가 백업을 돌고 와도 남는다', () => {
+  const quick: Sighting = { ...FULL, id: 'q', cropBox: null, detectorModel: null, count: 12, noPhoto: true }
+  const parsed = parseJournal(JSON.stringify(buildJournal([quick, FULL], new Date('2026-09-01T00:00:00Z'))))
+  assert.equal(parsed.sightings[0].count, 12)
+  assert.equal(parsed.sightings[0].noPhoto, true)
+  assert.ok(!('count' in parsed.sightings[1]) && !('noPhoto' in parsed.sightings[1]))
 })

@@ -1,4 +1,6 @@
 import type { CardStyle, CardTier, IdentifyStatus, LocationSource, NormalizedBox, Reference, ShotInfo, Sighting, Stamp, Verdict } from '../types'
+// 확장자를 적는 이유: node --test가 이 파일을 직접 읽는다 (Vite는 어느 쪽이든 된다)
+import { countOf } from '../lib/count.ts'
 
 /**
  * 바깥에서 온 기록(백업 파일·기기 DB)을 화면이 믿고 쓸 수 있는 모양으로 맞춘다. 순수 함수다 (node --test로 검사한다).
@@ -43,11 +45,15 @@ export function normalizeSighting(raw: unknown): Sighting | null {
   setOrDrop(s, 'namedAt', speciesKo && isTime(raw.namedAt) ? raw.namedAt : undefined)
   // 옛 판이 저장한 도감 번호 — 쓰지 않지만 백업을 돌고 와도 남게 둔다 (가산 확장만, types.ts)
   setOrDrop(s, 'dexNo', Number.isInteger(raw.dexNo) && (raw.dexNo as number) > 0 ? raw.dexNo as number : undefined)
+  // 개체 수는 1 이상의 정수만 (lib/count.ts). 글자·0·소수는 떼어 '세지 않음'으로 읽는다 — 옛 기록은 키가 없는 채로 둔다
+  setOrDrop(s, 'count', countOf(raw.count))
+  // 사진 없는 기록은 true일 때만. 다른 값까지 받으면 사진 있는 기록이 사진 점검에서 빠져 사진 유실을 못 찾는다 (data/photoCheck.ts)
+  setOrDrop(s, 'noPhoto', raw.noPhoto === true ? true : undefined)
   return s
 }
 
 /** 값이 있으면 넣고, 없으면 키 자체를 지운다 (undefined 값을 남기지 않는다) */
-function setOrDrop<K extends 'cardStyle' | 'verdict' | 'namedAt' | 'dexNo'>(s: Sighting, key: K, value: Sighting[K] | undefined) {
+function setOrDrop<K extends 'cardStyle' | 'verdict' | 'namedAt' | 'dexNo' | 'count' | 'noPhoto'>(s: Sighting, key: K, value: Sighting[K] | undefined) {
   if (value === undefined) delete s[key]
   else s[key] = value
 }

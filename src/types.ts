@@ -104,7 +104,7 @@ export interface Sighting {
   /** 비어 있으면 "이름 미정" */
   speciesKo: string
   latin: string
-  /** 촬영 순간 (UTC ISO). 사진에 시각이 없으면 기록한 시각 */
+  /** 촬영 순간 (UTC ISO). 사진에 시각이 없으면 기록한 시각. 사진 없는 기록(`noPhoto`)은 사람이 적은 본 시각 */
   capturedAt: string
   /** '+09:00' — capturedAt과 합쳐 촬영지 시각을 복원한다. 모르면 null (브라우저 시간대로 표시) */
   capturedAtOffset: string | null
@@ -146,6 +146,16 @@ export interface Sighting {
    */
   dexNo?: number
   fromSound: boolean
+  /**
+   * 본 개체 수 — 1~999,999의 정수 (lib/count.ts). 키가 없으면 '세지 않음'이다 — 옛 기록에 1을 채우지 않는다.
+   * 어림·범위는 메모에 적는다. 기록 상세와 일지 목록에 보이고, 카드에는 적지 않는다 (카드 디자인은 하나로 고정).
+   */
+  count?: number
+  /**
+   * 사진 없이 남긴 기록 (망원경으로만 본 새 — record/QuickRecord). 키가 없으면 사진이 있는 기록이다. 사진 없는 기록만 true로 둔다.
+   * 사진이 있어야 하는 기록인지는 이 칸을 직접 보지 말고 `data/photoKey.ts expectsPhoto`에 묻는다 — 소리 기록(`fromSound`)도 사진이 없다.
+   */
+  noPhoto?: boolean
 }
 
 /** 사진 한 장의 세 가지 판. 'crop'은 잘라낸 적이 있을 때만 있다 */
