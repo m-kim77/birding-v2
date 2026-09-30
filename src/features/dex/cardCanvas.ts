@@ -2,7 +2,7 @@ import { dotDateOf } from '../../ui/when'
 import type { Sighting } from '../../types'
 import { CARD_BASE, CARD_FONTS, CARD_MARK } from './cardLook'
 import { styleOf } from './cardStyle'
-import { dexLabel, shotLine } from './cardText'
+import { cardName, cardPlace, dexLabel, shotLine } from './cardText'
 
 /** 내보내는 카드의 크기. 인스타그램 세로(4:5) 기준 */
 export const CARD_W = 1080
@@ -74,7 +74,7 @@ export function drawCardFront(ctx: CanvasRenderingContext2D, s: Sighting, dexNo:
   let y = PLATE.y + PLATE.h + 118
   ctx.fillStyle = CARD_BASE.ink
   ctx.font = `600 82px ${CARD_FONTS.name}`
-  ctx.fillText(s.speciesKo || '이름 미정', PAD, y)
+  ctx.fillText(cardName(s), PAD, y)
   if (s.latin) { y += 58; ctx.fillStyle = CARD_BASE.sub; ctx.font = `italic 400 50px ${CARD_FONTS.latin}`; ctx.fillText(s.latin, PAD, y) }
 
   const lineY = CARD_H - 124
@@ -84,7 +84,7 @@ export function drawCardFront(ctx: CanvasRenderingContext2D, s: Sighting, dexNo:
   // 위치를 숨긴 기록은 장소를 적지 않는다 (BirdCard와 같다) — 카드는 SNS로 퍼지는 물건이다
   ctx.font = `400 34px ${CARD_FONTS.body}`
   ctx.textAlign = 'right'
-  ctx.fillText(s.sensitive ? '위치 비공개' : s.place, CARD_W - PAD, lineY + 52, CARD_W / 2)
+  ctx.fillText(cardPlace(s), CARD_W - PAD, lineY + 52, CARD_W / 2)
   ctx.textAlign = 'left'
   const shot = shotLine(s)
   if (shot) { ctx.globalAlpha = 0.75; mono(ctx, shot, PAD, lineY + 98, 28, CARD_BASE.sub, 'left', '0.12em'); ctx.globalAlpha = 1 }
