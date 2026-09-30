@@ -3,7 +3,6 @@ import { useBackLayer } from '../../app/useNav'
 import { useJournal } from '../../data/journal'
 import { expectsPhoto } from '../../data/photoKey'
 import { countText } from '../../lib/count'
-import { formatShot } from '../../lib/format'
 import { Card, Fact, ScreenHead } from '../../ui/bits'
 import Button from '../../ui/Button'
 import SightingPhoto from '../../ui/SightingPhoto'
@@ -16,6 +15,7 @@ import CardStylePicker from '../dex/CardStylePicker'
 import DetailIdentify from './DetailIdentify'
 import HideLocationSwitch from './HideLocationSwitch'
 import RecordEdit from './RecordEdit'
+import { shotFact } from './shotEdit'
 import VerdictDetails from '../identify/VerdictDetails'
 import { verdictHeading } from '../identify/verdictText'
 import './detail.css'
@@ -49,7 +49,7 @@ export default function RecordDetail({ id, onBack, onOpenSettings }: Props) {
 
   const photo = expectsPhoto(s)
   const counted = countText(s.count)
-  const shot = formatShot({ focal_length: s.shot.focalLength, f_number: s.shot.fNumber, exposure_time: s.shot.exposureTime, iso: s.shot.iso })
+  const shot = shotFact(s)
   return (
     <div className="screen screen-detail">
       <ScreenHead title={s.speciesKo || '이름 미정'} sub={s.latin} onBack={onBack}
@@ -66,7 +66,8 @@ export default function RecordDetail({ id, onBack, onOpenSettings }: Props) {
             <Fact icon="pin" sub={SOURCE_LABEL[s.locationSource]}>{s.place || (s.lat !== null ? `${s.lat.toFixed(4)}, ${s.lng!.toFixed(4)}` : '위치 없음')}</Fact>
             {/* 개체 수는 세었을 때만 — 안 셌으면 줄이 없다 (옛 기록 포함) */}
             {counted && <Fact icon="bird">{counted}</Fact>}
-            {shot && <Fact icon="aperture">{[s.shot.cameraModel, shot].filter(Boolean).join(' · ')}</Fact>}
+            {/* 카메라·렌즈만 있어도 줄을 그린다. 렌즈 이름과 '직접 고친' 표시는 아랫줄 — 고친 값이 사진에서 읽은 값처럼 보이면 안 된다 (shotFact) */}
+            {shot && <Fact icon="aperture" sub={shot.sub}>{shot.main}</Fact>}
           </Card>
           {editing ? (
             // '수정'을 누를 때마다 새로 그려져 그때의 기록으로 칸을 채운다 — 취소하면 고치던 값은 버려진다

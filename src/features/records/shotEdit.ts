@@ -1,11 +1,11 @@
 /**
- * 저장한 기록의 촬영 정보(`Sighting.shot`)를 '수정' 칸에서 고치는 규칙. 순수 함수다 (node --test로 검사한다).
- * editPatch와 같은 원칙이다 — **바뀐 것만 넣고**, 손대지 않은 칸은 저장된 값을 그대로 두고, 읽을 수 없는 칸이 있으면 저장을 막는다.
+ * 저장한 기록의 촬영 정보(`Sighting.shot`) — '수정' 칸에서 고치는 규칙과, 고친 값과 그 표시를 보여 주는 상세의 한 줄. 순수 함수다 (node --test로 검사한다).
+ * 고치기는 editPatch와 같은 원칙이다 — **바뀐 것만 넣고**, 손대지 않은 칸은 저장된 값을 그대로 두고, 읽을 수 없는 칸이 있으면 저장을 막는다.
  * lib/format.ts만 부른다 — 기록 상세와 함께 첫 화면 묶음에 들어가므로 lib/exif.ts(→ 사진 정보 라이브러리)를 끌어오지 않는다.
  */
 import type { ShotInfo, Sighting } from '../../types'
 // 확장자를 적는 이유: node --test가 이 파일을 직접 읽는다 (Vite는 어느 쪽이든 된다)
-import { formatExposure, parseExposure } from '../../lib/format.ts'
+import { formatExposure, formatShot, parseExposure } from '../../lib/format.ts'
 
 /** 수정 칸의 여섯 칸 — 모두 입력한 글자 그대로 (앞뒤 공백은 readShotForm이 뗀다) */
 export interface ShotForm {
@@ -120,4 +120,21 @@ export function shotPatch(s: Sighting, form: ShotForm): Partial<Sighting> | null
   const { shot, bad } = readShotForm(s.shot, form)
   if (bad.length > 0) return null
   return sameShot(shot, s.shot) ? {} : { shot, shotEdited: true }
+}
+
+/**
+ * 기록 상세(records/RecordDetail)의 촬영 정보 한 줄. 여섯 항목 중 하나라도 보일 것이 있으면 줄을 그린다 — 카메라·렌즈만 적은 기록도 보인다.
+ * - 윗줄(main): `카메라 · 400mm · f/6.3 · 1/200s · ISO 1000` — 있는 것만 (숫자는 formatShot — 0 이하는 빠진다)
+ * - 아랫줄(sub): 렌즈 이름과, 직접 고친 기록(`shotEdited`)이면 '직접 고친 촬영 정보입니다'. 없으면 ''.
+ *   윗줄이 비면(렌즈만 있는 기록) 렌즈 이름이 윗줄로 올라간다.
+ * 보일 것이 하나도 없으면 null (줄을 그리지 않는다 — 고친 표시만 있어도 그렇다). 카드의 한 줄(dex/cardText.ts)과 기록 화면의 줄(record/RecordFacts)은 따로다.
+ */
+export function shotFact(s: Pick<Sighting, 'shot' | 'shotEdited'>): { main: string; sub: string } | null {
+  const { shot } = s
+  const settings = formatShot({ focal_length: shot.focalLength, f_number: shot.fNumber, exposure_time: shot.exposureTime, iso: shot.iso })
+  const lens = shot.lensModel?.trim() ?? ''
+  const top = [shot.cameraModel?.trim(), settings].filter(Boolean).join(' · ')
+  const main = top || lens
+  if (!main) return null
+  return { main, sub: [top ? lens : '', s.shotEdited ? '직접 고친 촬영 정보입니다' : ''].filter(Boolean).join(' · ') }
 }

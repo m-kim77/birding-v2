@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readShotForm, shotFormOf, shotPatch, type ShotField } from '../src/features/records/shotEdit.ts'
+import { readShotForm, shotFact, shotFormOf, shotPatch, type ShotField } from '../src/features/records/shotEdit.ts'
 import type { ShotInfo, Sighting } from '../src/types.ts'
 
 /** 촬영 정보 여섯이 다 든 기록 하나. 카메라·렌즈 이름은 지어낸 것이다. 셔터 0.769초는 표기('1/1.3s')를 되읽으면 달라지는 값이다 */
@@ -113,4 +113,21 @@ test('저장된 값이 틀린 모양(ISO 0)이어도 손대지 않았으면 저�
   const s = sighting({ shot: { iso: 0, exposureTime: -1 } })
   const patch = shotPatch(s, { ...shotFormOf(s.shot), lens: 'LENS' })
   assert.deepEqual(patch, { shot: { lensModel: 'LENS', iso: 0, exposureTime: -1 }, shotEdited: true })
+})
+
+test('shotFact: 윗줄은 카메라와 숫자, 아랫줄은 렌즈 이름', () => {
+  assert.deepEqual(shotFact({ shot: SHOT }), { main: 'CAM · 400mm · f/6.3 · 1/1.3s · ISO 1000', sub: 'LENS' })
+  assert.deepEqual(shotFact({ shot: SHOT, shotEdited: true }), { main: 'CAM · 400mm · f/6.3 · 1/1.3s · ISO 1000', sub: 'LENS · 직접 고친 촬영 정보입니다' })
+})
+
+test('shotFact: 카메라만·렌즈만 있어도 줄이 있다 — 렌즈만이면 렌즈 이름이 윗줄로', () => {
+  assert.deepEqual(shotFact({ shot: { cameraModel: 'CAM' } }), { main: 'CAM', sub: '' })
+  assert.deepEqual(shotFact({ shot: { lensModel: 'LENS' } }), { main: 'LENS', sub: '' })
+  assert.deepEqual(shotFact({ shot: { lensModel: 'LENS' }, shotEdited: true }), { main: 'LENS', sub: '직접 고친 촬영 정보입니다' })
+})
+
+test('shotFact: 보일 것이 없으면 null — 고친 표시만 있거나 틀린 숫자(0)만 있어도', () => {
+  assert.equal(shotFact({ shot: {} }), null)
+  assert.equal(shotFact({ shot: {}, shotEdited: true }), null)
+  assert.equal(shotFact({ shot: { iso: 0, cameraModel: '  ' } }), null)
 })
