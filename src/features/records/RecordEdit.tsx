@@ -25,7 +25,7 @@ interface Props {
 }
 
 /**
- * 기록 고치기 — 새 이름 · 촬영 시각 · 위치 · 개체 수 · 촬영 정보(접힌 칸) · 메모, 그리고 삭제. 기록 상세의 '수정'이 연다.
+ * 기록 고치기 — 새 이름 · 촬영 시각 · 위치 · 개체 수 · 촬영 정보(접힌 칸, 사진 있는 기록만) · 메모, 그리고 삭제. 기록 상세의 '수정'이 연다.
  * '수정'을 누를 때마다 새로 그려져 **그 순간의 기록**으로 칸을 채운다 — 화면을 열 때 한 번만 채우면 그 뒤 상세에서 AI가 붙인 이름을
  * 모른 채 옛 값으로 덮어쓴다 (작업 6). '취소'하면 고치던 값(위치 시트에서 고른 위치 포함)은 버려진다.
  * 저장은 바뀐 것만 넣는다 (editPatch · shotPatch). 촬영 시각이나 촬영 정보 칸을 읽을 수 없으면 저장을 막고, 저장·삭제가 실패하면 칸 안에 이유를 적고 머문다.
@@ -76,8 +76,8 @@ export default function RecordEdit({ sighting: s, onClose, onDeleted }: Props) {
         <div className="field"><span>위치</span><PlaceRow place={loc.place} onClick={() => setPickingPlace(true)} /></div>
         {staleTrack && <p className="status-line is-warn">이 위치는 고치기 전 시각으로 이동 기록에서 찾은 것입니다. 위치도 맞는지 봐 주세요.</p>}
         <CountField value={count} onChange={setCount} />
-        {/* 사진에 촬영 정보가 없거나 틀린 기록을 고칠 유일한 길 — 거의 안 쓰므로 접어 둔다 */}
-        <ShotFields value={shot} bad={readShotForm(s.shot, shot).bad} onChange={setShot} />
+        {/* 사진에 촬영 정보가 없거나 틀린 기록을 고칠 유일한 길 — 거의 안 쓰므로 접어 둔다. 사진 없는 기록(빠른 기록·소리)에는 고칠 사진 정보가 없다 */}
+        {expectsPhoto(s) && <ShotFields value={shot} bad={readShotForm(s.shot, shot).bad} onChange={setShot} />}
         <label className="field"><span>메모</span><textarea rows={4} value={note} onChange={(e) => setNote(e.target.value)} /></label>
         <div className="row-actions">
           <Button variant="primary" icon="check" onClick={() => void save()} disabled={!patch}>저장</Button>
