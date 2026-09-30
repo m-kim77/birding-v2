@@ -9,7 +9,7 @@ function verdict(over: Partial<Verdict> = {}): Verdict {
 }
 
 /** 기록 하나를 만든다. 이름과 판정(과 개체 수)만 바꿔 본다 */
-function build(name: string, v: Verdict | null, over: { count?: number } = {}) {
+function build(name: string, v: Verdict | null, over: { count?: number; noPhoto?: boolean } = {}) {
   return buildSighting({
     name, note: '', exif: {}, place: { lat: null, lng: null, name: '', source: 'none' }, crop: null, verdict: v,
     cardStyle: { accent: '#000000', glow: false }, now: new Date('2026-09-27T00:00:00Z'), ...over,
@@ -54,4 +54,14 @@ test('개체 수는 세었을 때만 키가 생긴다 — 안 셌으면 키가 �
   assert.ok(!('count' in build('박새', null)))
   assert.equal(build('박새', null, { count: 3 }).count, 3)
   assert.ok(!('count' in build('박새', null, { count: 0 })), '개체 수로 읽히지 않는 값은 넣지 않는다')
+})
+
+test('사진 없는 기록만 noPhoto 키가 생긴다 — 사진 기록은 키가 없다 (작업 39)', () => {
+  assert.ok(!('noPhoto' in build('박새', null)))
+  assert.ok(!('noPhoto' in build('박새', null, { noPhoto: false })))
+  const quick = build('박새', null, { noPhoto: true, count: 2 })
+  assert.equal(quick.noPhoto, true)
+  assert.equal(quick.count, 2)
+  assert.equal(quick.cropBox, null)
+  assert.deepEqual(quick.shot, {})
 })

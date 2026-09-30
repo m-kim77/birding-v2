@@ -10,6 +10,8 @@ export type Route =
   | { name: 'record' }
   /** 새소리 듣기 (작업 32). 기록을 만들지 않는다 — 들어오는 길은 새 기록 첫 화면의 버튼 */
   | { name: 'sound' }
+  /** 사진 없이 기록 (작업 39). 들어오는 길은 새 기록 첫 화면의 버튼이고, 그 칸을 바꿔 끼운다 (App.tsx) */
+  | { name: 'quick' }
 
 export type TabName = 'records' | 'dex' | 'map' | 'settings'
 
@@ -29,12 +31,12 @@ export const TABS: Array<{ name: TabName; label: string; icon: IconName }> = [
 /** 상세·기록하기처럼 탭에 없는 화면에서 어느 탭을 켜 둘지 */
 export function activeTab(route: Route): TabName | null {
   if (route.name === 'detail') return 'records'
-  if (route.name === 'record' || route.name === 'sound') return null
+  if (route.name === 'record' || route.name === 'sound' || route.name === 'quick') return null
   return route.name
 }
 
 /** id 없이 이름만으로 되는 화면들 */
-const PLAIN_ROUTES = new Set(['records', 'dex', 'map', 'settings', 'record', 'sound'])
+const PLAIN_ROUTES = new Set(['records', 'dex', 'map', 'settings', 'record', 'sound', 'quick'])
 
 /**
  * 방문 기록에서 꺼낸 값이 이 앱의 화면 주소인지. 새로고침·뒤로가기 뒤에 app/navPlan.ts가 칸을 읽을 때 쓴다.

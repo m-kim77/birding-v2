@@ -26,7 +26,7 @@ export function FactsCard({ photo, place, placeNote, placeHint, onEditPlace }: {
 
 /**
  * 위치 한 줄 — 줄 전체가 위치 시트를 여는 버튼이다. 없거나 틀렸을 때만 누른다.
- * 기록 화면(FactsCard)과 저장한 기록의 수정 칸(records/RecordEdit)이 같이 쓴다. `note`는 출처 옆에 붙는 근거(이동 기록의 앞뒤 점 간격).
+ * 기록 화면(FactsCard)·사진 없이 기록(QuickRecord)·저장한 기록의 수정 칸(records/RecordEdit)이 같이 쓴다. `note`는 출처 옆에 붙는 근거(이동 기록의 앞뒤 점 간격).
  */
 export function PlaceRow({ place, note, onClick }: { place: PlaceValue; note?: string; onClick: () => void }) {
   const sub = [SOURCE_LABEL[place.source], note].filter(Boolean).join(' · ')
@@ -40,7 +40,7 @@ export function PlaceRow({ place, note, onClick }: { place: PlaceValue; note?: s
 
 /**
  * 개체 수 칸. 비워도 된다 — 비우면 '세지 않음'. 1 이상의 정수가 아닌 값을 적으면 칸 밑에 알린다 — 그대로 저장하면 개체 수 없이 저장된다 (lib/count.ts).
- * 새 기록의 메모 카드(NoteCard)와 저장한 기록의 수정 칸(records/RecordEdit)이 같이 쓴다. 어림·범위는 메모에 적는다.
+ * 새 기록의 메모 카드(NoteCard)·사진 없이 기록(QuickRecord)·저장한 기록의 수정 칸(records/RecordEdit)이 같이 쓴다. 어림·범위는 메모에 적는다.
  */
 export function CountField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (

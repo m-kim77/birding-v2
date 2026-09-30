@@ -28,6 +28,8 @@ interface Props {
   onOpenSettings: () => void
   /** 첫 화면의 '새소리 듣기'가 가는 곳 */
   onOpenSound: () => void
+  /** 첫 화면의 '사진 없이 기록'이 가는 곳 */
+  onOpenQuick: () => void
 }
 
 /** 상자 둘이 같은 영역인지 (참조가 아니라 값으로) */
@@ -38,7 +40,7 @@ const sameBox = (a: NormalizedBox | null, b: NormalizedBox | null) => JSON.strin
  * 사용자가 직접 적는 것은 이름·개체 수·메모뿐이고, 모두 비워도 저장된다. (뺀 버튼과 이유: ref_design/design_v01/BUTTONS.md)
  * 쓰던 것은 초안으로 남는다 — 뒤로 가거나 설정에 다녀와도 다음에 "이어 쓰기"로 돌아온다 (useRecordFields).
  */
-export default function RecordFlow({ onCancel, onDone, onOpenSettings, onOpenSound }: Props) {
+export default function RecordFlow({ onCancel, onDone, onOpenSettings, onOpenSound, onOpenQuick }: Props) {
   const journal = useJournal()
   const existing = journal.sightings ?? []
   const picker = usePhotoPick()
@@ -74,7 +76,7 @@ export default function RecordFlow({ onCancel, onDone, onOpenSettings, onOpenSou
   // 열기 실패 안내는 사진이 없을 때도, 바꾸다 실패했을 때도 같은 것을 쓴다
   const pickError = picker.error ? <Banner tone="err" icon="alert">{picker.error}</Banner> : null
   if (!photo) {
-    return <PhotoStart onBack={onCancel} onPick={() => fileInput.current?.click()} input={input} draft={draft.pending}
+    return <PhotoStart onBack={onCancel} onPick={() => fileInput.current?.click()} onQuick={onOpenQuick} input={input} draft={draft.pending}
       onResume={() => void resume()} onDiscard={() => void draft.clear()} error={pickError} onSound={soundEntryOn ? onOpenSound : undefined} />
   }
 
