@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useBackLayer } from '../../app/useNav'
 import { useJournal } from '../../data/journal'
+import { countText } from '../../lib/count'
 import { formatShot } from '../../lib/format'
 import { Card, Fact, ScreenHead } from '../../ui/bits'
 import Button from '../../ui/Button'
@@ -29,7 +30,7 @@ interface Props {
 }
 
 /**
- * 기록 상세. 읽는 화면이라 동작은 둘뿐이다 — 고치기('수정' → RecordEdit: 새 이름·촬영 시각·위치·메모, 그 안에 삭제)와 카드 보기.
+ * 기록 상세. 읽는 화면이라 동작은 둘뿐이다 — 고치기('수정' → RecordEdit: 새 이름·촬영 시각·위치·개체 수·메모, 그 안에 삭제)와 카드 보기.
  * 삭제를 이 화면에 꺼내 두지 않은 이유: 되돌릴 수 없는 동작이 읽는 화면의 엄지 닿는 곳에 있으면 안 된다.
  */
 export default function RecordDetail({ id, onBack, onOpenSettings }: Props) {
@@ -42,6 +43,7 @@ export default function RecordDetail({ id, onBack, onOpenSettings }: Props) {
 
   if (!s) return <div className="screen"><ScreenHead title="기록을 찾을 수 없습니다" onBack={onBack} /></div>
 
+  const counted = countText(s.count)
   const shot = formatShot({ focal_length: s.shot.focalLength, f_number: s.shot.fNumber, exposure_time: s.shot.exposureTime, iso: s.shot.iso })
   return (
     <div className="screen screen-detail">
@@ -55,6 +57,8 @@ export default function RecordDetail({ id, onBack, onOpenSettings }: Props) {
             <Fact icon="clock" sub={s.capturedAt === s.createdAt ? '사진에 촬영 시각이 없어 기록한 시각입니다' : undefined}>{dateTimeOf(s)}</Fact>
             {/* 위치가 없어도 줄을 그린다 — 없다는 것이 보여야 '수정'에서 채울 생각을 한다 */}
             <Fact icon="pin" sub={SOURCE_LABEL[s.locationSource]}>{s.place || (s.lat !== null ? `${s.lat.toFixed(4)}, ${s.lng!.toFixed(4)}` : '위치 없음')}</Fact>
+            {/* 개체 수는 세었을 때만 — 안 셌으면 줄이 없다 (옛 기록 포함) */}
+            {counted && <Fact icon="bird">{counted}</Fact>}
             {shot && <Fact icon="aperture">{[s.shot.cameraModel, shot].filter(Boolean).join(' · ')}</Fact>}
           </Card>
           {editing ? (

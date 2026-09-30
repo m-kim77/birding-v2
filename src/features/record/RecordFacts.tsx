@@ -40,7 +40,7 @@ export function PlaceRow({ place, note, onClick }: { place: PlaceValue; note?: s
 
 /**
  * 개체 수 칸. 비워도 된다 — 비우면 '세지 않음'. 1 이상의 정수가 아닌 값을 적으면 칸 밑에 알린다 — 그대로 저장하면 개체 수 없이 저장된다 (lib/count.ts).
- * 새 기록의 메모 카드(NoteCard)가 쓴다. 어림·범위는 메모에 적는다.
+ * 새 기록의 메모 카드(NoteCard)와 저장한 기록의 수정 칸(records/RecordEdit)이 같이 쓴다. 어림·범위는 메모에 적는다.
  */
 export function CountField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (

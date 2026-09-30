@@ -103,3 +103,20 @@ test('placeBefore: 이 기록보다 먼저(같은 순간 포함) 찍은 기록 �
   assert.equal(placeBefore(list, 'self', '2026-09-19T00:00:00.000Z'), null)
   assert.equal(placeBefore(list, 'self', 'garbage'), null)
 })
+
+test('개체 수: 안 건드리면 빈 변경(세지 않은 기록 포함), 고치면 그 수만, 비우면 떼어 낸다 (작업 39)', () => {
+  const none = sighting()
+  assert.equal(formOf(none).count, '')
+  assert.deepEqual(editPatch(none, formOf(none), NOW), {}, '빈칸과 키 없음은 같은 것 — 저장만 눌러도 updatedAt이 바뀌면 안 된다')
+  assert.deepEqual(editPatch(none, { ...formOf(none), count: '4' }, NOW), { count: 4 })
+  const three = sighting({ count: 3 })
+  assert.equal(formOf(three).count, '3')
+  assert.deepEqual(editPatch(three, formOf(three), NOW), {})
+  assert.deepEqual(editPatch(three, { ...formOf(three), count: ' 3 ' }, NOW), {}, '앞뒤 공백만 달라도 같은 수')
+  assert.deepEqual(editPatch(three, { ...formOf(three), count: '12' }, NOW), { count: 12 })
+  const cleared = editPatch(three, { ...formOf(three), count: '' }, NOW)
+  assert.deepEqual(cleared, { count: undefined })
+  // 떼는 것은 키를 undefined로 덮어서다 — 저장소가 {...기록, ...변경}으로 합친다
+  assert.ok(cleared && 'count' in cleared)
+  assert.deepEqual(editPatch(three, { ...formOf(three), count: '2.5' }, NOW), { count: undefined }, '개체 수로 읽히지 않으면 세지 않음')
+})

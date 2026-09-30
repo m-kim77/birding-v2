@@ -4,7 +4,7 @@ import { Card } from '../../ui/bits'
 import Button from '../../ui/Button'
 import type { Sighting } from '../../types'
 import { EVIDENCE_LOSS_WARNING } from '../identify/verdictText'
-import { PlaceRow } from '../record/RecordFacts'
+import { CountField, PlaceRow } from '../record/RecordFacts'
 import { usePlaceValue } from '../record/usePlace'
 import DeleteConfirm from './DeleteConfirm'
 import { editPatch, formOf, placeBefore } from './editPatch'
@@ -22,7 +22,7 @@ interface Props {
 }
 
 /**
- * 기록 고치기 — 새 이름 · 촬영 시각 · 위치 · 메모, 그리고 삭제. 기록 상세의 '수정'이 연다.
+ * 기록 고치기 — 새 이름 · 촬영 시각 · 위치 · 개체 수 · 메모, 그리고 삭제. 기록 상세의 '수정'이 연다.
  * '수정'을 누를 때마다 새로 그려져 **그 순간의 기록**으로 칸을 채운다 — 화면을 열 때 한 번만 채우면 그 뒤 상세에서 AI가 붙인 이름을
  * 모른 채 옛 값으로 덮어쓴다 (작업 6). '취소'하면 고치던 값(위치 시트에서 고른 위치 포함)은 버려진다.
  * 저장은 바뀐 것만 넣는다 (editPatch). 촬영 시각을 읽을 수 없으면 저장을 막고, 저장·삭제가 실패하면 칸 안에 이유를 적고 머문다.
@@ -31,13 +31,14 @@ export default function RecordEdit({ sighting: s, onClose, onDeleted }: Props) {
   const { sightings, update } = useJournal()
   const [start] = useState(() => formOf(s))
   const [name, setName] = useState(start.name)
+  const [count, setCount] = useState(start.count)
   const [time, setTime] = useState(start.time)
   const [note, setNote] = useState(start.note)
   const loc = usePlaceValue(start.place)
   const [pickingPlace, setPickingPlace] = useState(false)
   const [error, setError] = useState('')
 
-  const patch = editPatch(s, { name, note, time, place: loc.place }, new Date())
+  const patch = editPatch(s, { name, count, note, time, place: loc.place }, new Date())
   // 이동 기록에서 온 위치는 고치기 전 시각으로 찾은 것이다 — 시각만 고치면 둘이 어긋난다 (다시 찾지는 않는다 — WORK_ORDERS 작업 12)
   const staleTrack = patch?.capturedAt !== undefined && patch.locationSource === undefined && s.locationSource === 'tracklog'
 
@@ -65,6 +66,7 @@ export default function RecordEdit({ sighting: s, onClose, onDeleted }: Props) {
         {/* 위치 줄: 위치가 없거나 틀린 기록을 고칠 유일한 길 — 기록 화면과 같은 한 줄, 같은 시트다 */}
         <div className="field"><span>위치</span><PlaceRow place={loc.place} onClick={() => setPickingPlace(true)} /></div>
         {staleTrack && <p className="status-line is-warn">이 위치는 고치기 전 시각으로 이동 기록에서 찾은 것입니다. 위치도 맞는지 봐 주세요.</p>}
+        <CountField value={count} onChange={setCount} />
         <label className="field"><span>메모</span><textarea rows={4} value={note} onChange={(e) => setNote(e.target.value)} /></label>
         <div className="row-actions">
           <Button variant="primary" icon="check" onClick={() => void save()} disabled={!patch}>저장</Button>
