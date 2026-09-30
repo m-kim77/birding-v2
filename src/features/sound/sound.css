@@ -1,0 +1,27 @@
+/* 새소리 듣기. 색·모서리는 전부 토큰으로 받는다 */
+.screen-sound { max-width: 760px; }
+.sound-start { display: grid; justify-items: center; gap: var(--sp-4); padding-top: var(--sp-5); text-align: center; }
+.sound-start .display { font-size: 20px; }
+.sound-start .banner, .sound-start .status-line { width: 100%; text-align: left; }
+.rec-button { width: 132px; height: 132px; border: 0; border-radius: 50%; background: var(--primary); color: var(--on-primary); display: grid; place-items: center; box-shadow: var(--card-shadow), 0 0 0 10px var(--bg-surface); }
+
+.sound-live { display: grid; gap: var(--sp-3); justify-items: center; text-align: center; }
+.sound-live .progress, .sound-live .status-line { width: 100%; }
+.rec-clock { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+/* 마이크 소리 크기. 진행률 막대와 같은 모양이지만 빨리 움직여야 해서 따로 둔다 */
+.meter { width: 100%; height: 12px; border-radius: 6px; background: var(--bg-surface); overflow: hidden; }
+.meter-fill { height: 100%; background: var(--primary); transition: width 0.12s linear; }
+@media (prefers-reduced-motion: reduce) { .meter-fill { transition: none; } }
+
+.sound-summary { font-weight: 700; color: var(--text-2); overflow-wrap: anywhere; }
+.heard-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2); }
+.heard {
+  min-height: 64px; display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-2) var(--sp-4); color: var(--text-1);
+  background: var(--bg-card); border: var(--card-border-width) solid var(--card-border-color); border-radius: var(--radius-card);
+}
+.heard-name { flex: 1; min-width: 0; display: grid; }
+.heard-name strong { font-size: 18px; overflow-wrap: anywhere; }
+.heard-name em { color: var(--text-3); font-size: 13px; }
+.heard-name small { color: var(--text-3); font-size: 13px; font-variant-numeric: tabular-nums; }
+.heard-side { flex: none; display: grid; justify-items: end; gap: 2px; }
+.heard-score { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-2); }
