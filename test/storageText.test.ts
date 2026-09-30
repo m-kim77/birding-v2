@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { NEAR_QUOTA, bytesText, missingKindsText, usageLine } from '../src/features/settings/storageText.ts'
+import { NEAR_QUOTA, bytesText, missingKindsText, missingRows, usageLine } from '../src/features/settings/storageText.ts'
+import type { Sighting } from '../src/types.ts'
 
 const KB = 1024
 const MB = KB * 1024
@@ -46,4 +47,38 @@ test('missingKindsText: 무엇이 없는지 쉬운 말로', () => {
   assert.equal(missingKindsText(['full']), '큰 사진 없음')
   assert.equal(missingKindsText(['thumb']), '목록 사진 없음')
   assert.equal(missingKindsText([]), '')
+})
+
+/** 검사에 필요한 값만 채운 기록 */
+function sighting(id: string, capturedAt: string): Sighting {
+  return { id, capturedAt } as Sighting
+}
+
+test('missingRows: 최신 촬영부터 — 점검이 주는 순서(id 순)와 상관없다', () => {
+  const sightings = [sighting('a', '2026-09-01T00:00:00.000Z'), sighting('b', '2026-09-03T00:00:00.000Z'), sighting('c', '2026-09-02T00:00:00.000Z')]
+  const rows = missingRows([{ id: 'a', kinds: ['full'] }, { id: 'b', kinds: ['thumb'] }, { id: 'c', kinds: ['full', 'thumb'] }], sightings)
+  assert.deepEqual(rows.map((r) => r.s.id), ['b', 'c', 'a'])
+})
+
+test('missingRows: 없는 판은 점검이 준 그대로, 기록은 화면 쪽 것을 쓴다', () => {
+  const s = sighting('a', '2026-09-01T00:00:00.000Z')
+  const [row] = missingRows([{ id: 'a', kinds: ['thumb'] }], [s])
+  assert.equal(row.s, s)
+  assert.deepEqual(row.kinds, ['thumb'])
+})
+
+test('missingRows: 화면 기록에 없는 id는 줄로 그리지 않는다 (점검과 화면 상태가 잠깐 어긋나도)', () => {
+  const rows = missingRows([{ id: 'gone', kinds: ['full'] }, { id: 'a', kinds: ['full'] }], [sighting('a', '2026-09-01T00:00:00.000Z')])
+  assert.deepEqual(rows.map((r) => r.s.id), ['a'])
+})
+
+test('missingRows: 사진이 빠진 기록이 없거나 기록이 하나도 없으면 빈 목록', () => {
+  assert.deepEqual(missingRows([], [sighting('a', '2026-09-01T00:00:00.000Z')]), [])
+  assert.deepEqual(missingRows([{ id: 'a', kinds: ['full'] }], []), [])
+})
+
+test('missingRows: 받은 점검 결과의 순서를 바꾸지 않는다 (입력을 제자리에서 정렬하지 않는다)', () => {
+  const missing = [{ id: 'a', kinds: ['full' as const] }, { id: 'b', kinds: ['full' as const] }]
+  missingRows(missing, [sighting('a', '2026-09-01T00:00:00.000Z'), sighting('b', '2026-09-02T00:00:00.000Z')])
+  assert.deepEqual(missing.map((m) => m.id), ['a', 'b'])
 })
