@@ -1,34 +1,11 @@
 import { useState } from 'react'
 import { Card } from '../../ui/bits'
 import Button from '../../ui/Button'
-import { loadStoredKey, saveOwnKey, setOwnKeyEnabled, type OwnKey } from '../identify/connection'
+import { checkConnection, loadStoredKey, saveOwnKey, setOwnKeyEnabled, type OwnKey } from '../identify/connection'
 import TaskResult from './TaskResult'
-import { useTask, type TaskMessage } from './useTask'
+import { useTask } from './useTask'
 
 const EMPTY: OwnKey = { baseUrl: 'https://api.openai.com/v1', apiKey: '', model: '' }
-
-/**
- * 연결을 확인한다: 그 서비스의 모델 목록을 읽어 본다. 키가 맞으면 목록이 오고, 고른 모델이 거기 있는지도 본다.
- * 몇 분 걸리는 판정이 끝에 가서 "키가 틀렸습니다"로 실패하지 않게 하려는 것이다.
- * **던지는 것은 둘뿐이다** — 주소에 닿지 못함, 키가 틀림(401·403). 그때는 저장하지 않는다.
- * 그 밖의 실패(목록을 안 주는 서비스, 잠깐의 5xx, 목록에 없는 모델 이름)는 경고 문구와 함께 **저장은 한다** — 확인이 안 됐을 뿐 키가 틀린 것은 아니다.
- */
-async function checkConnection(own: OwnKey): Promise<TaskMessage> {
-  let res: Response
-  try { res = await fetch(`${own.baseUrl.replace(/\/$/, '')}/models`, { headers: { authorization: `Bearer ${own.apiKey}` } }) } catch {
-    // 브라우저에서 직접 부르므로 오타·오프라인·그 서비스의 CORS 차단이 전부 여기로 온다 — 어느 쪽인지 앱은 모른다
-    throw new Error('주소에 닿지 못했습니다 — 주소 오타이거나, 그 서비스가 브라우저에서 직접 부르는 것을 막고 있을 수 있습니다.')
-  }
-  if (res.status === 401 || res.status === 403) throw new Error('키가 맞지 않습니다.')
-  if (!res.ok) return { tone: 'warn', text: `모델 목록을 확인하지 못했습니다 (${res.status}). 키는 저장했습니다 — 판정이 안 되면 주소와 모델 이름을 확인해 주세요.` }
-  let body: { data?: Array<{ id: string }> }
-  try { body = (await res.json()) as typeof body } catch {
-    return { tone: 'warn', text: '그 주소는 모델 목록 대신 다른 것을 돌려줍니다. 키는 저장했지만, OpenAI 호환 API 주소(…/v1)인지 확인해 주세요.' }
-  }
-  const ids = (body.data ?? []).map((m) => m.id)
-  if (ids.length && !ids.includes(own.model)) return { tone: 'warn', text: `연결은 됐지만 "${own.model}" 모델이 목록에 없습니다. 키는 저장했습니다 — 판정이 안 되면 모델 이름을 확인해 주세요.` }
-  return { tone: 'ok', text: '연결됐습니다. 이제 이 키로 판정합니다.' }
-}
 
 /**
  * AI 종 판정을 누가 맡는지. 기본 제공 AI(무료, 쉬는 시간이 있다) 또는 내 API 키(요금은 그 서비스에 직접).
