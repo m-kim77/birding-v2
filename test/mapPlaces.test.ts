@@ -82,8 +82,8 @@ test('같은 순간을 다른 글자로 적었어도 id가 앞선 기록이 대�
   assert.equal(groupPlaces([a, b])[0].name, '가 곳')
 })
 
-test("대표 기록의 장소 이름이 비면 핀 이름은 '이름 없는 장소'", () => {
-  assert.equal(groupPlaces([sighting('a', { place: '' })])[0].name, '이름 없는 장소')
+test("대표 기록의 장소 이름이 비면 핀 이름은 '장소 이름 없음' — 일지의 장소 고르개와 같은 말", () => {
+  assert.equal(groupPlaces([sighting('a', { place: '' })])[0].name, '장소 이름 없음')
 })
 
 test('hiddenCount: 좌표가 있는데 숨긴 기록만 센다', () => {

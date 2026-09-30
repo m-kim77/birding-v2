@@ -5,6 +5,7 @@
  */
 // 확장자를 적는 이유: node --test가 이 파일을 직접 읽는다 (Vite는 어느 쪽이든 된다)
 import { instantOf } from '../../lib/timeOrder.ts'
+import { NO_PLACE_NAME } from '../../ui/sightingText.ts'
 import type { Sighting } from '../../types'
 
 /** 지도의 핀 하나: 가까운 기록 여럿을 묶은 것 */
@@ -16,7 +17,7 @@ export interface Place { key: string; name: string; lat: number; lng: number; it
  * 핀의 좌표·이름은 그 자리에서 **가장 먼저 찍은** 기록의 것이다 — 목록 순서가 아니라 촬영 시각으로 고르므로 기록이 늘어도 핀이 움직이지 않는다
  * (핀이 움직이면 지도가 시야를 다시 맞춰 사용자가 확대해 둔 것이 튄다 — LeafletMap).
  * 촬영 시각은 글자가 아니라 순간으로 견준다 (lib/timeOrder.ts) — 같은 순간이면 id가 앞선 기록, 못 읽는 시각은 가장 옛것으로 친다.
- * 기록이 없으면 빈 목록. 장소 이름이 빈 기록이 대표가 되면 핀 이름은 '이름 없는 장소'.
+ * 기록이 없으면 빈 목록. 장소 이름이 빈 기록이 대표가 되면 핀 이름은 '장소 이름 없음' (NO_PLACE_NAME — 일지의 장소 고르개와 같은 말).
  */
 export function groupPlaces(sightings: Sighting[]): Place[] {
   const groups = new Map<string, Sighting[]>()
@@ -32,7 +33,7 @@ export function groupPlaces(sightings: Sighting[]): Place[] {
   }
   return [...groups.entries()].map(([key, items]) => {
     const first = items.reduce((a, b) => (earlier(b, a) ? b : a))
-    return { key, name: first.place || '이름 없는 장소', lat: first.lat!, lng: first.lng!, items }
+    return { key, name: first.place || NO_PLACE_NAME, lat: first.lat!, lng: first.lng!, items }
   })
 }
 

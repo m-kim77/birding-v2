@@ -9,6 +9,7 @@
  * 기록(Sighting)에 칸을 더하지 않고 볼 때만 계산한다.
  */
 // 확장자를 적는 이유: node --test가 이 파일을 직접 읽는다 (Vite는 어느 쪽이든 된다)
+import { NO_PLACE_NAME } from '../../ui/sightingText.ts'
 import { yearMonthOf } from '../../ui/when.ts'
 import type { Sighting } from '../../types'
 import { shownRecords } from './journalList.ts'
@@ -147,5 +148,5 @@ export function placeOptions(list: Sighting[]): ViewOption[] {
   for (const s of list) counts.set(placeKey(s), (counts.get(placeKey(s)) ?? 0) + 1)
   return [...counts.entries()]
     .sort(([a, n], [b, m]) => Number(a === '') - Number(b === '') || m - n || (a < b ? -1 : a > b ? 1 : 0))
-    .map(([value, n]) => ({ value, label: `${value || '장소 이름 없음'} · ${n}건` }))
+    .map(([value, n]) => ({ value, label: `${value || NO_PLACE_NAME} · ${n}건` }))
 }
