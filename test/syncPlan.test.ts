@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { MAX_TRIES, afterFailure, dueEntries, planPull, queueChange, remoteRecordOf, type QueueEntry, type RemoteRecord } from '../src/data/syncPlan.ts'
+import { MAX_TRIES, afterFailure, dueEntries, planPull, queueChange, recordTags, remoteRecordOf, type QueueEntry, type RemoteRecord } from '../src/data/syncPlan.ts'
 import type { Sighting } from '../src/types.ts'
 
 const T0 = new Date('2026-09-27T00:00:00.000Z')
@@ -81,4 +81,24 @@ test('remoteRecordOf: 우리 모양의 파일만 읽는다', () => {
   assert.deepEqual(remoteRecordOf({ id: 'f1', name: 'abc.json', appProperties: { updatedAt: 'T', deleted: '1' } }), { id: 'abc', fileId: 'f1', updatedAt: 'T', deleted: true })
   assert.equal(remoteRecordOf({ id: 'f2', name: 'notes.txt', appProperties: { updatedAt: 'T' } }), null)
   assert.equal(remoteRecordOf({ id: 'f3', name: 'abc.json' }), null) // 꼬리표 없음 — 사람이 넣은 파일
+})
+
+test('recordTags: 지운 기록은 deleted를 "1", 살아 있는 기록은 "0"으로 적는다 (안 보내면 앞의 "1"이 남는다)', () => {
+  assert.deepEqual(recordTags('T', true), { updatedAt: 'T', deleted: '1' })
+  assert.deepEqual(recordTags('T', false), { updatedAt: 'T', deleted: '0' })
+})
+
+test('remoteRecordOf: deleted "0"과 그 꼬리표가 없는 옛 파일은 살아 있는 기록으로 읽는다', () => {
+  assert.equal(remoteRecordOf({ id: 'f1', name: 'abc.json', appProperties: { updatedAt: 'T', deleted: '0' } })?.deleted, false)
+  assert.deepEqual(remoteRecordOf({ id: 'f2', name: 'abc.json', appProperties: { updatedAt: 'T' } }), { id: 'abc', fileId: 'f2', updatedAt: 'T', deleted: false })
+})
+
+test('다른 기기에서 지운 기록을 여기서 고쳐 올리면, 다음 동기화에서 지우지 않는다', () => {
+  // 드라이브의 PATCH처럼 보낸 꼬리표만 바꾸고 안 보낸 꼬리표는 남긴다
+  const patch = (tags: Record<string, string>, sent: Record<string, string>) => ({ ...tags, ...sent })
+  const deletedThere = recordTags('2026-09-05', true)
+  const editedHere = patch(deletedThere, recordTags('2026-09-09', false))
+  const remote = remoteRecordOf({ id: 'f1', name: 'edited.json', appProperties: editedHere })
+  assert.ok(remote)
+  assert.deepEqual(planPull([s('edited', '2026-09-09')], [remote], new Set()), { download: [], removeLocal: [], upload: [] })
 })

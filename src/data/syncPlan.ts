@@ -3,7 +3,7 @@
  * 순수 함수다 (DOM·IndexedDB·네트워크 없음, node --test가 직접 읽는다). 실제로 올리고 받는 일은 sync.ts가 한다.
  *
  * 드라이브의 모양 (보이는 폴더 — 숨김 폴더는 사용자가 "앱 데이터 삭제"로 통째로 날릴 수 있다):
- *   탐조일지 동기화/records/<기록id>.json   기록 하나 (꼬리표 appProperties.updatedAt, 지운 기록은 deleted='1')
+ *   탐조일지 동기화/records/<기록id>.json   기록 하나 (꼬리표 appProperties.updatedAt, 지운 기록은 deleted='1', 살아 있으면 '0')
  *   탐조일지 동기화/photos/<기록id>.<판>.jpg 사진 한 판
  * 원본은 기기다. 드라이브는 사본이라, 어느 쪽이 이기는지는 백업 불러오기와 같다: **updatedAt이 더 늦은 쪽**.
  */
@@ -79,7 +79,10 @@ export function photoFileName(id: string, kind: string): string {
   return `${id}.${kind}.jpg`
 }
 
-/** 드라이브 목록의 파일 하나를 기록 꼬리표로 읽는다. 이름·꼬리표가 우리 모양이 아니면 null (사람이 넣은 파일 등) */
+/**
+ * 드라이브 목록의 파일 하나를 기록 꼬리표로 읽는다. 이름·꼬리표가 우리 모양이 아니면 null (사람이 넣은 파일 등).
+ * deleted는 '1'만 지움이다 — '0'과, 그 꼬리표가 없던 옛 파일은 살아 있는 기록.
+ */
 export function remoteRecordOf(file: { id: string; name: string; appProperties?: Record<string, string> }): RemoteRecord | null {
   const m = /^(.+)\.json$/.exec(file.name)
   const updatedAt = file.appProperties?.updatedAt
@@ -87,9 +90,13 @@ export function remoteRecordOf(file: { id: string; name: string; appProperties?:
   return { id: m[1], fileId: file.id, updatedAt, deleted: file.appProperties?.deleted === '1' }
 }
 
-/** 드라이브 기록 파일의 꼬리표 */
+/**
+ * 드라이브 기록 파일의 꼬리표. 지우지 않은 기록에도 deleted를 '0'으로 적는다.
+ * PATCH는 안 보낸 꼬리표를 남긴다 — 다른 기기에서 지운('1') 기록을 여기서 고쳐 다시 올릴 때 '0'으로 덮지 않으면,
+ * 다음 동기화가 고친 기록을 지운 기록으로 읽어 기기에서 지운다. 읽는 쪽(`remoteRecordOf`)은 '1'만 지움으로 본다.
+ */
 export function recordTags(updatedAt: string, deleted: boolean): Record<string, string> {
-  return deleted ? { updatedAt, deleted: '1' } : { updatedAt }
+  return { updatedAt, deleted: deleted ? '1' : '0' }
 }
 
 export interface PullPlan {
