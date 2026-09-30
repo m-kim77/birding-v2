@@ -2,7 +2,7 @@
  * 이동 기록 60일 알림 — "새로 넣을 때가 됐다"를 언제 띄우고 언제 치울지 (순수 판정 + 닫은 기억).
  * 구글은 타임라인을 폰에 두고 3개월이 지난 기록을 지운다(기본 설정). 90일을 기다리면 이미 지워진 뒤라 60일에 알린다 — 한 달의 여유.
  * 닫은 것은 "어느 넣기에 대해 닫았는지"(importedAt)로 기억한다 — 다시 넣으면 importedAt이 바뀌므로 그 60일 뒤에 또 뜬다.
- * 화면은 features/records/RecordsScreen.tsx, 요약(importedAt)은 data/tracks.ts의 TracksMeta.
+ * 화면은 features/records/JournalNotices.tsx, 요약(importedAt)은 data/tracks.ts의 TracksMeta.
  */
 
 /** 마지막으로 넣은 지 이 날수를 넘으면 알린다. 구글의 자동 삭제(3개월)보다 한 달 앞 */
