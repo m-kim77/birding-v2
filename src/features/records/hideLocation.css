@@ -6,3 +6,5 @@
 .hide-location input { flex: none; width: 22px; height: 22px; margin: 2px 0 0; accent-color: var(--primary); }
 .hide-location strong { display: block; font-size: 15px; }
 .hide-location small { display: block; color: var(--text-3); font-size: 13px; }
+/* 보호종 안내 한 줄 — 스위치 옆 글과 같은 줄에서 시작하게 체크 칸(22px)과 틈만큼 들인다. 설명(small)보다 한 단계 짙게 */
+.hide-location-hint { margin: 0; padding-left: calc(22px + var(--sp-3)); color: var(--text-2); font-size: 13px; }
