@@ -85,6 +85,17 @@ test('normalizeSighting: 개체 수·사진 없음은 맞는 값이면 그대로
   }
 })
 
+test('normalizeSighting: 촬영 정보를 직접 고친 표시는 true일 때만 남는다 (작업 38)', () => {
+  const edited = { ...FULL, shotEdited: true as const }
+  assert.deepEqual(normalizeSighting(structuredClone(edited)), edited)
+  // true가 아닌 값은 사진에서 읽은 그대로인 기록 — 키를 남기지 않는다
+  for (const shotEdited of ['yes', 1, false, null]) {
+    assert.ok(!('shotEdited' in normalizeSighting({ ...FULL, shotEdited })!), `shotEdited: ${String(shotEdited)}`)
+  }
+  // 표시를 shot 안에 두면 사라진다 — 그래서 형제 키다
+  assert.ok(!('shotEdited' in normalizeSighting({ ...FULL, shot: { ...FULL.shot, shotEdited: true } })!.shot))
+})
+
 test('normalizeSighting: 모르는 키는 남긴다 (가산 확장)', () => {
   assert.equal((normalizeSighting({ ...FULL, futureKey: 1 }) as unknown as Record<string, unknown>).futureKey, 1)
 })
@@ -111,6 +122,15 @@ test('parseJournal: 옛 백업 모양(cardStyle·dexNo·references 없음, tier�
   assert.equal(parsed.sightings[0].tier, 3)
   assert.ok(!('references' in parsed.sightings[0].verdict!))
   assert.ok(!('count' in parsed.sightings[0]) && !('noPhoto' in parsed.sightings[0]))
+  assert.ok(!('shotEdited' in parsed.sightings[0]))
+})
+
+test('buildJournal → parseJournal: 직접 고친 촬영 정보와 그 표시가 백업을 돌고 와도 남는다 (작업 38)', () => {
+  const edited: Sighting = { ...FULL, id: 'e', shot: { lensModel: 'LENS', exposureTime: 0.769 }, shotEdited: true }
+  const parsed = parseJournal(JSON.stringify(buildJournal([edited, FULL], new Date('2026-09-01T00:00:00Z'))))
+  assert.deepEqual(parsed.sightings[0].shot, { lensModel: 'LENS', exposureTime: 0.769 })
+  assert.equal(parsed.sightings[0].shotEdited, true)
+  assert.ok(!('shotEdited' in parsed.sightings[1]))
 })
 
 test('buildJournal → parseJournal: 사진 없는 기록과 개체 수가 백업을 돌고 와도 남는다', () => {

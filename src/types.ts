@@ -116,6 +116,12 @@ export interface Sighting {
   lng: number | null
   locationSource: LocationSource
   shot: ShotInfo
+  /**
+   * 촬영 정보(`shot`)를 사람이 기록 상세의 '수정'에서 한 번이라도 고쳤다는 표시. 키가 없으면 사진에서 읽은 그대로다. true만 쓴다.
+   * 저장된 사진은 캔버스로 다시 만든 것이라 EXIF가 없다 — 고친 뒤에는 사진에서 다시 읽을 수 없으니, 손으로 적은 값이 사진 값처럼 보이지 않게 남긴다.
+   * `shot` 안이 아니라 형제 키인 이유: 읽을 때(data/normalizeSighting.ts) `shot`은 아는 여섯 키만 남겨서 안에 두면 백업·드라이브를 돌고 오며 사라진다.
+   */
+  shotEdited?: true
   note: string
   /** 잘라낸 영역. 직접 기록만 했고 자르지 않았으면 null */
   cropBox: NormalizedBox | null

@@ -49,11 +49,13 @@ export function normalizeSighting(raw: unknown): Sighting | null {
   setOrDrop(s, 'count', countOf(raw.count))
   // 사진 없는 기록은 true일 때만. 다른 값까지 받으면 사진 있는 기록이 사진 점검에서 빠져 사진 유실을 못 찾는다 (data/photoCheck.ts)
   setOrDrop(s, 'noPhoto', raw.noPhoto === true ? true : undefined)
+  // 촬영 정보를 직접 고쳤다는 표시도 true일 때만 — 다른 값은 '사진에서 읽은 그대로'로 읽는다 (types.ts shotEdited)
+  setOrDrop(s, 'shotEdited', raw.shotEdited === true ? true : undefined)
   return s
 }
 
 /** 값이 있으면 넣고, 없으면 키 자체를 지운다 (undefined 값을 남기지 않는다) */
-function setOrDrop<K extends 'cardStyle' | 'verdict' | 'namedAt' | 'dexNo' | 'count' | 'noPhoto'>(s: Sighting, key: K, value: Sighting[K] | undefined) {
+function setOrDrop<K extends 'cardStyle' | 'verdict' | 'namedAt' | 'dexNo' | 'count' | 'noPhoto' | 'shotEdited'>(s: Sighting, key: K, value: Sighting[K] | undefined) {
   if (value === undefined) delete s[key]
   else s[key] = value
 }
