@@ -1,8 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  CLEARED_FILE, clearDecision, clearedAtOf, decodeMonth, digestOf, encodeMonth, groupByMonth, localMonthsOf, monthFileName, monthKeyOf,
-  monthTags, planDownload, planUpload, remoteMonthOf, type LocalMonth, type RemoteMonth,
+  CLEARED_FILE, TRACKS_RETRY_MS, clearDecision, clearedAtOf, decodeMonth, digestOf, encodeMonth, groupByMonth, localMonthsOf, monthFileName, monthKeyOf,
+  monthTags, planDownload, planUpload, remoteMonthOf, shouldRunTracksStep, type LocalMonth, type RemoteMonth, type TracksStepMemo,
 } from '../src/data/syncTracksPlan.ts'
 import { mergeSorted, pointKey, type TrackPoint } from '../src/lib/tracklog/points.ts'
 
@@ -141,6 +141,24 @@ test('clearDecision: 켠 뒤 처음이면 지금 값을 받아들이고, 켠 뒤
   assert.equal(clearDecision('', '2026-03-01T00:00:00.000Z'), 'stop')
   assert.equal(clearDecision('2026-03-01T00:00:00.000Z', '2026-03-02T00:00:00.000Z'), 'stop')
   assert.equal(clearDecision('2026-03-01T00:00:00.000Z', ''), 'go', '표시가 없어진 것은 새로 지운 것이 아니다')
+})
+
+test('shouldRunTracksStep: 누르면 늘 돈다 · 맞춘 뒤 바뀐 것이 없으면 안 돈다 · 실패한 뒤에는 30분 동안 자동으로 다시 돌지 않는다', () => {
+  const memo = (m: Partial<TracksStepMemo>): TracksStepMemo => ({ checkedOnce: false, changeRev: 0, syncedRev: 0, failed: null, ...m })
+  const now = Date.UTC(2026, 2, 1)
+  assert.equal(shouldRunTracksStep(memo({}), false, now), true, '앱을 열고 처음')
+  assert.equal(shouldRunTracksStep(memo({ checkedOnce: true }), false, now), false, '맞춘 뒤 바뀐 것이 없다')
+  assert.equal(shouldRunTracksStep(memo({ checkedOnce: true, changeRev: 1 }), false, now), true, '넣기·스위치 켜기 뒤')
+  assert.equal(shouldRunTracksStep(memo({ checkedOnce: true }), true, now), true, "'지금 동기화'")
+  // 처음 맞추기가 실패했다 (드라이브가 가득 참 등) — 1분마다 도는 자동 동기화가 무거운 단계를 되풀이하지 않는다
+  const failed = { rev: 0, at: now - TRACKS_RETRY_MS + 1 }
+  assert.equal(shouldRunTracksStep(memo({ failed }), false, now), false, '실패하고 30분 안')
+  assert.equal(shouldRunTracksStep(memo({ failed }), true, now), true, "'지금 동기화'는 곧바로")
+  assert.equal(shouldRunTracksStep(memo({ failed, changeRev: 1 }), false, now), true, '실패한 뒤 새로 넣었으면 곧바로')
+  assert.equal(shouldRunTracksStep(memo({ failed: { rev: 0, at: now - TRACKS_RETRY_MS } }), false, now), true, '30분이 지났다')
+  assert.equal(shouldRunTracksStep(memo({ failed: { rev: 0, at: now + HOUR } }), false, now), true, '기기 시계를 되돌렸으면 기다리지 않는다')
+  // 넣은 뒤 맞추기가 실패했다 — 넣은 것(changeRev 1)이 아직 드라이브에 없어도 30분 안에는 자동으로 다시 하지 않는다
+  assert.equal(shouldRunTracksStep(memo({ checkedOnce: true, changeRev: 1, failed: { rev: 1, at: now } }), false, now), false)
 })
 
 // ── 두 기기 흉내: 메모리 안의 가짜 드라이브 ─────────────────────────────

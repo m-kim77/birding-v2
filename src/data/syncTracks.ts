@@ -5,7 +5,8 @@
  *
  * 기록의 올릴 일 줄(syncQueue)에는 넣지 않는다 — 줄의 수가 "기록 N건"으로 보이고, pushEntry는 id를 sightings에서 찾는다.
  * 대신 기록 동기화(sync.ts run)가 끝난 뒤 한 단계로 돈다: 앱을 열고 처음 · 사용자가 '지금 동기화' · 이 기기에서 넣기·스위치 켜기 뒤에만
- * (이동 기록은 석 달에 한 번 바뀐다 — 기록을 저장할 때마다 2만 점을 읽지 않는다). 실패하면 다음 동기화 때 다시 한다 (따로 재시도 타이머 없음).
+ * (이동 기록은 석 달에 한 번 바뀐다 — 기록을 저장할 때마다 2만 점을 읽지 않는다). 실패하면 30분이 지난 뒤의 동기화 때 다시 한다
+ * ('지금 동기화'·넣기·스위치 켜기 뒤에는 곧바로. 따로 재시도 타이머 없음 — syncTracksPlan.ts shouldRunTracksStep).
  *
  * 스위치는 기기마다다 (`meta`, 기본 끔) — 같은 계정으로 로그인한 공용 PC에 몇 달치 이동 경로가 말없이 내려오지 않게.
  */
@@ -16,7 +17,7 @@ import { ROOT_FOLDER } from './syncPlan'
 import { getSyncStatus, setTracksStatus, tracksStatusOf, type TracksSyncStatus } from './syncStatus'
 import {
   CLEARED_FILE, TRACKS_FOLDER, clearDecision, clearedAtOf, decodeMonth, encodeMonth, localMonthsOf, monthFileName, monthTags,
-  planDownload, planUpload, remoteMonthOf, type LocalMonth, type RemoteMonth,
+  planDownload, planUpload, remoteMonthOf, shouldRunTracksStep, type LocalMonth, type RemoteMonth, type TracksStepMemo,
 } from './syncTracksPlan'
 import { TRACKS_SYNC_ON_KEY, clearTracks, mergeReceivedTracks, readAllPoints, readTracksMeta } from './tracks'
 
@@ -25,16 +26,12 @@ const ON_DRIVE_KEY = 'tracksOnDrive'
 /** `meta`: 스위치를 켠 뒤 본 드라이브의 "지웠음" 표시 값. 없으면 켠 뒤 아직 못 본 것 — 처음 본 값을 받아들인다 (clearDecision) */
 const CLEAR_SEEN_KEY = 'tracksClearSeen'
 
-/** 이 탭에서 이동 기록을 한 번이라도 끝까지 맞췄는지 — 앱을 열고 처음 도는 동기화에서 맞추려고 */
-let checkedOnce = false
-/** 이 기기에서 이동 기록이 바뀐 횟수(넣기·스위치 켜기) */
-let changeRev = 0
-/** 그중 드라이브와 끝까지 맞춘 마지막 값 — changeRev와 다르면 다음 동기화 때 맞춘다 */
-let syncedRev = 0
+/** 이 탭에서 이동 기록 단계를 언제 다시 돌지의 기억 (syncTracksPlan.ts shouldRunTracksStep) — 앱을 열면 처음부터 */
+const memo: TracksStepMemo = { checkedOnce: false, changeRev: 0, syncedRev: 0, failed: null }
 
-/** 이 기기에서 이동 기록이 바뀌었다고 적는다 (넣기·스위치 켜기) — 다음 동기화가 이동 기록 단계도 돈다 */
+/** 이 기기에서 이동 기록이 바뀌었다고 적는다 (넣기·스위치 켜기) — 다음 동기화가 이동 기록 단계도 돈다 (전에 실패했어도 곧바로) */
 export function markTracksChanged(): void {
-  changeRev += 1
+  memo.changeRev += 1
 }
 
 /** 이 기기의 스위치가 켜졌는지. 저장소를 못 열면 false (꺼진 쪽이 안전하다) */
@@ -75,20 +72,23 @@ export async function clearDeviceTracks(): Promise<boolean> {
 
 /**
  * 기록 동기화 뒤의 이동 기록 단계. 스위치가 꺼졌으면 아무것도 하지 않는다. 켜져 있어도 앱을 열고 처음 · `manual` ·
- * 이 기기에서 바뀐 뒤(markTracksChanged)에만 돈다. 결과는 상태(tracks.note)에 적는다.
- * 로그인이 풀린 것(NotConnectedError)만 던진다 — 그 밖의 실패는 이동 기록 카드에만 적고 기록 동기화의 결과를 바꾸지 않는다.
+ * 이 기기에서 바뀐 뒤(markTracksChanged)에만 돌고, 실패한 뒤에는 30분 동안 자동으로 다시 돌지 않는다 (shouldRunTracksStep).
+ * 결과는 상태(tracks.note)에 적는다.
+ * 로그인이 풀린 것(NotConnectedError)만 던진다 — 실패로 치지 않는다. 그 밖의 실패는 이동 기록 카드에만 적고 기록 동기화의 결과를 바꾸지 않는다.
  */
 export async function syncTracksStep(rootFolder: string, manual: boolean): Promise<void> {
   if (!(await isTracksSyncOn())) return
-  if (!manual && checkedOnce && syncedRev === changeRev) return
-  const rev = changeRev
+  if (!shouldRunTracksStep(memo, manual, Date.now())) return
+  const rev = memo.changeRev
   setTracksStatus({ note: { kind: 'syncing' } })
   try {
     setTracksStatus(await exchange(rootFolder))
-    checkedOnce = true
-    syncedRev = rev
+    memo.checkedOnce = true
+    memo.syncedRev = rev
+    memo.failed = null
   } catch (e) {
     if (e instanceof NotConnectedError) { setTracksStatus({ note: null }); throw e }
+    memo.failed = { rev, at: Date.now() }
     setTracksStatus({ note: { kind: 'failed', reason: e instanceof Error ? e.message : '' } })
   }
 }

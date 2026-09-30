@@ -60,7 +60,8 @@ export function summaryOf(meta: TracksMeta, now = new Date()): string {
 }
 
 /**
- * 드라이브 동기화 줄: '드라이브와 같습니다 · 22,426점' / '아직 드라이브와 맞추지 못했습니다. 다음 동기화 때 다시 합니다. 이유: …'.
+ * 드라이브 동기화 줄: '드라이브와 같습니다 · 22,426점' / '아직 드라이브와 맞추지 못했습니다. 잠시 뒤 다시 합니다. 이유: …'
+ * ('잠시 뒤' = 30분이 지난 뒤의 동기화 — '지금 동기화'를 누르면 곧바로, data/syncTracksPlan.ts shouldRunTracksStep).
  * 이 앱을 연 뒤 아직 맞춰 보지 않았으면(null) null — 줄을 그리지 않는다. 이유가 비었으면 '이유:'를 붙이지 않는다.
  */
 export function tracksSyncLine(note: TracksSyncNote | null): { tone: 'ok' | 'warn'; text: string } | null {
@@ -68,5 +69,5 @@ export function tracksSyncLine(note: TracksSyncNote | null): { tone: 'ok' | 'war
   if (note.kind === 'syncing') return { tone: 'ok', text: '드라이브와 맞추는 중…' }
   if (note.kind === 'same') return { tone: 'ok', text: `드라이브와 같습니다 · ${note.count ? pointCountText(note.count) : '아직 이동 기록 없음'}` }
   if (note.kind === 'clearedElsewhere') return { tone: 'warn', text: '다른 기기에서 드라이브의 이동 기록을 지워, 이 기기의 올리기를 껐습니다. 이 기기의 이동 기록은 그대로입니다.' }
-  return { tone: 'warn', text: `아직 드라이브와 맞추지 못했습니다. 다음 동기화 때 다시 합니다.${note.reason ? ` 이유: ${note.reason}` : ''}` }
+  return { tone: 'warn', text: `아직 드라이브와 맞추지 못했습니다. 잠시 뒤 다시 합니다.${note.reason ? ` 이유: ${note.reason}` : ''}` }
 }

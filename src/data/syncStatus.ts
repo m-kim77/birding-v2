@@ -9,7 +9,7 @@ export type TracksSyncNote =
   | { kind: 'syncing' }
   /** 드라이브와 같다 — count는 이 기기의 점 수 */
   | { kind: 'same'; count: number }
-  /** 이번에 맞추지 못했다 — 다음 동기화 때 다시 한다. reason은 한국어 이유 (좌표를 담지 않는다) */
+  /** 이번에 맞추지 못했다 — 30분이 지난 뒤의 동기화(또는 '지금 동기화') 때 다시 한다. reason은 한국어 이유 (좌표를 담지 않는다) */
   | { kind: 'failed'; reason: string }
   /** 켠 뒤에 드라이브의 이동 기록이 지워져(다른 기기) 이 기기의 스위치를 껐다 */
   | { kind: 'clearedElsewhere' }

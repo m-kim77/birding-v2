@@ -91,9 +91,9 @@ test('tracksSyncLine: 맞추는 중 · 드라이브와 같음(점 수, 0점이�
 
 test('tracksSyncLine: 못 맞춤(이유가 있으면 뒤에) · 다른 기기가 드라이브에서 지움 — warn', () => {
   assert.deepEqual(tracksSyncLine({ kind: 'failed', reason: '드라이브가 요청을 거절했습니다 (403).' }), {
-    tone: 'warn', text: '아직 드라이브와 맞추지 못했습니다. 다음 동기화 때 다시 합니다. 이유: 드라이브가 요청을 거절했습니다 (403).',
+    tone: 'warn', text: '아직 드라이브와 맞추지 못했습니다. 잠시 뒤 다시 합니다. 이유: 드라이브가 요청을 거절했습니다 (403).',
   })
-  assert.deepEqual(tracksSyncLine({ kind: 'failed', reason: '' }), { tone: 'warn', text: '아직 드라이브와 맞추지 못했습니다. 다음 동기화 때 다시 합니다.' })
+  assert.deepEqual(tracksSyncLine({ kind: 'failed', reason: '' }), { tone: 'warn', text: '아직 드라이브와 맞추지 못했습니다. 잠시 뒤 다시 합니다.' })
   const cleared = tracksSyncLine({ kind: 'clearedElsewhere' })
   assert.equal(cleared?.tone, 'warn')
   assert.match(cleared?.text ?? '', /올리기를 껐습니다/)

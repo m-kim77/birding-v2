@@ -203,3 +203,33 @@ export function clearDecision(seen: string | null, clearedAt: string): 'adopt' |
   if (seen === null) return 'adopt'
   return !clearedAt || clearedAt === seen ? 'go' : 'stop'
 }
+
+/** 이동 기록 단계가 실패한 뒤 자동 동기화에서 다시 돌기까지 기다리는 시간(ms) — 기록의 재시도 간격(syncPlan.ts)에도 있는 30분 */
+export const TRACKS_RETRY_MS = 30 * 60_000
+
+/** 이동 기록 단계를 이번 동기화에서 돌지 정하는 이 탭의 기억 (syncTracks.ts가 갖고 바꾼다 — 탭을 닫으면 사라진다) */
+export interface TracksStepMemo {
+  /** 이 탭에서 한 번이라도 끝까지 맞췄는지 — 앱을 열고 처음 도는 동기화에서 맞추려고 */
+  checkedOnce: boolean
+  /** 이 기기에서 이동 기록이 바뀐 횟수 (넣기·스위치 켜기) */
+  changeRev: number
+  /** 그중 드라이브와 끝까지 맞춘 마지막 값 — changeRev와 다르면 맞출 것이 있다 */
+  syncedRev: number
+  /** 마지막 실패 — 그때의 changeRev와 시각(epoch ms). 끝까지 맞추면 null */
+  failed: { rev: number; at: number } | null
+}
+
+/**
+ * 이번 동기화에서 이동 기록 단계를 돌지. 사용자가 누른 것(`manual` — '지금 동기화'·로그인 직후)이면 늘 돈다.
+ * 자동이면: 맞춘 뒤 이 기기에서 바뀐 것이 없으면 돌지 않고, 실패한 뒤 바뀐 것이 없으면 실패하고 30분 안에는 돌지 않는다 —
+ * 드라이브가 가득 찬 채면 올릴 기록이 남아 1분마다 동기화가 돌고(useAutoSync), 그때마다 2만 점을 읽고 받고 올리다 실패하기를 되풀이한다.
+ * 실패한 뒤 새로 넣었거나 스위치를 다시 켰으면 곧바로 돈다. `now`가 실패 시각보다 이르면(기기 시계를 되돌림) 기다리지 않는다.
+ */
+export function shouldRunTracksStep(memo: TracksStepMemo, manual: boolean, now: number): boolean {
+  if (manual) return true
+  if (memo.checkedOnce && memo.syncedRev === memo.changeRev) return false
+  const f = memo.failed
+  if (!f || f.rev !== memo.changeRev) return true
+  const since = now - f.at
+  return since < 0 || since >= TRACKS_RETRY_MS
+}
