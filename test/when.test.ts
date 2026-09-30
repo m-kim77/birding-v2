@@ -1,6 +1,23 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { daysAgoOf, fileDateOf, fileDateToday } from '../src/ui/when.ts'
+import { daysAgoOf, fileDateOf, fileDateToday, yearMonthOf } from '../src/ui/when.ts'
+
+test('yearMonthOf: 한국 1월 1일 00:30은 새해 — UTC로는 전해 12월 31일이다', () => {
+  // 2026-01-01 00:30 KST = 2025-12-31T15:30Z
+  const s = { capturedAt: '2025-12-31T15:30:00.000Z', capturedAtOffset: '+09:00' }
+  assert.deepEqual(yearMonthOf(s), { year: 2026, month: 1 })
+  assert.equal(s.capturedAt.slice(0, 4), '2025')
+})
+
+test('yearMonthOf: 서쪽 오프셋은 반대로 — UTC로 새해여도 촬영지에서는 아직 전해', () => {
+  // 2025-12-31 20:00 (-05:00) = 2026-01-01T01:00Z
+  assert.deepEqual(yearMonthOf({ capturedAt: '2026-01-01T01:00:00.000Z', capturedAtOffset: '-05:00' }), { year: 2025, month: 12 })
+})
+
+test('yearMonthOf: 못 읽는 시각은 null (NaN을 주지 않는다)', () => {
+  assert.equal(yearMonthOf({ capturedAt: 'not-a-date', capturedAtOffset: '+09:00' }), null)
+  assert.equal(yearMonthOf({ capturedAt: '', capturedAtOffset: null }), null)
+})
 
 test('fileDateOf: 한국 새벽 사진은 촬영지 날짜로 (UTC로 자르면 전날이 된다)', () => {
   // 2026-09-22 01:30 KST = 2026-09-21T16:30Z

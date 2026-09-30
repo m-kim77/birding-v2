@@ -30,6 +30,16 @@ export function monthOf(s: Pick<Sighting, 'capturedAt' | 'capturedAtOffset'>): s
   return `${p.year}년 ${p.month}월`
 }
 
+/**
+ * 촬영지 시각의 해·달 (`{ year: 2026, month: 9 }`) — 일지의 기간 거르기와 올해 본 종 세기가 쓴다. 달 제목(monthOf)과 같은 기준이다.
+ * `capturedAt.slice(0, 4)`는 UTC라 한국의 1월 1일 새벽 사진이 전해로 세어진다.
+ * 시각을 못 읽으면 null — partsOf는 NaN을 주는데, 그대로 세면 'NaN년'이라는 기간이 생긴다.
+ */
+export function yearMonthOf(s: Pick<Sighting, 'capturedAt' | 'capturedAtOffset'>): { year: number; month: number } | null {
+  const p = partsOf(s)
+  return Number.isFinite(p.year) && Number.isFinite(p.month) ? { year: p.year, month: p.month } : null
+}
+
 /** 카드에 쓰는 날짜. '09 · 22 · 2026' (Card Reveal 디자인의 표기) */
 export function dotDateOf(s: Pick<Sighting, 'capturedAt' | 'capturedAtOffset'>): string {
   const p = partsOf(s)
