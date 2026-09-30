@@ -1,5 +1,6 @@
 import SightingPhoto from '../../ui/SightingPhoto'
 import { dayOf } from '../../ui/when'
+import { countText } from '../../lib/count'
 import type { Sighting } from '../../types'
 import type { MonthSection } from './journalList'
 import { outingHeadText, type Outing } from './outings'
@@ -27,7 +28,11 @@ function OutingHead({ outing }: { outing: Outing }) {
   )
 }
 
-/** 기록 칸 하나 — 사진·이름·학명·날짜와 장소. 누르면 그 기록의 상세로 간다 */
+/**
+ * 기록 칸 하나 — 사진·이름·학명·날짜와 장소·개체 수. 누르면 그 기록의 상세로 간다.
+ * 개체 수는 센 기록에만 '· 3마리'로 붙는다 — 세지 않았으면 countText가 ''를 주어 filter(Boolean)으로 빠진다.
+ * 사진 없이 남긴 기록은 사진 자리에 새 그림 자리 표시가 나온다 (PhotoBox — 소리 기록은 소리 그림).
+ */
 function RecordItem({ s, onOpen }: { s: Sighting; onOpen: (id: string) => void }) {
   return (
     <button type="button" className="record-item card" onClick={() => onOpen(s.id)}>
@@ -35,7 +40,7 @@ function RecordItem({ s, onOpen }: { s: Sighting; onOpen: (id: string) => void }
       <div className="record-item-text">
         <strong className="display">{s.speciesKo || '이름 미정'}</strong>
         {s.latin && <em>{s.latin}</em>}
-        <span>{[dayOf(s), s.place].filter(Boolean).join(' · ')}</span>
+        <span>{[dayOf(s), s.place, countText(s.count)].filter(Boolean).join(' · ')}</span>
       </div>
     </button>
   )
