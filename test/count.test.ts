@@ -27,6 +27,10 @@ test('isBadCount: 비운 칸은 괜찮고(세지 않음), 적었는데 읽히지
   assert.equal(isBadCount('0'), true)
 })
 
+test('isBadCount: 흔한 잘못 적기(범위·단위·어림)를 잡는다 — 칸이 글자를 그대로 넘겨야 한다 (type=number면 빈 값으로 와서 놓친다)', () => {
+  for (const bad of ['10-20', '10~20', '3마리', '약 30']) assert.equal(isBadCount(bad), true, bad)
+})
+
 test('countText: 세었으면 "N마리"(천 단위 쉼표), 안 셌으면 빈 글자', () => {
   assert.equal(countText(3), '3마리')
   assert.equal(countText(1200), '1,200마리')

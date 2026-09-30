@@ -1,4 +1,4 @@
-import { MAX_COUNT, isBadCount } from '../../lib/count'
+import { isBadCount } from '../../lib/count'
 import { formatShot } from '../../lib/format'
 import { Card, Fact } from '../../ui/bits'
 import Icon from '../../ui/Icon'
@@ -41,12 +41,14 @@ export function PlaceRow({ place, note, onClick }: { place: PlaceValue; note?: s
 /**
  * 개체 수 칸. 비워도 된다 — 비우면 '세지 않음'. 1 이상의 정수가 아닌 값을 적으면 칸 밑에 알린다 — 그대로 저장하면 개체 수 없이 저장된다 (lib/count.ts).
  * 새 기록의 메모 카드(NoteCard)·사진 없이 기록(QuickRecord)·저장한 기록의 수정 칸(records/RecordEdit)이 같이 쓴다. 어림·범위는 메모에 적는다.
+ * 글자 칸(type=text)이다 — type=number는 숫자로 못 읽는 글자('10-20'·'3마리')를 빈 값으로 돌려줘 경고 없이 '세지 않음'이 되고
+ * (수정에서는 저장된 개체 수가 말없이 지워진다), PC에서 휠로 값이 바뀐다 (records/ShotFields의 ShotInput과 같은 이유).
  */
 export function CountField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <>
       <label className="field"><span>개체 수</span>
-        <input type="number" inputMode="numeric" min={1} max={MAX_COUNT} step={1} placeholder="세지 않았으면 비워 두세요" value={value} onChange={(e) => onChange(e.target.value)} />
+        <input type="text" inputMode="numeric" placeholder="세지 않았으면 비워 두세요" value={value} onChange={(e) => onChange(e.target.value)} />
       </label>
       {isBadCount(value) && <p className="status-line is-warn" role="alert">개체 수는 1 이상의 정수로 적어 주세요. 이대로 저장하면 개체 수 없이 저장됩니다 — 어림·범위는 메모에.</p>}
     </>
