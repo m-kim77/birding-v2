@@ -2,11 +2,13 @@
  * 이동 기록(구글 타임라인)의 점 저장소. 브라우저 DB `tracks` 저장소에 UTC 날짜별 배열로 두고, 요약(범위·점 수·넣은 시각)은 `meta` 저장소에 둔다.
  *
  * 날짜별로 나누는 이유: 매칭(lib/tracklog/match.ts)은 촬영 시각 ±30분만 보므로 촬영일 ±1일 세 키만 읽으면 된다 — 2만 점을 매번 꺼내지 않는다.
- * 백업(ZIP)에 넣지 않는다 — 다시 내보내면 되는 자료이고 기록보다 훨씬 민감하다 (몇 달치 이동 경로다). 서버로도 보내지 않고, 좌표를 로그에 찍지 않는다.
- * 다시 넣으면 있던 점과 합친다 (중복은 points.ts의 pointKey로 거른다) — 3개월마다 넣어 가며 범위가 길어진다.
+ * 백업(ZIP)에 넣지 않는다 — 다시 내보내면 되는 자료이고 기록보다 훨씬 민감하다 (몇 달치 이동 경로다). 이 사이트의 서버로 보내지 않고, 좌표를 로그에 찍지 않는다.
+ * 기기 밖으로 나가는 길은 하나뿐이다: 사용자가 이 기기에서 '이동 기록도 구글 드라이브에 올리기'를 켰을 때만 골라 둔 점이 **자기 드라이브로**
+ * 곧장 간다 (data/syncTracks.ts — 기본은 꺼짐, 스위치는 `meta`의 TRACKS_SYNC_ON_KEY).
+ * 다시 넣으면 있던 점과 합친다 (중복은 points.ts의 pointKey로 거른다) — 3개월마다 넣어 가며 범위가 길어진다. 드라이브에서 받은 점도 같은 규칙으로 합친다.
  */
 // 확장자를 적는 이유: node --test가 이 파일을 직접 읽는다 (Vite는 어느 쪽이든 된다)
-import { dbGet, dbGetAll, dbWriteAll } from './db.ts'
+import { dbGet, dbGetAll, dbWriteAll, type StoreName } from './db.ts'
 // 확장자를 적는 이유: 위와 같다
 import { comparePoints, dayKeyOf, groupByDay, mergeSorted, pack, rangeOf, unpack, type PackedPoint, type TrackPoint } from '../lib/tracklog/points.ts'
 
@@ -25,7 +27,26 @@ export interface TracksMeta {
 
 /** `meta` 저장소에서 요약이 놓인 키 */
 export const TRACKS_META_KEY = 'tracks'
+/**
+ * `meta` 저장소의 '이동 기록도 구글 드라이브에 올리기' 스위치 (true만 켜짐 — 없으면 꺼짐). 기기마다 따로다.
+ * 이 파일에 두는 이유: 기기의 이동 기록을 지울 때 **같은 트랜잭션에서** 끈다 (clearTracks) — 안 끄면 다음 동기화가 드라이브에서 도로 받아 온다.
+ */
+export const TRACKS_SYNC_ON_KEY = 'tracksSyncOn'
 const DAY_MS = 86_400_000
+
+/** 이동 기록 저장소를 바꾸는 일의 차례 (inTurn). 앞 일이 끝난 뒤(실패해도) 다음 일을 한다 */
+let turn: Promise<unknown> = Promise.resolve()
+
+/**
+ * 저장소를 바꾸는 일(합치기·지우기)을 하나씩 차례로 한다. 합치기는 날마다 있던 점을 **읽은 뒤에** 쓰므로, 파일 넣기와
+ * 드라이브에서 받은 합치기가 겹치면 나중에 쓰는 쪽이 앞의 점을 덮어 잃는다. 한 탭 안에서만 지킨다 (탭 둘에서 동시에 넣는 것은 전과 같다).
+ * 일의 결과와 실패는 그대로 돌려준다.
+ */
+function inTurn<T>(job: () => Promise<T>): Promise<T> {
+  const p = turn.then(job)
+  turn = p.catch(() => {})
+  return p
+}
 
 /** UTC ISO 문자열로 읽히는지 */
 function isIsoDate(v: unknown): v is string {
@@ -106,19 +127,12 @@ export function nextMeta(prev: TracksMeta | null, range: { start: number; end: n
   }
 }
 
-/**
- * 점들을 저장소에 합쳐 넣고 요약을 갱신한다. 날마다 있던 점을 읽어 합친다(중복 제거·정렬).
- * `onProgress(done, total)`은 날짜 하나를 합칠 때마다 부른다 (total = 날짜 수).
- * `importedAt`은 이 점들을 넣은 시각 — 파일을 넣을 때는 지금(기본값). 요약의 넣은 날은 이전 값과 견줘 더 늦은 쪽이 된다 (nextMeta).
- * **쓰기는 날짜별 점과 요약을 트랜잭션 하나로 한다** — 다 들어가거나 하나도 안 들어간다. 날짜마다 따로 쓰면 첫 넣기 도중
- * 탭이 닫혔을 때 점만 남고 요약이 없어, 설정 화면에 '지우기'가 안 보이는(요약이 있어야 그린다) 민감한 자료가 남는다.
- * 점이 0개면 던진다 — 부르는 쪽에서 이미 걸렀겠지만 요약(범위)을 망가뜨리지 않게. DB 오류도 던진다 (그때는 아무것도 바뀌지 않는다).
- */
-export async function mergeTracks(
+/** 합칠 준비: 이전 요약과 날마다 합친 점을 읽어 둔다 (쓰기 전). 점이 0개면 던진다. DB 오류도 던진다 */
+async function prepareMerge(
   points: TrackPoint[],
-  onProgress?: (done: number, total: number) => void,
-  importedAt = new Date(),
-): Promise<{ added: number; meta: TracksMeta }> {
+  onProgress: ((done: number, total: number) => void) | undefined,
+  importedAt: Date,
+): Promise<{ days: Array<[string, PackedPoint[]]>; added: number; meta: TracksMeta }> {
   const range = rangeOf(points)
   if (!range) throw new Error('넣을 점이 없습니다.')
   // 이전 요약은 DB 오류를 삼키지 않고 읽는다 (readTracksMeta는 삼킨다) — 못 읽은 것을 "처음 넣기"로 알면 점 수·범위가 틀어진다
@@ -133,21 +147,67 @@ export async function mergeTracks(
     added += merged.added
     onProgress?.(days.length, groups.size)
   }
-  const meta = nextMeta(prev, range, added, importedAt)
-  await dbWriteAll(['tracks', 'meta'], (store) => {
-    for (const [day, rows] of days) store('tracks').put(rows, day)
-    store('meta').put(meta, TRACKS_META_KEY)
-  })
-  return { added, meta }
+  return { days, added, meta: nextMeta(prev, range, added, importedAt) }
+}
+
+/** 합친 날짜별 점과 요약을 쓰기 요청으로 만든다 (dbWriteAll 안에서 — 기다리지 않는다) */
+function putMerged(store: (name: StoreName) => IDBObjectStore, days: Array<[string, PackedPoint[]]>, meta: TracksMeta): void {
+  for (const [day, rows] of days) store('tracks').put(rows, day)
+  store('meta').put(meta, TRACKS_META_KEY)
 }
 
 /**
- * 이동 기록을 전부 지운다 (점과 요약 모두, 트랜잭션 하나로 — 요약만 남으면 없는 기록을 있다고 말하고, 점만 남으면 지울 길이 없다).
+ * 점들을 저장소에 합쳐 넣고 요약을 갱신한다. 날마다 있던 점을 읽어 합친다(중복 제거·정렬).
+ * `onProgress(done, total)`은 날짜 하나를 합칠 때마다 부른다 (total = 날짜 수).
+ * `importedAt`은 이 점들을 넣은 시각 — 파일을 넣을 때는 지금(기본값). 요약의 넣은 날은 이전 값과 견줘 더 늦은 쪽이 된다 (nextMeta).
+ * **쓰기는 날짜별 점과 요약을 트랜잭션 하나로 한다** — 다 들어가거나 하나도 안 들어간다. 날짜마다 따로 쓰면 첫 넣기 도중
+ * 탭이 닫혔을 때 점만 남고 요약이 없어, 설정 화면에 '지우기'가 안 보이는(요약이 있어야 그린다) 민감한 자료가 남는다.
+ * 저장소를 바꾸는 다른 일(드라이브에서 받은 합치기·지우기)과 겹치지 않게 차례를 기다린다 (inTurn).
+ * 점이 0개면 던진다 — 부르는 쪽에서 이미 걸렀겠지만 요약(범위)을 망가뜨리지 않게. DB 오류도 던진다 (그때는 아무것도 바뀌지 않는다).
+ */
+export function mergeTracks(
+  points: TrackPoint[],
+  onProgress?: (done: number, total: number) => void,
+  importedAt = new Date(),
+): Promise<{ added: number; meta: TracksMeta }> {
+  return inTurn(async () => {
+    const { days, added, meta } = await prepareMerge(points, onProgress, importedAt)
+    await dbWriteAll(['tracks', 'meta'], (store) => putMerged(store, days, meta))
+    return { added, meta }
+  })
+}
+
+/**
+ * 드라이브에서 받은 점을 합친다 (data/syncTracks.ts). 새로 든 점 수를 준다.
+ * `importedAt`은 그 점을 올린 기기의 넣은 날 — 요약의 넣은 날은 더 늦은 쪽이 된다 (받았다고 지금으로 바꾸지 않는다, nextMeta).
+ * **쓰는 트랜잭션 안에서 스위치를 다시 본다** — 받는 사이 사용자가 스위치를 껐거나 이 기기의 이동 기록을 지웠으면(clearTracks가 스위치도 끈다)
+ * 아무것도 쓰지 않고 0을 준다. 안 보면 방금 지운 점이 드라이브에서 도로 들어온다. 새로 든 점이 없어도 쓰지 않는다.
+ * 점이 0개면 던진다. DB 오류도 던진다.
+ */
+export function mergeReceivedTracks(points: TrackPoint[], importedAt: Date): Promise<number> {
+  return inTurn(async () => {
+    const { days, added, meta } = await prepareMerge(points, undefined, importedAt)
+    if (added === 0) return 0
+    let wrote = false
+    await dbWriteAll(['tracks', 'meta'], (store) => {
+      const on = store('meta').get(TRACKS_SYNC_ON_KEY)
+      // 같은 트랜잭션 안에서 읽은 뒤 쓴다 (요청 콜백 안의 요청은 트랜잭션을 이어 간다)
+      on.onsuccess = () => { if (on.result === true) { putMerged(store, days, meta); wrote = true } }
+    })
+    return wrote ? added : 0
+  })
+}
+
+/**
+ * 이 기기의 이동 기록을 전부 지운다 (점과 요약 모두, 트랜잭션 하나로 — 요약만 남으면 없는 기록을 있다고 말하고, 점만 남으면 지울 길이 없다).
+ * **같은 트랜잭션에서 드라이브 올리기 스위치도 끈다** — 켜 둔 채면 다음 동기화가 드라이브의 사본을 도로 받아 온다.
+ * 드라이브의 사본과 다른 기기의 점은 건드리지 않는다 (드라이브 사본은 syncTracks.ts clearDriveTracks가 따로 지운다).
  * 없어도 성공한다. DB 오류는 던진다 (그때는 아무것도 지워지지 않았다).
  */
-export async function clearTracks(): Promise<void> {
-  await dbWriteAll(['tracks', 'meta'], (store) => {
+export function clearTracks(): Promise<void> {
+  return inTurn(() => dbWriteAll(['tracks', 'meta'], (store) => {
     store('tracks').clear()
     store('meta').delete(TRACKS_META_KEY)
-  })
+    store('meta').delete(TRACKS_SYNC_ON_KEY)
+  }))
 }

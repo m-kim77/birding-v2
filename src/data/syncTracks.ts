@@ -1,0 +1,186 @@
+/**
+ * 이동 기록의 드라이브 사본 — '이동 기록도 구글 드라이브에 올리기'를 켠 기기에서만 올리고 받아 합친다 (규칙은 syncTracksPlan.ts).
+ * 원본은 기기다. 올리는 것은 이 기기에 골라 둔 점뿐이고(타임라인 원본 파일은 앱에 남아 있지 않다), 브라우저에서 사용자의 드라이브로 곧장 간다 —
+ * 이 사이트의 서버(api/drive.ts)는 지나지 않는다. 좌표를 console·오류 문구·꼬리표에 넣지 않는다.
+ *
+ * 기록의 올릴 일 줄(syncQueue)에는 넣지 않는다 — 줄의 수가 "기록 N건"으로 보이고, pushEntry는 id를 sightings에서 찾는다.
+ * 대신 기록 동기화(sync.ts run)가 끝난 뒤 한 단계로 돈다: 앱을 열고 처음 · 사용자가 '지금 동기화' · 이 기기에서 넣기·스위치 켜기 뒤에만
+ * (이동 기록은 석 달에 한 번 바뀐다 — 기록을 저장할 때마다 2만 점을 읽지 않는다). 실패하면 다음 동기화 때 다시 한다 (따로 재시도 타이머 없음).
+ *
+ * 스위치는 기기마다다 (`meta`, 기본 끔) — 같은 계정으로 로그인한 공용 PC에 몇 달치 이동 경로가 말없이 내려오지 않게.
+ */
+import { NotConnectedError } from '../lib/google/driveAuth'
+import { deleteFile, downloadFile, ensureFolder, listFiles, uploadFile } from '../lib/google/driveApi'
+import { dbGet, dbPut, dbWriteAll } from './db'
+import { ROOT_FOLDER } from './syncPlan'
+import { getSyncStatus, setTracksStatus, tracksStatusOf, type TracksSyncStatus } from './syncStatus'
+import {
+  CLEARED_FILE, TRACKS_FOLDER, clearDecision, clearedAtOf, decodeMonth, encodeMonth, localMonthsOf, monthFileName, monthTags,
+  planDownload, planUpload, remoteMonthOf, type LocalMonth, type RemoteMonth,
+} from './syncTracksPlan'
+import { TRACKS_SYNC_ON_KEY, clearTracks, mergeReceivedTracks, readAllPoints, readTracksMeta } from './tracks'
+
+/** `meta`: 드라이브에 이동 기록이 있다고 이 기기가 마지막으로 본 것 (TracksSyncStatus.onDrive) */
+const ON_DRIVE_KEY = 'tracksOnDrive'
+/** `meta`: 스위치를 켠 뒤 본 드라이브의 "지웠음" 표시 값. 없으면 켠 뒤 아직 못 본 것 — 처음 본 값을 받아들인다 (clearDecision) */
+const CLEAR_SEEN_KEY = 'tracksClearSeen'
+
+/** 이 탭에서 이동 기록을 한 번이라도 끝까지 맞췄는지 — 앱을 열고 처음 도는 동기화에서 맞추려고 */
+let checkedOnce = false
+/** 이 기기에서 이동 기록이 바뀐 횟수(넣기·스위치 켜기) */
+let changeRev = 0
+/** 그중 드라이브와 끝까지 맞춘 마지막 값 — changeRev와 다르면 다음 동기화 때 맞춘다 */
+let syncedRev = 0
+
+/** 이 기기에서 이동 기록이 바뀌었다고 적는다 (넣기·스위치 켜기) — 다음 동기화가 이동 기록 단계도 돈다 */
+export function markTracksChanged(): void {
+  changeRev += 1
+}
+
+/** 이 기기의 스위치가 켜졌는지. 저장소를 못 열면 false (꺼진 쪽이 안전하다) */
+export async function isTracksSyncOn(): Promise<boolean> {
+  return (await dbGet<boolean>('meta', TRACKS_SYNC_ON_KEY).catch(() => false)) === true
+}
+
+/** 스위치와 '드라이브에 있음'을 읽어 상태에 적는다 (앱을 열 때·연결할 때). 못 읽으면 꺼짐으로 */
+export async function loadTracksSync(): Promise<void> {
+  const [on, onDrive] = await Promise.all([isTracksSyncOn(), dbGet<boolean>('meta', ON_DRIVE_KEY).catch(() => false)])
+  setTracksStatus({ on, onDrive: onDrive === true })
+}
+
+/**
+ * 스위치를 켜거나 끈다. 켤 때는 드라이브의 "지웠음" 표시를 새로 받아들이게 본 값을 지운다 (알고 다시 올리는 것이다) —
+ * 부르는 쪽이 곧 동기화를 돌린다 (sync.ts syncAgain). 끌 때는 올리기·받기만 멈추고 드라이브의 사본은 그대로 둔다.
+ * 저장소에 못 쓰면 던진다 (스위치는 그대로다).
+ */
+export async function setTracksSyncOn(on: boolean): Promise<void> {
+  await dbWriteAll(['meta'], (store) => {
+    store('meta').put(on, TRACKS_SYNC_ON_KEY)
+    if (on) store('meta').delete(CLEAR_SEEN_KEY)
+  })
+  if (on) markTracksChanged()
+  setTracksStatus({ on, note: null })
+}
+
+/**
+ * 이 기기의 이동 기록을 지운다 — 스위치도 같은 트랜잭션에서 꺼진다 (tracks.ts clearTracks). 드라이브의 사본은 그대로다.
+ * 드라이브에 사본이 남아 있을 수 있는지(스위치가 켜져 있었거나 드라이브에 있다고 봤다)를 준다 — 결과 줄이 그렇게 알린다. DB 오류는 던진다.
+ */
+export async function clearDeviceTracks(): Promise<boolean> {
+  const [on, onDrive] = await Promise.all([isTracksSyncOn(), dbGet<boolean>('meta', ON_DRIVE_KEY).catch(() => false)])
+  await clearTracks()
+  setTracksStatus({ on: false, note: null })
+  return on || onDrive === true
+}
+
+/**
+ * 기록 동기화 뒤의 이동 기록 단계. 스위치가 꺼졌으면 아무것도 하지 않는다. 켜져 있어도 앱을 열고 처음 · `manual` ·
+ * 이 기기에서 바뀐 뒤(markTracksChanged)에만 돈다. 결과는 상태(tracks.note)에 적는다.
+ * 로그인이 풀린 것(NotConnectedError)만 던진다 — 그 밖의 실패는 이동 기록 카드에만 적고 기록 동기화의 결과를 바꾸지 않는다.
+ */
+export async function syncTracksStep(rootFolder: string, manual: boolean): Promise<void> {
+  if (!(await isTracksSyncOn())) return
+  if (!manual && checkedOnce && syncedRev === changeRev) return
+  const rev = changeRev
+  setTracksStatus({ note: { kind: 'syncing' } })
+  try {
+    setTracksStatus(await exchange(rootFolder))
+    checkedOnce = true
+    syncedRev = rev
+  } catch (e) {
+    if (e instanceof NotConnectedError) { setTracksStatus({ note: null }); throw e }
+    setTracksStatus({ note: { kind: 'failed', reason: e instanceof Error ? e.message : '' } })
+  }
+}
+
+/** 달별 지문만 */
+function digestsOf(months: Map<string, LocalMonth>): Map<string, string> {
+  return new Map([...months].map(([month, m]) => [month, m.digest]))
+}
+
+/**
+ * 한 바퀴: 목록 → "지웠음" 표시 보기 → 지문이 다른 달을 받아 합치기 → 다시 지문 → 올리기. 바꿀 상태를 준다.
+ * 켠 뒤에 누가 드라이브의 이동 기록을 지웠으면 이 기기의 점은 두고 스위치만 끈다 (다시 올리면 지운 것이 되살아난다). 실패는 던진다.
+ */
+async function exchange(rootFolder: string): Promise<Partial<TracksSyncStatus>> {
+  const folder = await ensureFolder(TRACKS_FOLDER, rootFolder)
+  const files = await listFiles(folder)
+  const clearedAt = clearedAtOf(files)
+  const decision = clearDecision((await dbGet<string>('meta', CLEAR_SEEN_KEY)) ?? null, clearedAt)
+  if (decision === 'stop') {
+    await dbWriteAll(['meta'], (store) => { store('meta').put(false, TRACKS_SYNC_ON_KEY); store('meta').put(false, ON_DRIVE_KEY) })
+    return { on: false, onDrive: false, note: { kind: 'clearedElsewhere' } }
+  }
+  if (decision === 'adopt') await dbPut('meta', clearedAt, CLEAR_SEEN_KEY)
+  const remote = files.flatMap((f) => remoteMonthOf(f) ?? [])
+  const { months, received, keep } = await receive(remote)
+  const rev = tracksStatusOf(getSyncStatus()).rev + (received ? 1 : 0)
+  // 받는 사이 사용자가 스위치를 껐거나 이 기기를 지웠으면 올리지 않는다
+  if (!(await isTracksSyncOn())) return { rev, note: null }
+  await send(folder, months, remote, keep)
+  const onDrive = months.size > 0 || remote.length > 0
+  await dbPut('meta', onDrive, ON_DRIVE_KEY)
+  let count = 0
+  for (const m of months.values()) count += m.points.length
+  return { onDrive, rev, note: { kind: 'same', count } }
+}
+
+/**
+ * 드라이브의 지문이 기기와 다른 달 파일을 받아 기기에 합친다 (점의 합집합, tracks.ts mergeReceivedTracks — 넣은 날은 올린 기기의 것과 견줘 늦은 쪽).
+ * 합친 뒤의 달별 점, 기기가 바뀌었는지, 읽지 못한 새 모양 파일이 있는 달(keep — 덮지 않는다)을 준다. 네트워크·DB 실패는 던진다.
+ */
+async function receive(remote: RemoteMonth[]): Promise<{ months: Map<string, LocalMonth>; received: boolean; keep: Set<string> }> {
+  const before = await localMonthsOf(await readAllPoints())
+  const keep = new Set<string>()
+  let received = false
+  for (const r of planDownload(digestsOf(before), remote)) {
+    const points = decodeMonth(await (await downloadFile(r.fileId)).text(), r.month)
+    if (points === null) { keep.add(r.month); continue }
+    if (points.length > 0 && (await mergeReceivedTracks(points, new Date(r.importedAt))) > 0) received = true
+  }
+  return { months: received ? await localMonthsOf(await readAllPoints()) : before, received, keep }
+}
+
+/**
+ * 기기의 달 가운데 드라이브와 다른 달을 올리고(있던 파일은 PATCH로 덮는다 — 요청 하나라 반쪽 파일이 없다), 같은 달의 남는 파일을 지운다.
+ * 꼬리표의 넣은 날은 이 기기 요약의 것이다. 실패는 던진다 — 올리다 끊겨도 다음에 지문이 달라 다시 올린다.
+ */
+async function send(folder: string, months: Map<string, LocalMonth>, remote: RemoteMonth[], keep: Set<string>): Promise<void> {
+  const importedAt = (await readTracksMeta())?.importedAt ?? new Date().toISOString()
+  for (const step of planUpload(digestsOf(months), remote, keep)) {
+    const m = months.get(step.month)!
+    if (step.upload) {
+      await uploadFile({
+        name: monthFileName(step.month), parentId: folder, existingId: step.fileId,
+        blob: new Blob([encodeMonth(step.month, m.points)], { type: 'application/json' }), appProperties: monthTags(m.digest, m.points.length, importedAt),
+      })
+    }
+    for (const id of step.remove) await deleteFile(id)
+  }
+}
+
+/**
+ * 드라이브의 이동 기록을 지운다 (이 기기의 점은 그대로). 순서: "지웠음" 표시(cleared.json)를 **먼저** 올리고 → 달 파일을 지우고 →
+ * 이 기기의 스위치를 끈다. 표시가 먼저여야 도중에 끊겨도 스위치를 켠 다른 기기가 다시 올리지 않는다 (그 기기는 표시를 보고 스위치만 끈다).
+ * 드라이브를 사람이 웹에서 직접 지운 경우는 막지 못한다 — 그래서 안내는 앱의 이 버튼을 쓰라고 한다.
+ * 연결이 풀렸으면 NotConnectedError, 그 밖의 실패는 DriveError(한국어)로 던진다 — 다시 누르면 남은 달 파일부터 다시 지운다.
+ * 동기화와 겹치지 않게 sync.ts clearDriveTracksNow로 부른다.
+ */
+export async function clearDriveTracks(): Promise<void> {
+  const folder = await ensureFolder(TRACKS_FOLDER, await ensureFolder(ROOT_FOLDER, 'root'))
+  const files = await listFiles(folder)
+  const marker = files.find((f) => f.name === CLEARED_FILE)
+  const clearedAt = new Date().toISOString()
+  await uploadFile({
+    name: CLEARED_FILE, parentId: folder, existingId: marker?.id,
+    blob: new Blob([JSON.stringify({ v: 1, clearedAt })], { type: 'application/json' }), appProperties: { clearedAt },
+  })
+  // 달 파일과, 두 기기가 동시에 지워 생긴 남는 표시 파일을 지운다 (방금 덮은 표시는 남긴다)
+  for (const f of files) if (f !== marker && (f.name === CLEARED_FILE || remoteMonthOf(f))) await deleteFile(f.id)
+  await dbWriteAll(['meta'], (store) => {
+    store('meta').put(false, TRACKS_SYNC_ON_KEY)
+    store('meta').put(false, ON_DRIVE_KEY)
+    store('meta').put(clearedAt, CLEAR_SEEN_KEY)
+  })
+  setTracksStatus({ on: false, onDrive: false, note: null })
+}
