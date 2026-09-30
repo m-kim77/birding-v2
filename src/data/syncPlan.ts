@@ -94,6 +94,7 @@ export function remoteRecordOf(file: { id: string; name: string; appProperties?:
  * 드라이브 기록 파일의 꼬리표. 지우지 않은 기록에도 deleted를 '0'으로 적는다.
  * PATCH는 안 보낸 꼬리표를 남긴다 — 다른 기기에서 지운('1') 기록을 여기서 고쳐 다시 올릴 때 '0'으로 덮지 않으면,
  * 다음 동기화가 고친 기록을 지운 기록으로 읽어 기기에서 지운다. 읽는 쪽(`remoteRecordOf`)은 '1'만 지움으로 본다.
+ * 거꾸로 '0'이 더 늦은 지움을 덮으면 안 된다 — 지움보다 먼저 고친 기록은 올리기 전에 `planPull`이 기기에서 지운다.
  */
 export function recordTags(updatedAt: string, deleted: boolean): Record<string, string> {
   return { updatedAt, deleted: deleted ? '1' : '0' }
@@ -102,7 +103,7 @@ export function recordTags(updatedAt: string, deleted: boolean): Record<string, 
 export interface PullPlan {
   /** 드라이브 쪽이 더 새것이거나 기기에 없는 기록 — 받아서 기기에 쓴다 */
   download: RemoteRecord[]
-  /** 다른 기기에서 지웠고, 그 뒤로 이 기기에서 고친 적이 없는 기록 — 기기에서도 지운다 */
+  /** 다른 기기에서 지웠고, 그 뒤로 이 기기에서 고친 적이 없는 기록 — 기기에서도 지운다 (줄에 올릴 일이 남았어도) */
   removeLocal: string[]
   /** 기기 쪽이 더 새것이거나 드라이브에 없는 기록 — 줄에 넣어 올린다 (사진 포함) */
   upload: string[]
@@ -113,6 +114,9 @@ export interface PullPlan {
  * - 줄에 올릴 일이 남은 기록(`pending`)은 건드리지 않는다 — 기기 쪽 일이 아직 드라이브에 닿지 않았을 뿐이다.
  *   (특히 지운 기록: 지움이 올라가기 전에 받으면 지운 기록이 되살아난다.)
  * - 지움 표시는 그 뒤에 기기에서 고친 기록을 지우지 않는다 — 고친 쪽이 더 늦으니 다시 올린다.
+ * - 거꾸로 지움이 기기의 고침보다 늦으면(또는 같으면) 줄에 일이 남았어도 기기에서 지운다. 그 고침을 올리면
+ *   꼬리표 deleted='0'(`recordTags`)이 드라이브의 지움을 덮어, 지운 기록이 모든 기기에 되살아난다.
+ *   줄의 그 올리기는 올릴 기록이 없어 그냥 끝난다 (syncTransfer.ts `pushEntry`).
  */
 export function planPull(local: Sighting[], remote: RemoteRecord[], pending: Set<string>): PullPlan {
   const mine = new Map(local.map((s) => [s.id, s]))
@@ -120,11 +124,11 @@ export function planPull(local: Sighting[], remote: RemoteRecord[], pending: Set
   const seen = new Set<string>()
   for (const r of remote) {
     seen.add(r.id)
-    if (pending.has(r.id)) continue
     const l = mine.get(r.id)
+    if (r.deleted && l && l.updatedAt <= r.updatedAt) { plan.removeLocal.push(r.id); continue }
+    if (pending.has(r.id)) continue
     if (r.deleted) {
-      if (l && l.updatedAt <= r.updatedAt) plan.removeLocal.push(r.id)
-      else if (l) plan.upload.push(r.id)
+      if (l) plan.upload.push(r.id)
     } else if (!l || l.updatedAt < r.updatedAt) plan.download.push(r)
     else if (l.updatedAt > r.updatedAt) plan.upload.push(r.id)
   }

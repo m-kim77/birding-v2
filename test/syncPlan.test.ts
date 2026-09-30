@@ -71,6 +71,15 @@ test('planPull: 다른 기기에서 지운 기록은 여기서도 지운다 — 
   assert.deepEqual(plan.download, []) // 지움 표시만 있는 기록은 받지 않는다
 })
 
+test('planPull: 줄에 남은 고침도 드라이브의 지움보다 먼저면 지운다 — 늦은 쪽이 이긴다 (지움 뒤의 고침은 남아 올라간다)', () => {
+  const plan = planPull(
+    [s('edited-before', '2026-09-05'), s('edited-after', '2026-09-09')],
+    [r('edited-before', '2026-09-06', true), r('edited-after', '2026-09-05', true)],
+    new Set(['edited-before', 'edited-after']),
+  )
+  assert.deepEqual(plan, { download: [], removeLocal: ['edited-before'], upload: [] })
+})
+
 test('planPull: 줄에 남은 일(여기서 지웠는데 아직 못 올린 것 등)은 드라이브 쪽으로 되돌리지 않는다', () => {
   // 여기서 지운 기록: 기기에는 없고 드라이브에는 아직 살아 있다 — 받으면 지운 기록이 되살아난다
   const plan = planPull([s('edited', '2026-09-01')], [r('deleted-here', '2026-09-01'), r('edited', '2026-09-09')], new Set(['deleted-here', 'edited']))
@@ -101,4 +110,14 @@ test('다른 기기에서 지운 기록을 여기서 고쳐 올리면, 다음 �
   const remote = remoteRecordOf({ id: 'f1', name: 'edited.json', appProperties: editedHere })
   assert.ok(remote)
   assert.deepEqual(planPull([s('edited', '2026-09-09')], [remote], new Set()), { download: [], removeLocal: [], upload: [] })
+})
+
+test('여기서 고친 것을 못 올린 사이 다른 기기에서 지우면, 올리지 않고 여기서도 지운다 (지운 기록이 되살아나지 않게)', () => {
+  // 이 기기: 9/5에 고쳤고 올릴 일이 줄에 남았다. 다른 기기: 9/6에 지웠다
+  const deletedThere = remoteRecordOf({ id: 'f1', name: 'x.json', appProperties: recordTags('2026-09-06', true) })
+  assert.ok(deletedThere)
+  const here = planPull([s('x', '2026-09-05')], [deletedThere], new Set(['x']))
+  // 기기에서 지우면 줄의 올리기는 올릴 기록이 없어 그냥 끝난다 (syncTransfer pushEntry) — 드라이브의 지움은 그대로
+  assert.deepEqual(here, { download: [], removeLocal: ['x'], upload: [] })
+  assert.deepEqual(planPull([], [deletedThere], new Set()), { download: [], removeLocal: [], upload: [] }) // 지운 기기는 받지 않는다
 })
