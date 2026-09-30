@@ -6,6 +6,7 @@ import Sheet from '../../ui/Sheet'
 import { dayOf } from '../../ui/when'
 import BirdCard from './BirdCard'
 import { bySpecies, type SpeciesEntry } from './bySpecies'
+import { speciesInYear } from './speciesCount'
 import CardActions from './CardActions'
 import CardStylePicker from './CardStylePicker'
 import SyncBanner from './SyncBanner'
@@ -45,11 +46,18 @@ function SpeciesSheet({ open, onClose, onOpenRecord }: SheetProps) {
  * 내 새 도감 — **종별로** 본다. 일지가 "언제 무엇을 봤나"라면 도감은 "지금까지 어떤 새를 만났나"다.
  * 한 칸이 한 종이고, 누르면 그 종의 대표 카드와 그 종을 만난 모든 기록이 나온다.
  * 못 본 종의 빈 칸은 그리지 않는다. 채우라고 압박하면 희귀종을 쫓게 되고, 그건 새에게 해롭다.
+ * "올해 K종" 칩은 올해(촬영지 시각의 해) 만난 종만 남긴다 — 카드의 No.는 그대로다 (모든 기록으로 매긴 번호).
  */
 export default function DexScreen({ onOpenRecord }: { onOpenRecord: (id: string) => void }) {
   const { sightings } = useJournal()
   const numbers = useDexNumbers()
+  // 묶기와 번호에는 늘 모든 기록을 넘기고, 올해 칩은 묶은 뒤의 종 목록만 거른다 — 걸러진 기록으로 번호를 매기면 카드의 No.가 바뀐다
   const species = useMemo(() => bySpecies(sightings ?? [], numbers), [sightings, numbers])
+  const thisYear = useMemo(() => speciesInYear(sightings ?? [], new Date().getFullYear()), [sightings])
+  const [onlyThisYear, setOnlyThisYear] = useState(false)
+  // 올해 종이 0이거나 전부면 칩이 없다 (눌러도 달라지지 않거나 빈 도감이 된다). 칩이 안 보이면 거르지도 않는다 — 풀 길 없는 거르기가 남지 않게
+  const yearChip = thisYear.size > 0 && thisYear.size < species.length
+  const shown = yearChip && onlyThisYear ? species.filter((e) => thisYear.has(e.name)) : species
   const [openName, setOpenName] = useState('')
   const open = species.find((e) => e.name === openName) ?? null
 
@@ -57,9 +65,15 @@ export default function DexScreen({ onOpenRecord }: { onOpenRecord: (id: string)
     <div className="screen">
       <ScreenHead title="도감" sub={`종별 · 지금까지 ${species.length}종을 만났습니다`} />
       <SyncBanner />
+      {yearChip && (
+        // 올해 칩: 도감은 지금까지의 종을 다 보여 준다 — 올해 만난 종(올해 목록)만 보려면 골라낼 수단이 있어야 한다. 숫자만 보이고 목표·작년 비교는 붙이지 않는다
+        <div className="chips">
+          <button type="button" className={`chip${onlyThisYear ? ' is-on' : ''}`} aria-pressed={onlyThisYear} onClick={() => setOnlyThisYear((v) => !v)}>올해 {thisYear.size}종</button>
+        </div>
+      )}
       {species.length === 0 && <p className="hint">이름이 정해진 기록이 생기면 여기에 종마다 카드가 한 장씩 모입니다.</p>}
       <div className="dex-grid">
-        {species.map((e) => (
+        {shown.map((e) => (
           <button key={e.name} type="button" className="dex-cell" onClick={() => setOpenName(e.name)} aria-label={`${e.name}, 기록 ${e.all.length}건`}>
             <BirdCard sighting={e.best} small />
             {e.all.length > 1 && <span className="dex-count">{e.all.length}번 만남</span>}
