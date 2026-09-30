@@ -72,6 +72,10 @@ export function isNarrowed(view: JournalView): boolean {
   return view.period !== '' || view.place !== null
 }
 
+/**
+ * 달 숫자를 두 자리 글자로 (9 → '09') — 기간 값 '2026-09'의 달 자리. ui/when.ts의 같은 이름 함수(내보내지 않는다)와 같은 일이다.
+ * 두 자리가 넘는 수는 그대로 둔다 (달은 늘 1~12라 생기지 않는다).
+ */
 const pad2 = (n: number) => String(n).padStart(2, '0')
 
 /** 기록의 달 값 '2026-09' (촬영지 시각). 시각을 못 읽으면 null — 그런 기록은 어느 기간에도 들지 않고 "전체 기간"에서만 보인다 */
