@@ -4,7 +4,7 @@
  * 파일은 브라우저 안에서만 읽는다: 서버로 보내지 않고, 원본은 남기지 않고, 좌표를 console에 찍지 않는다.
  */
 import { syncSoon } from '../../data/sync'
-import { markTracksChanged } from '../../data/syncTracks'
+import { isTracksSyncOn, markTracksChanged } from '../../data/syncTracks'
 import { mergeTracks, type TracksMeta } from '../../data/tracks'
 import { unpack, type PackedPoint, type TrackPoint } from '../../lib/tracklog/points'
 import { parseTimelineText } from '../../lib/tracklog/parse'
@@ -57,7 +57,8 @@ function toKoreanError(e: unknown, fallback: string): Error {
  * 타임라인 파일을 넣는다. 읽기·파싱은 워커에서(없으면 주 스레드에서), 저장은 날짜별로 합쳐서.
  * 실패하면 한국어 Error: 파일 형식이 아니거나(아이폰 모양 포함), 좌표가 없거나, 저장소에 못 쓰거나.
  * 저장은 한 번에 된다 — 도중에 끊기거나 실패하면 아무것도 남지 않는다 (mergeTracks). 다시 넣으면 있던 점과 중복 없이 합쳐진다.
- * 새 점이 들었으면 곧 동기화한다 — 이 기기에서 '이동 기록도 구글 드라이브에 올리기'를 켰을 때만 드라이브로 간다 (data/syncTracks.ts).
+ * 새 점이 들었고 이 기기에서 '이동 기록도 구글 드라이브에 올리기'를 켰으면 곧 동기화한다 (data/syncTracks.ts). 꺼 두었으면 넣기 때문에 드라이브 요청이 나가지는 않는다 —
+ * 나중에 켜면 그때 올린다 (setTracksSyncOn). 스위치를 못 읽으면 꺼진 것으로 본다.
  */
 export async function importTimelineFile(file: File, onProgress: (p: ImportProgress) => void): Promise<ImportResult> {
   const onStage = (stage: ParseStage) => onProgress({ stage })
@@ -69,7 +70,7 @@ export async function importTimelineFile(file: File, onProgress: (p: ImportProgr
   }
   try {
     const { added, meta } = await mergeTracks(points, (done, total) => onProgress({ stage: 'saving', done, total }))
-    if (added > 0) { markTracksChanged(); syncSoon() }
+    if (added > 0 && (await isTracksSyncOn())) { markTracksChanged(); syncSoon() }
     return { total: points.length, added, meta }
   } catch (e) {
     throw toKoreanError(e, '이동 기록을 저장하지 못했습니다 (저장 공간이 부족할 수 있습니다).')
