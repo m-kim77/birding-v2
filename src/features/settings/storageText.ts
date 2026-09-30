@@ -1,7 +1,8 @@
 /**
- * 저장 공간 카드(settings/StorageSection)의 문구를 만드는 순수 함수. node --test로 검사한다.
+ * 저장 공간 카드(settings/StorageSection)의 문구와 줄을 만드는 순수 함수. node --test로 검사한다.
  */
-import type { PhotoKind } from '../../types'
+import type { MissingPhotos } from '../../data/photoCheck'
+import type { PhotoKind, Sighting } from '../../types'
 
 /**
  * 쓰는 양이 한도의 이만큼을 넘으면 알린다. 평소 한도는 기기 전체 용량의 약 60%라(크롬·사파리, MDN "Storage quotas")
@@ -62,4 +63,19 @@ export function missingKindsText(kinds: PhotoKind[]): string {
   if (full && thumb) return '사진 없음'
   if (full) return '큰 사진 없음'
   return thumb ? '목록 사진 없음' : ''
+}
+
+/** 사진이 빠진 기록 한 줄: 그 기록과 없는 판 */
+export type MissingRow = { s: Sighting; kinds: PhotoKind[] }
+
+/**
+ * 사진이 빠진 기록(점검 결과)을 화면에 그릴 줄로 바꾼다.
+ * 화면에 그릴 수 있는 기록만 — 점검(DB)과 화면 상태(journal)가 잠깐 어긋나도 없는 기록을 줄로 그리지 않는다.
+ * 일지처럼 최신 촬영부터 (DB는 id 순으로 주는데, id는 무작위라 순서에 뜻이 없다). 빈 입력이면 빈 목록.
+ */
+export function missingRows(missing: MissingPhotos[], sightings: Sighting[]): MissingRow[] {
+  const byId = new Map(sightings.map((s) => [s.id, s]))
+  return missing
+    .flatMap((m) => { const s = byId.get(m.id); return s ? [{ s, kinds: m.kinds }] : [] })
+    .sort((a, b) => b.s.capturedAt.localeCompare(a.s.capturedAt))
 }

@@ -4,8 +4,9 @@ import { exportBackup, importBackup } from '../../data/backup'
 import { useJournal } from '../../data/journal'
 import { Card } from '../../ui/bits'
 import Button from '../../ui/Button'
-import { daysAgoOf, fileDateToday } from '../../ui/when'
+import { fileDateToday } from '../../ui/when'
 import { saveFile } from '../dex/saveFile'
+import { backupStatusText, importResultText } from './backupText'
 import TaskResult from './TaskResult'
 import { useTask, type TaskMessage } from './useTask'
 
@@ -45,21 +46,16 @@ export default function BackupSection() {
   const upload = (file: File) => run(async () => {
     const plan = await importBackup(file)
     await reload()
-    // 건너뛴 기록은 말없이 넘기지 않는다 — 파일에 있던 기록이 안 보이면 사용자는 유실로 안다
-    const skipped = plan.skipped > 0 ? ` · 읽지 못한 기록 ${plan.skipped}건은 건너뛰었습니다` : ''
-    return { tone: 'ok', text: `불러왔습니다 — 새 기록 ${plan.add.length}건, 갱신 ${plan.update.length}건, 그대로 둔 기록 ${plan.kept}건${skipped}` }
+    return { tone: 'ok', text: importResultText(plan) }
   })
 
-  const ago = daysAgoOf(lastBackupAt)
   const total = (sightings ?? []).length
   return (
     <Card>
       <h2>백업</h2>
       <p className="hint">기록과 사진은 이 기기에만 저장됩니다. 파일로 내려받아 두면 다른 기기에서 이어 쓸 수 있고, 브라우저 자료가 지워져도 되살릴 수 있습니다.</p>
       <p className="hint">백업에는 화면용으로 줄인 사진(긴 변 2048px)이 들어갑니다 — 원본 사진은 따로 보관하세요.</p>
-      <p className={unsaved ? 'status-line is-warn' : 'status-line is-ok'}>
-        {ago ? `${unsaved ? `백업 안 된 기록 ${unsaved}건` : '모든 기록이 백업돼 있습니다'} · 전체 ${total}건 · 마지막 백업 ${ago}` : `아직 백업한 적 없음 · 전체 ${total}건`}
-      </p>
+      <p className={unsaved ? 'status-line is-warn' : 'status-line is-ok'}>{backupStatusText(unsaved, total, lastBackupAt)}</p>
       {persisted === false && isTouchDevice() && (
         // 브라우저가 저장소 보존을 거절한 폰 — 저장 공간이 모자라면 이 앱의 자료부터 지울 수 있다 (PC는 드문 일이라 말하지 않는다)
         <p className="status-line is-warn">이 브라우저는 저장 공간이 모자라면 이 앱의 기록을 지울 수 있습니다. 홈 화면에 추가해 쓰면 보호되고, 그 전에는 백업을 자주 해 두세요.</p>
