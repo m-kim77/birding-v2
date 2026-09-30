@@ -39,6 +39,22 @@ test('sortNewest: 촬영 시각의 최신순, 입력 배열은 그대로 둔다'
   assert.deepEqual(ids(list), ['mid', 'new', 'old'])
 })
 
+test("sortNewest: 글자가 아니라 순간으로 — '+09:00'이 붙은 옛 백업의 시각이 섞여도 실제 순서 (작업 35 fix)", () => {
+  // 'plus9'는 서울 22일 01:00 = 21일 16:00 UTC. 글자로 견주면 22일이라 맨 앞에 왔다
+  const list = [
+    rec('plus9', '2026-09-22T01:00:00+09:00'),
+    rec('late', '2026-09-21T20:00:00.000Z'),
+    rec('early', '2026-09-21T10:00:00.000Z'),
+    rec('same-as-plus9', '2026-09-21T16:00:00.000Z'),
+  ]
+  assert.deepEqual(ids(sortNewest(list)), ['late', 'plus9', 'same-as-plus9', 'early'], '같은 순간이면 입력 순서 그대로')
+})
+
+test('sortNewest: 못 읽는 시각은 맨 뒤로, 멈추지 않는다', () => {
+  const list = [rec('bad', 'not-a-date'), rec('ok', '2026-01-01T00:00:00.000Z')]
+  assert.deepEqual(ids(sortNewest(list)), ['ok', 'bad'])
+})
+
 test('countUnnamed: 이름이 빈 기록만 센다', () => {
   assert.equal(countUnnamed([rec('a', '2026-01-01T00:00:00.000Z', { speciesKo: '딱새' }), rec('b', '2026-01-02T00:00:00.000Z'), rec('c', '2026-01-03T00:00:00.000Z')]), 2)
   assert.equal(countUnnamed([]), 0)

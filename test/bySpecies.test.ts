@@ -26,3 +26,9 @@ test('bySpecies: 대표는 가장 최근 기록, 그 종의 기록은 최근 것
   assert.deepEqual(shape(bySpecies(list, new Map([['딱새', 1]]))), [['딱새', 'new', ['new', 'mid', 'old']]])
   assert.deepEqual(list.map((s) => s.id), ['old', 'new', 'mid'])
 })
+
+test("bySpecies: 대표를 순간으로 고른다 — '+09:00'이 붙은 시각이 날짜 글자만 앞서도 대표가 되지 않는다 (작업 35 fix)", () => {
+  // 'plus9'는 서울 22일 01:00 = 21일 16:00 UTC로, 'utc'(21일 20:00 UTC)보다 이르다
+  const list = [rec('plus9', '딱새', '2026-09-22T01:00:00+09:00'), rec('utc', '딱새', '2026-09-21T20:00:00.000Z'), rec('bad', '딱새', 'not-a-date')]
+  assert.deepEqual(shape(bySpecies(list, new Map([['딱새', 1]]))), [['딱새', 'utc', ['utc', 'plus9', 'bad']]])
+})

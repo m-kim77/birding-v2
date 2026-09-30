@@ -4,6 +4,7 @@
  * 종 수 세기는 도감과 같이 쓰므로 `dex/speciesCount.ts`에 따로 둔다.
  */
 // 확장자를 적는 이유: node --test가 이 파일을 직접 읽는다 (Vite는 어느 쪽이든 된다)
+import { newestFirst } from '../../lib/timeOrder.ts'
 import { monthOf } from '../../ui/when.ts'
 import type { Sighting } from '../../types'
 
@@ -17,9 +18,12 @@ export function matchesQuery(s: Sighting, query: string): boolean {
   return [s.speciesKo, s.latin, s.place, s.note].some((v) => (v ?? '').toLowerCase().includes(q))
 }
 
-/** 촬영 시각의 최신순으로 늘어놓은 새 배열. 입력 배열은 바꾸지 않는다 (journal의 목록을 그대로 정렬하면 다른 화면의 순서까지 바뀐다) */
+/**
+ * 촬영 시각의 최신순으로 늘어놓은 새 배열. 입력 배열은 바꾸지 않는다 (journal의 목록을 그대로 정렬하면 다른 화면의 순서까지 바뀐다).
+ * 글자가 아니라 순간으로 견준다 (lib/timeOrder.ts) — 같은 순간이면 입력 순서 그대로, 못 읽는 시각은 맨 뒤.
+ */
 export function sortNewest(list: Sighting[]): Sighting[] {
-  return [...list].sort((a, b) => b.capturedAt.localeCompare(a.capturedAt))
+  return [...list].sort((a, b) => newestFirst(a.capturedAt, b.capturedAt))
 }
 
 /** 이름이 아직 없는 기록("이름 미정")의 수. "이름 미정 N건" 칩이 쓴다 — 0이면 칩을 그리지 않는다 */
