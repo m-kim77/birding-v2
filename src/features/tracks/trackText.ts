@@ -1,9 +1,11 @@
 /**
- * 이동 기록 요약(TracksMeta)과 넣기 진행(ImportProgress)을 화면 문구로 바꾸는 순수 함수. 설정 카드(settings/TracksSection)가 쓴다.
+ * 이동 기록 요약(TracksMeta)·넣기 진행(ImportProgress)·드라이브 동기화 결과(TracksSyncNote)를 화면 문구로 바꾸는 순수 함수.
+ * 설정 카드(settings/TracksSection·TracksDriveSync)가 쓴다.
  * 좌표는 여기서 다루지 않는다 — 화면 어디에도 좌표를 보여 주지 않는다. 범위·점 수·넣은 날·진행 단계만 글자로 만든다.
  */
 // 확장자를 적는 이유: node --test가 이 파일을 직접 읽는다 (Vite는 어느 쪽이든 된다)
 import { dayOf, daysAgoOf } from '../../ui/when.ts'
+import type { TracksSyncNote } from '../../data/syncStatus'
 import type { TracksMeta } from '../../data/tracks'
 import type { ImportProgress } from './importTracks'
 
@@ -55,4 +57,16 @@ export function progressOf(p: ImportProgress): { value: number; text: string } {
 export function summaryOf(meta: TracksMeta, now = new Date()): string {
   const ago = daysAgoOf(meta.importedAt, now)
   return [trackRangeText(meta, now), pointCountText(meta.count), ago && `넣은 날 ${ago}`].filter(Boolean).join(' · ')
+}
+
+/**
+ * 드라이브 동기화 줄: '드라이브와 같습니다 · 22,426점' / '아직 드라이브와 맞추지 못했습니다. 다음 동기화 때 다시 합니다. 이유: …'.
+ * 이 앱을 연 뒤 아직 맞춰 보지 않았으면(null) null — 줄을 그리지 않는다. 이유가 비었으면 '이유:'를 붙이지 않는다.
+ */
+export function tracksSyncLine(note: TracksSyncNote | null): { tone: 'ok' | 'warn'; text: string } | null {
+  if (!note) return null
+  if (note.kind === 'syncing') return { tone: 'ok', text: '드라이브와 맞추는 중…' }
+  if (note.kind === 'same') return { tone: 'ok', text: `드라이브와 같습니다 · ${note.count ? pointCountText(note.count) : '아직 이동 기록 없음'}` }
+  if (note.kind === 'clearedElsewhere') return { tone: 'warn', text: '다른 기기에서 드라이브의 이동 기록을 지워, 이 기기의 올리기를 껐습니다. 이 기기의 이동 기록은 그대로입니다.' }
+  return { tone: 'warn', text: `아직 드라이브와 맞추지 못했습니다. 다음 동기화 때 다시 합니다.${note.reason ? ` 이유: ${note.reason}` : ''}` }
 }

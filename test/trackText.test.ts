@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { pointCountText, progressOf, summaryOf, trackRangeText } from '../src/features/tracks/trackText.ts'
+import { pointCountText, progressOf, summaryOf, trackRangeText, tracksSyncLine } from '../src/features/tracks/trackText.ts'
 import type { TracksMeta } from '../src/data/tracks'
 
 // 시각은 모두 지어낸 것이고 좌표는 다루지 않는다. 날짜는 로컬 시간으로 만든다 — 화면이 브라우저 시간대로 풀기 때문에 실행 TZ와 무관하게 같은 날짜가 나온다.
@@ -77,4 +77,24 @@ test('summaryOf: 기간을 못 읽어도 나머지는 그대로 (줄이 통째�
 test('summaryOf: now를 안 주면 지금 — 범위의 연도와 넣은 날 둘 다 같은 기준', () => {
   const line = summaryOf(metaOf({ rangeStart: at(2001, 5, 22), rangeEnd: at(2001, 8, 20), importedAt: at(2001, 9, 1) }))
   assert.match(line, /^2001년 5월 22일 ~ 2001년 8월 20일 · 1,234점 · 넣은 날 \d+일 전$/)
+})
+
+test('tracksSyncLine: 아직 맞춰 보지 않았으면 줄이 없다', () => {
+  assert.equal(tracksSyncLine(null), null)
+})
+
+test('tracksSyncLine: 맞추는 중 · 드라이브와 같음(점 수, 0점이면 없음) — ok', () => {
+  assert.deepEqual(tracksSyncLine({ kind: 'syncing' }), { tone: 'ok', text: '드라이브와 맞추는 중…' })
+  assert.deepEqual(tracksSyncLine({ kind: 'same', count: 22426 }), { tone: 'ok', text: '드라이브와 같습니다 · 22,426점' })
+  assert.deepEqual(tracksSyncLine({ kind: 'same', count: 0 }), { tone: 'ok', text: '드라이브와 같습니다 · 아직 이동 기록 없음' })
+})
+
+test('tracksSyncLine: 못 맞춤(이유가 있으면 뒤에) · 다른 기기가 드라이브에서 지움 — warn', () => {
+  assert.deepEqual(tracksSyncLine({ kind: 'failed', reason: '드라이브가 요청을 거절했습니다 (403).' }), {
+    tone: 'warn', text: '아직 드라이브와 맞추지 못했습니다. 다음 동기화 때 다시 합니다. 이유: 드라이브가 요청을 거절했습니다 (403).',
+  })
+  assert.deepEqual(tracksSyncLine({ kind: 'failed', reason: '' }), { tone: 'warn', text: '아직 드라이브와 맞추지 못했습니다. 다음 동기화 때 다시 합니다.' })
+  const cleared = tracksSyncLine({ kind: 'clearedElsewhere' })
+  assert.equal(cleared?.tone, 'warn')
+  assert.match(cleared?.text ?? '', /올리기를 껐습니다/)
 })

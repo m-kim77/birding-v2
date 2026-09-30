@@ -1,17 +1,19 @@
 import { useRef, useState } from 'react'
-import { clearTracks } from '../../data/tracks'
+import { clearDeviceTracks } from '../../data/syncTracks'
 import { Card, Progress } from '../../ui/bits'
 import Button from '../../ui/Button'
 import { importTimelineFile, type ImportProgress } from '../tracks/importTracks'
 import { pointCountText, progressOf, summaryOf, trackRangeText } from '../tracks/trackText'
 import { useTracksMeta } from '../tracks/useTracksMeta'
 import TaskResult from './TaskResult'
+import TracksDriveSync from './TracksDriveSync'
 import { notifyStorageChanged } from './useStorageStatus'
 import { useTask } from './useTask'
 
 /**
  * 이동 기록(구글 타임라인). 위치 없는 카메라 사진의 위치를 촬영 시각으로 찾는 데 쓴다 (record/useTrackMatch).
- * 파일은 브라우저 안에서만 읽어 이 기기에 둔다 — 서버로 보내지 않고 백업에도 넣지 않는다 (data/tracks.ts). 다시 넣으면 있던 점과 합친다.
+ * 파일은 브라우저 안에서만 읽어 이 기기에 둔다 — 이 사이트의 서버로 보내지 않고 백업에도 넣지 않는다 (data/tracks.ts). 다시 넣으면 있던 점과 합친다.
+ * 드라이브를 연결했으면 '이동 기록도 구글 드라이브에 올리기' 스위치(기본 끔, TracksDriveSync)가 이 카드 안에 붙는다 — 켠 기기만 골라 둔 점이 자기 드라이브로 간다.
  * 좌표는 어디에도 보여 주지 않는다 — 범위·점 수·넣은 날만 적는다.
  */
 export default function TracksSection() {
@@ -28,9 +30,10 @@ export default function TracksSection() {
     if (added === 0) return { tone: 'ok', text: '이미 있는 점뿐입니다 — 새로 더한 점이 없습니다.' }
     return { tone: 'ok', text: `넣었습니다 — 새 점 ${added.toLocaleString('ko-KR')}개 (전체 ${pointCountText(next.count)} · ${trackRangeText(next)})` }
   })
+  // 드라이브 올리기를 켜 두었으면 같이 꺼진다 (안 끄면 다음 동기화가 도로 받아 온다). 드라이브의 사본은 따로 지운다
   const clear = () => run(async () => {
-    await clearTracks()
-    return { tone: 'ok', text: '이동 기록을 지웠습니다.' }
+    const driveCopy = await clearDeviceTracks()
+    return { tone: 'ok', text: driveCopy ? '이 기기의 이동 기록을 지웠습니다. 드라이브에 올라간 사본은 그대로 있습니다.' : '이동 기록을 지웠습니다.' }
   })
 
   const bar = progress && progressOf(progress)
@@ -38,18 +41,20 @@ export default function TracksSection() {
     <Card>
       <h2>이동 기록</h2>
       <p className="hint">구글 타임라인에서 내보낸 파일을 넣으면, 위치가 없는 카메라 사진의 위치를 촬영 시각으로 찾아 채웁니다.</p>
-      <p className="hint">이동 기록은 이 기기 밖으로 나가지 않습니다 — 서버로 보내지 않고, 백업 파일에도 넣지 않습니다. 파일에서 쓰는 점만 골라 두므로 원본 파일은 남겨 두지 않아도 됩니다.</p>
+      <p className="hint">이동 기록은 이 사이트의 서버로 보내지 않고 백업 파일에도 넣지 않습니다. 구글 드라이브를 연결한 뒤 '이동 기록도 구글 드라이브에 올리기'를 켜지 않으면 이 기기 밖으로 나가지 않습니다. 파일에서 쓰는 점만 골라 두므로 원본 파일은 남겨 두지 않아도 됩니다.</p>
       {/* undefined는 아직 읽는 중 — "없음"으로 잘못 보이지 않게 아무것도 그리지 않는다 */}
       {meta !== undefined && <p className="status-line">{meta ? summaryOf(meta) : '아직 넣은 파일 없음'}</p>}
       <input ref={fileInput} type="file" accept=".json,application/json" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); e.target.value = '' }} />
       <div className="row-actions">
         {/* 타임라인 파일 넣기: 위치 없는 카메라 사진의 위치를 촬영 시각으로 찾으려면 이동 기록이 있어야 하고, 그 파일은 사용자만 줄 수 있다 (저장소·서버에 두지 않는다) */}
         <Button variant={meta ? 'secondary' : 'primary'} icon="upload" onClick={() => fileInput.current?.click()} disabled={busy}>타임라인 파일 넣기</Button>
-        {/* 지우기: 이동 기록은 기록보다 민감하다 — 공용 기기에서 남기지 않을 길이 있어야 한다. 되묻지 않는다: 다시 내보내 넣으면 되는 자료다 */}
+        {/* 지우기: 이동 기록은 기록보다 민감하다 — 공용 기기에서 남기지 않을 길이 있어야 한다. 되묻지 않는다: 다시 내보내 넣으면 되는 자료다.
+            이 기기만 지운다 — 드라이브 올리기도 같이 꺼지고, 드라이브의 사본과 다른 기기는 그대로다 */}
         {meta && <Button variant="quiet" icon="trash" onClick={() => void clear()} disabled={busy}>지우기</Button>}
       </div>
       {bar && <div className="status-line"><span>{bar.text}</span><Progress value={bar.value} label={bar.text} /></div>}
       <TaskResult message={message} />
+      <TracksDriveSync onReceived={() => { void refresh(); notifyStorageChanged() }} />
       {/* 내보내는 방법: 구글 앱의 메뉴 깊이가 5단계라 안 적으면 못 찾는다. 버튼이 아니라 펼침이다 — 한 번 보면 되는 내용이다 */}
       <details className="howto">
         <summary>내보내는 방법</summary>
