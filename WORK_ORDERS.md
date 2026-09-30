@@ -984,6 +984,72 @@ ROADMAP의 작업 33 줄을 옮겨 쓴 것이다. 2026-10-01에 **지시와 후�
 
 ---
 
+## 작업 35 — 코드 정리의 나머지: 화면 문구 한 곳으로, 화면 안의 계산을 순수 함수로
+
+아래 "코드 정리 메모"의 '나머지'를 옮겨 쓴 것이다 (2026-10-01, 묶음 batch-1001). 일지·상세·지도·도감·카드·설정 카드를 두루 만져서, 같은 화면을 만지는 기능 작업(36~40)과 겹치지 않게 **파일 주인별로 다섯 조각**으로 나눠 각 묶음의 맨 앞에서 했다: (가) 일지·도감 — `batch-1001/journal` · (나) 카드 글자 — `batch-1001/card` · (다) 설정 카드·지도 — `batch-1001/settings` · (라) 이동 기록 카드 문구 — `batch-1001/drive` · (마) 여러 묶음에 걸친 문구와 순간 비교의 나머지 — 다섯 묶음을 합친 뒤 통합 브랜치 `batch-1001/integrate`. **아래 fix 셋을 빼면 앱 동작은 그대로다.**
+
+**왜**
+- 같은 말이 여러 파일에 따로 적혀 있어 하나만 고치면 어긋난다. '위치 비공개'가 화면 카드와 내보낸 카드에 따로 있었고(위치를 숨긴 기록의 장소가 SNS로 나가는 카드에 새지 않게 하는 사생활 규칙이다), 위치 출처 문구는 이미 두 벌이 달랐다.
+- 화면 파일 안의 계산(일지 검색·달 묶기, 도감 종별 묶기, 지도 핀 모으기, 설정 카드의 상태 문구, 내 키 연결 확인)에 테스트가 없었다. 지도에서 위치를 숨긴 기록을 빼는 규칙도 그랬다. 화면 파일 안에 있으면 `node --test`가 못 읽는다.
+- 일지(`RecordsScreen`) 함수가 78줄로 상한(80)에 붙어 있었다 — 거르기(36)·탐조 묶기(37)·개체 수(39)가 모두 이 화면에 줄을 더한다.
+- 기록의 앞뒤를 ISO 글자로 견줬다. 앱이 만드는 시각은 모두 UTC 'Z'라 평소에는 답이 같지만, '+09:00' 같은 형식이 든 백업을 불러오면 몇 시간 범위로 순서가 어긋난다 (글자로는 '2026-09-22T01:00:00+09:00'이 '2026-09-21T20:00:00.000Z'보다 늦어 보이지만 실제로는 네 시간 이르다).
+
+**공통 규칙**: 옮기면서 고치지 않는다 — 문구·조건·effect 의존성 배열·버튼 옆 이유 주석은 글자 그대로 옮기고, 고칠 것이 보이면 따로 `fix` 커밋이나 완료 기록에. 새 순수 파일은 `node --test`가 직접 읽으므로 값 import에 `.ts`를 적고 그 위에 이유 한 줄, 타입은 `import type`으로 따로. 테스트의 장소 이름은 지어낸 것, 좌표는 식으로 만든 가짜.
+
+**무엇이 바뀌나**
+- **(가) 일지·도감**
+  - 새 `records/journalList.ts` — `matchesQuery`(옛 `matches`, 이름만 바꿈)·`sortNewest`·`countUnnamed`·`shownRecords`·`groupByMonth`. 새 `dex/speciesCount.ts` — `countSpecies` (무엇을 한 종으로 치는지는 도감의 규칙이라 dex에).
+  - `RecordsScreen.tsx`를 나눴다: 새 `records/JournalNotices.tsx`(알림 띠 셋 — 설치 안내·백업 알림·이동 기록 60일 알림과 그 상태), 같은 파일 안 `EmptyJournal`(기록 0건 화면), 새 `records/RecordList.tsx`(달 제목과 기록 칸 격자 — 작업 37이 머리줄을 여기에 더했다). 함수 78 → 30줄.
+  - 새 `dex/bySpecies.ts` — `DexScreen.tsx`의 `bySpecies`·`SpeciesEntry`를 주석째 옮겼다.
+- **(나) 카드 글자**: `dex/cardText.ts`에 `cardName(s)`('이름 미정' 포함)·`cardPlace(s)`(숨긴 기록이면 '위치 비공개', 아니면 장소 그대로). 화면 카드(`BirdCard.tsx`)와 내보내는 카드(`cardCanvas.ts drawCardFront`)가 함께 쓴다. `cardText.ts`의 `lib/format` import를 `.ts`로 바꿔 테스트가 읽게 했다.
+- **(다) 설정 카드·지도** (모두 "순수 파일로 옮기고 테스트", 글자 그대로)
+  - 새 `map/places.ts` — `groupPlaces`(좌표 소수 3자리 격자로 묶기, 좌표 없는 기록·위치를 숨긴 기록은 핀에서 뺀다, 핀의 이름·자리는 가장 먼저 찍은 기록)·`hiddenCount`. Leaflet을 import하지 않는다 — 지도 묶음이 첫 화면에 딸려 오지 않게.
+  - `settings/storageText.ts`에 `missingRows` — 저장 공간의 '사진이 빠진 기록' 줄 고르기·최신 촬영순.
+  - 새 `settings/backupText.ts` — `backupStatusText`(백업 상태 줄 세 모습)·`importResultText`(불러오기 결과 한 줄).
+  - `identify/connection.ts`에 `checkConnection(own, fetchFn = fetch)` — 내 키 연결 확인(작업 28이 남긴 것)을 `AiSection.tsx`에서 옮겨 가짜 fetch로 테스트. 결과 타입은 connection.ts에 따로 둔다 (identify가 settings를 부르지 않게). 요청·문구·던지는 두 경우는 그대로, **시간 제한은 넣지 않았다**.
+  - 새 `settings/driveText.ts` — `statusLine`(드라이브 카드 상태 한 줄, 일곱 갈래의 우선순위). 인자는 `SyncStatus` 전체가 아니라 쓰는 다섯 칸(`Pick`)이다 — 칸이 늘어도 테스트가 깨지지 않는다. 이 복사본에는 구글 설정이 없어 카드가 그려지지 않으므로 테스트가 유일한 안전망이다.
+- **(라) 이동 기록 카드 문구**: `tracks/trackText.ts`로 `TracksSection.tsx`의 `progressOf`(넣기 진행 막대·문구)·`summaryOf`(요약 줄)를 옮겼다. `summaryOf`만 `now`를 받게 했다(기본은 지금 — 카드의 호출은 그대로). 같은 파일의 `trackRangeText`·`pointCountText`에도 처음으로 테스트.
+- **(마) 통합 단계**
+  - 새 `ui/sightingText.ts` (`ui/when.ts` 옆, import는 타입뿐): `UNNAMED`('이름 미정')·`nameText` — 일지 기록 칸(사진 대체 글·이름)·일지의 "이름 미정 N건" 칩·기록 상세(제목·사진 대체 글)·지도의 핀 목록·저장 공간의 '사진이 빠진 기록' 줄·판정 결과(`IdentifyPanel`)·카드 이름(`cardName`)의 아홉 벌. `placeText`(장소 → 좌표 소수 4자리 → '위치 없음') — 위치 줄(`RecordFacts PlaceRow` — 기록 화면·사진 없이 기록·수정 칸)·기록 상세·위치 시트의 "지금: …" 세 벌. `sourceText(출처, 없을 때의 말)` — `usePlace.ts`와 `RecordDetail.tsx`에 따로 있던 출처 표 두 벌을 지웠다. **없을 때의 말 두 가지는 그대로다** — 누를 수 있는 위치 줄은 부르는 쪽이 '위치 없음 — 눌러서 고르기'를 주고, 읽기만 하는 상세는 빈 글자. `NO_PLACE_NAME`('장소 이름 없음') — 장소 이름이 빈 기록의 말 (아래 fix).
+  - 한 화면에서만 쓰는 문구와 기능 전용 문구(`cardText`·`storageText`·`trackText`·`backupText`·`driveText`·`verdictText`)는 그 자리에 둔다. 전체 문구표는 만들지 않는다.
+  - `tracks/refreshNudge.ts` 머리말이 가리키는 화면 파일을 `records/JournalNotices.tsx`로 (`fix` 커밋이지만 주석만).
+- **fix 셋 (동작이 바뀐다)**
+  1. 새 `lib/timeOrder.ts` — `instantOf`(밀리초, 못 읽으면 가장 옛것)·`newestFirst`(빼지 않고 크기로 견준다 — 같은 순간이면 원래 순서). 일지 최신순(`sortNewest`)과 도감의 대표 카드 고르기가 쓴다. (가)의 마지막 커밋.
+  2. 순간 비교의 나머지 세 곳 — 저장 공간의 '사진이 빠진 기록' 줄(최신 촬영부터), 지도 핀의 대표(가장 먼저 찍은 기록, 같은 순간이면 id가 앞선 것), '직전 기록 위치'(`record/lastPlace.ts lastPlaceOf` — 마지막으로 만든 기록, 작업 39가 두 화면의 같은 규칙을 이 한 곳으로 모은 뒤). 이제 `capturedAt`·`createdAt`의 앞뒤를 글자로 견주는 곳이 없다. **`updatedAt` 비교(`journal.tsx`·`backupFormat.ts`·`syncPlan.ts`)와 드라이브 올릴 일 줄의 `at` 정렬은 합치기 규칙이라 그대로 둔다.**
+  3. 지도 핀의 장소 이름이 빈 기록의 말을 '이름 없는 장소' → **'장소 이름 없음'**(`NO_PLACE_NAME`)으로 — 일지의 장소 고르개(작업 36)와 같은 것을 다르게 불렀다. 고르개 쪽 말을 고른 이유: 그 칸에는 좌표도 없는 기록이 같이 들어가 '장소'라 부르기 어렵다. 이 작업에서 보이는 글자가 바뀐 곳은 이것 하나다.
+  - 1은 (가)에서, 2·3은 (마)에서 했다.
+
+**닿는 파일**: 새 `src/ui/sightingText.ts`, `src/lib/timeOrder.ts`, `src/features/records/{journalList.ts,JournalNotices.tsx,RecordList.tsx}`, `src/features/dex/{bySpecies.ts,speciesCount.ts}`, `src/features/map/places.ts`, `src/features/settings/{backupText.ts,driveText.ts}`, 테스트 `test/{journalList,speciesCount,bySpecies,timeOrder,cardText,mapPlaces,backupText,driveText,trackText,sightingText}.test.ts`. 고침 `src/features/records/{RecordsScreen.tsx,RecordDetail.tsx}`, `src/features/dex/{DexScreen.tsx,BirdCard.tsx,cardCanvas.ts,cardText.ts}`, `src/features/map/MapScreen.tsx`, `src/features/settings/{StorageSection,storageText,BackupSection,AiSection,DriveSection,TracksSection}`, `src/features/identify/connection.ts`, `src/features/tracks/{trackText,refreshNudge}.ts`, `src/features/record/{RecordFacts.tsx,usePlace.ts,LocationSheet.tsx,IdentifyPanel.tsx,lastPlace.ts}`, `test/{storageText,connection,lastPlace}.test.ts`.
+
+**하지 않는 것**
+- 촬영 정보 한 줄(`shotText`, 조사의 3번). 작업 38 뒤에 남은 것을 세어 보니 한 줄을 만드는 규칙은 이미 `lib/format.ts formatShot` 한 곳이고, 남은 세 곳(기록 화면 `RecordFacts` — 사진의 EXIF에서 · 카드 `cardText shotLine` — 대문자 줄 · 상세 `shotEdit shotFact` — 카메라·렌즈·'직접 고친' 표시)은 만드는 줄이 서로 다르다. `shotText`를 더하면 이름만 늘고 겹침은 줄지 않는다.
+- 전체 문구표, 한 화면에서만 쓰는 문구 옮기기, 오류 문구('저장하지 못했습니다.' 등) 묶기, 좌표 표기 바꾸기.
+- AI 연결 확인의 시간 제한 (응답을 안 주는 주소에서는 브라우저가 포기할 때까지 기다린다 — 동작이 바뀌는 일이다).
+- `record` ↔ `records` 폴더 풀기, 안 쓰는 코드 지우기, ESLint (아래 "코드 정리 메모"의 '정해야 하거나 가치가 낮은 것').
+- 저장되는 기록의 모양·백업·드라이브 동기화·서버 요청·"무엇이 어디로 가나요" — 바뀌는 것이 없다.
+
+**검증**: `npm run check`를 커밋마다 돌려 통과. 새 테스트 — (가) 20개(검색·최신순·달 묶기·'+09:00' 섞인 순서·못 읽는 시각은 맨 뒤·종 수·대표 카드), (나) 5개(`cardName`·`cardPlace` — 숨긴 기록은 장소가 있어도 없어도 '위치 비공개', `dexLabel`·`shotLine`), (다) 41개(숨긴 기록·좌표 없는 기록은 핀에 없다, 격자, 핀 대표, 백업 상태 줄 세 모습, 연결 확인 다섯 갈래, 드라이브 상태 일곱 갈래의 우선순위), (라) 12개(시간대 넷에서 통과), (마) `sightingText`와 '+09:00' 섞인 경우 넷(고치기 전 코드에서 실패하는 것을 저장소 밖 사본으로 봤다). 크기: 40줄 넘는 함수 목록에서 `RecordsScreen`이 빠졌고 `BackupSection` 53 → 49, `StorageSection` 44 → 41. `vite build` — 지도 묶음은 따로 남았다 (`map/places.ts`가 부르는 것은 `lib/timeOrder.ts`뿐).
+
+**브라우저 확인**: 통합 단계에서 일부만 봤다 (따로 띄운 포트, 빈 저장소, 시험 기록 둘 — 끝나고 지웠다): 사진 없이 기록 화면과 '수정'의 위치 줄 "위치 없음" / "위치 없음 — 눌러서 고르기", 상세의 위치 줄 "위치 없음"(아랫줄 없음), 이름 없이 저장한 기록의 상세 제목·카드·일지 칸 '이름 미정'과 칩 "이름 미정 1건", 콘솔 오류 없음. **아직 볼 것** (시험 기록만):
+- 일지: 제목 줄 "날짜순 · 기록 N건 · M종", 달·기록 순서, 검색, 이름 미정 칩, 기록 0건 화면, 백업 알림 띠, 이동 기록 60일 알림 띠(목록이 뜬 뒤 한 박자 늦게 끼어들며 목록을 밀지 않는지 — 띠의 훅이 이제 목록이 뜬 뒤 돈다), 폰 375·PC 격자.
+- 카드: 화면 카드와 "이미지 저장"한 PNG의 이름·장소·날짜·촬영 정보 줄이 같은지, **위치 숨기기를 켜면 둘 다 '위치 비공개'**인지 (사생활 규칙 — 가장 중요).
+- 지도: 핀 수와 제목, **위치를 숨긴 기록이 핀에서 빠지고** "위치를 숨긴 기록 N건은 …" 문구, 핀 목록의 이름, 장소 이름이 빈 핀의 '장소 이름 없음'.
+- 설정: 저장 공간의 '사진이 빠진 기록' 줄, 백업 상태 줄 세 모습과 불러오기 결과, AI의 닿지 않는 주소 → 안내·키 저장 안 됨, 이동 기록 넣기(`test/fixtures/timeline-slice.json`) → 진행 문구·요약·지우기. 드라이브 카드는 구글 설정이 없어 못 본다.
+- 좌표만 있는 기록의 위치 줄(소수 4자리 둘)과 위치 시트의 "지금: …", 출처 네 가지 말.
+- fix: '+09:00' 형식 시각이 든 시험 백업을 불러와 일지·도감 대표·저장 공간 줄·핀 대표·'직전 기록 위치로'가 실제 순간 순인지.
+
+**완료 (2026-10-01).** 커밋 16개 (refactor 12 · fix 4). 계획과 다르게 한 것:
+- 파일 주인별 다섯 조각으로 나눴다 (조사는 혼자 먼저 돌리기를 권했다 — "전부 한 번에" 요청에 맞췄다. 같은 화면의 기능 작업보다 늘 앞에 와서 "같은 파일을 동시에 만지지 않는다"는 지켰다).
+- 파일 이름은 묶음 계획을 따랐다: 조사의 `listing.ts`·`JournalNudges`·`RecordItem`·`test/listing.test.ts` 대신 `journalList.ts`·`JournalNotices.tsx`·`RecordList.tsx`·`test/journalList.test.ts`. 목록은 한 칸이 아니라 달 묶음 목록 전체를 `RecordList.tsx`로 뗐다. 요약 셈의 종 수는 `dex/speciesCount.ts`로 나눴다.
+- `cardText.ts`의 `.ts` import는 조사의 촬영 정보 커밋이 아니라 (나)에서 먼저 바꿨다 (테스트를 붙이려면 node가 읽어야 했다).
+- 촬영 정보 한 줄(`shotText`)은 하지 않았다 (위 "하지 않는 것").
+- 순간 비교 fix를 둘로 나눴다 — 일지·도감은 (가)에서, 저장 공간·지도·직전 기록 위치는 파일 주인이 달라 (마)에서.
+- 지도 핀의 빈 장소 이름 말을 하나로 맞추는 fix(위 3)를 통합 검토 뒤 더했다.
+- 알아 둘 것: 알림 띠의 훅(`useTracksMeta` 등)이 이제 `JournalNotices`가 그려질 때 돈다 — 기록 0건·읽는 중·오류 화면에서는 어차피 띠를 그리지 않아 보이는 것은 같고, 이동 기록 알림이 목록보다 한 박자 늦게 뜰 수는 있다. 못 읽는 시각은 글자 비교에서는 맨 앞, 이제 맨 뒤다 (저장된 기록은 `normalizeSighting`이 읽을 수 있는 시각만 두므로 실제로 만날 일은 없다). `trackText.ts` 주석 예시의 점 수('22,426점')는 옮기기 전부터 있던 것을 글자 그대로 옮겼다 — 실제 타임라인의 점 수라면 CLAUDE.md "옮긴 양도 적지 않는다"와 결이 맞지 않으니, 지어낸 수로 바꿀지 사용자가 정한다.
+- CLAUDE.md는 고치지 않았다 — 제안 줄(여러 화면이 같이 쓰는 기록 문구는 `ui/sightingText.ts`에서만 · 기록의 앞뒤는 순간으로)은 저장소 밖 `../v2 docs/patches/batch-1001/claude-md-proposals.md`에 모았다.
+
+---
+
 ## 코드 정리 메모 (작업 26~28과 나머지) — 순서는 ROADMAP.md
 
 2026-09-27 점검(읽기 전용, main `f147342`)의 근거다. 줄 번호는 그날 기준이다 — 작업을 시작하면 다시 확인하고, 그 작업의 새 "작업 N" 절로 옮겨 자세히 쓴다 (위 "다음 기능 메모"와 같은 방식).
@@ -998,10 +1064,8 @@ ROADMAP의 작업 33 줄을 옮겨 쓴 것이다. 2026-10-01에 **지시와 후�
 - **작업 27 — AI 판정을 기록에 넣는 규칙 한 곳으로**: 끝 (2026-09-27) → 위 "작업 27" 절. 계획대로 했고, 같은 이름을 다시 넣을 때 도감 번호가 바뀌는 문제를 함께 막았다.
 - **작업 28 — 설정 카드들의 같은 틀 하나로**: 끝 (2026-09-27) → 위 "작업 28" 절. "같이 볼 것"(이동 기록·저장 공간의 지우기 배선, AI 연결 확인을 identify로 옮기기·시간 제한)은 하지 않았다.
 - **작업 18을 시작할 때**: 끝 (2026-10-01) → 위 "작업 18" 절. 점검 때의 계획대로 첫 커밋에서 `IdentifyPanel`을 `AskRunning`·`VerdictResult`로 나누고, 보이는 말은 `identify/verdictText.ts` 한 곳으로 모았다.
-- **나머지 (ROADMAP "그 뒤")**:
-  - 화면 문구 한 곳으로 — 위치 출처 문구 2벌(`usePlace.ts:15-17` ↔ `RecordDetail.tsx:19-21`, '없음' 문구가 이미 다르다), "장소 → 좌표 → 위치 없음" 3벌(`RecordFacts.tsx:34`·`RecordDetail.tsx:56`·`LocationSheet.tsx:32`), 촬영 정보 한 줄 3벌(`RecordFacts.tsx:15`·`RecordDetail.tsx:44`·`dex/cardText.ts:15`), 카드 글자 2쌍(`BirdCard.tsx:22,40` ↔ `cardCanvas.ts:76,86` — '위치 비공개'가 화면 카드와 내보낸 카드에 따로 있다. `cardText.ts`가 모으려던 자리다), '이름 미정' 9곳.
-  - 화면 안의 계산을 순수 함수로(+테스트) — 기록 목록의 검색·달별 묶기(`RecordsScreen.tsx:18-40`, 함수 78줄에 여유가 생긴다), 지도·도감의 묶기(`MapScreen.tsx:21-33`·`DexScreen.tsx:21-28`). 같이: 시각을 글자로 견주는 정렬 4곳(`RecordsScreen.tsx:65`·`DexScreen.tsx:25`·`StorageSection.tsx:59`·`MapScreen.tsx:28`)을 `editPatch.ts`처럼 순간으로 — 따로 `fix` 커밋. 지금은 영향이 거의 없다: 앱이 만드는 시각은 모두 UTC 'Z'(`lib/exif.ts` `toISOString`)이고 v1도 UTC 정규형이다. '+09:00' 같은 형식이 섞인 백업을 불러올 때만 몇 시간 범위로 어긋난다.
+- **나머지 — 작업 35**: 끝 (2026-10-01) → 위 "작업 35" 절. 화면 문구는 `ui/sightingText.ts`('이름 미정'·위치 한 줄·위치 출처·장소 이름 없음)와 `dex/cardText.ts`(카드의 이름·'위치 비공개')로 모았고, 촬영 정보 한 줄 세 벌은 만드는 줄이 서로 달라 모으지 않았다. 화면 안의 계산(일지 목록·도감 묶기·지도 핀·설정 카드 넷·이동 기록 카드 문구)은 순수 파일로 떼고 테스트를 붙였고, 시각을 글자로 견주던 정렬 다섯 곳(메모의 넷 + `useRecordPlace`의 `createdAt`)은 `lib/timeOrder.ts`로 순간을 견준다.
 - **정해야 하거나 가치가 낮은 것** (표에 없다):
   - `record` ↔ `records` 폴더가 서로 부른다 (파일 단위 순환은 없다). 공용 부품(`IdentifyPanel`·`useAsk` → identify, `usePlace`·`LocationSheet` → 위치 모듈, `HideLocationSwitch` → dex)을 옮기면 풀리지만 파일 이동이 많다. `RecordEdit.tsx`의 지연 로딩을 지켜야 한다.
-  - 쓰이지 않는 코드: `ui/bits.tsx` `Tag`(참조 0), `useTheme`의 `forceDark`(부르는 곳이 넘기지 않는다). 테스트에서만 쓰이는 `lib/format.ts` `formatMeta`·`formatCoords`, `lib/exif.ts` `recomputeCapturedAt`. **`exposureToSave`·`parseExposure`는 남긴다** — "촬영 정보 고치기"가 쓸 셔터 입력 규칙이다 (CLAUDE.md "셔터는 초 단위 실수로 저장한다").
+  - 쓰이지 않는 코드: `useTheme`의 `forceDark`(부르는 곳이 넘기지 않는다). (`ui/bits.tsx` `Tag`는 이제 새소리 듣기의 `sound/HeardList.tsx`가 쓴다 — 2026-10-01 확인.) 테스트에서만 쓰이는 `lib/format.ts` `formatMeta`·`formatCoords`, `lib/exif.ts` `recomputeCapturedAt`. **`exposureToSave`·`parseExposure`는 남긴다** — "촬영 정보 고치기"가 쓸 셔터 입력 규칙이다 (CLAUDE.md "셔터는 초 단위 실수로 저장한다").
   - ESLint와 react-hooks 규칙 — effect 의존성 실수를 잡아 준다. 새 개발 패키지가 들어가므로 사용자가 정한다.
