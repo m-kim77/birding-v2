@@ -63,7 +63,10 @@ export interface ShotInfo {
 
 /** AI 판정 결과 */
 export interface Verdict {
-  /** '확정'이면 한 종으로 좁혀졌고, '좁힘'이면 후보가 남았다 */
+  /**
+   * '확정'이면 한 종으로 좁혀졌고, '좁힘'이면 후보가 남았다. **저장값이다 — 글자를 바꾸지 않는다** (읽을 때 이 두 값이 아니면
+   * 판정을 통째로 버리므로 옛 기록의 근거가 사라지고, 모델과의 약속·고정 프롬프트도 같은 글자다). 화면에 보이는 말은 `identify/verdictText.ts`가 정한다
+   */
   kind: '확정' | '좁힘'
   /** 확인된 국명. 확인하지 못했으면 빈 문자열이다 — 학명이나 영어 이름을 대신 넣지 않는다 (작업 20, `identify/parseVerdict.ts`) */
   speciesKo: string
