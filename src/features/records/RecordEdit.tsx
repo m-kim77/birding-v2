@@ -6,6 +6,7 @@ import type { Sighting } from '../../types'
 import { EVIDENCE_LOSS_WARNING } from '../identify/verdictText'
 import { PlaceRow } from '../record/RecordFacts'
 import { usePlaceValue } from '../record/usePlace'
+import DeleteConfirm from './DeleteConfirm'
 import { editPatch, formOf, placeBefore } from './editPatch'
 
 // 위치 시트는 지도(Leaflet)를 끌고 온다. 이 파일은 기록 상세와 함께 첫 화면 묶음에 들어가므로, 시트를 열 때 받는다 —
@@ -27,14 +28,13 @@ interface Props {
  * 저장은 바뀐 것만 넣는다 (editPatch). 촬영 시각을 읽을 수 없으면 저장을 막고, 저장·삭제가 실패하면 칸 안에 이유를 적고 머문다.
  */
 export default function RecordEdit({ sighting: s, onClose, onDeleted }: Props) {
-  const { sightings, update, remove } = useJournal()
+  const { sightings, update } = useJournal()
   const [start] = useState(() => formOf(s))
   const [name, setName] = useState(start.name)
   const [time, setTime] = useState(start.time)
   const [note, setNote] = useState(start.note)
   const loc = usePlaceValue(start.place)
   const [pickingPlace, setPickingPlace] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState(false)
   const [error, setError] = useState('')
 
   const patch = editPatch(s, { name, note, time, place: loc.place }, new Date())
@@ -50,17 +50,6 @@ export default function RecordEdit({ sighting: s, onClose, onDeleted }: Props) {
       onClose()
     } catch (e) {
       setError(e instanceof Error ? e.message : '저장하지 못했습니다.')
-    }
-  }
-
-  /** 기록과 사진을 지우고 목록으로 */
-  async function removeRecord() {
-    setError('')
-    try {
-      await remove(s.id)
-      onDeleted()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : '삭제하지 못했습니다.')
     }
   }
 
@@ -84,13 +73,7 @@ export default function RecordEdit({ sighting: s, onClose, onDeleted }: Props) {
         </div>
         {error && <p className="status-line is-warn" role="alert">{error}</p>}
         <hr />
-        {/* 삭제는 되돌릴 수 없다 — 한 번 더 묻는다. 대화 상자 대신 같은 자리에서 묻는다 */}
-        {confirmDelete ? (
-          <div className="row-actions">
-            <Button variant="danger" icon="trash" onClick={() => void removeRecord()}>정말 삭제</Button>
-            <Button variant="quiet" onClick={() => setConfirmDelete(false)}>그만두기</Button>
-          </div>
-        ) : <Button variant="danger" icon="trash" onClick={() => setConfirmDelete(true)}>이 기록 삭제</Button>}
+        <DeleteConfirm id={s.id} onDeleted={onDeleted} onError={setError} />
       </Card>
       {pickingPlace && (
         // 받는 동안은 아무것도 그리지 않는다 — 대신 시트를 잠깐 그리면 시트가 둘 열렸다 닫힌 셈이라 뒤로가기 칸이 하나 헛칸으로 남는다 (app/nav.ts openLayer)
