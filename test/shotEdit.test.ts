@@ -74,7 +74,7 @@ test('칸을 비우면 그 항목의 키가 없어진다 — undefined 값을 �
 test('읽을 수 없는 칸이 있으면 null — 어느 칸인지 bad에 적는다', () => {
   const s = sighting()
   const cases: Array<[ShotField, string]> = [
-    ['exposure', 'abc'], ['exposure', '0'], ['exposure', '-1'], ['exposure', '1/0'],
+    ['exposure', 'abc'], ['exposure', '0'], ['exposure', '-1'], ['exposure', '1/0'], ['exposure', '1e3'], ['exposure', '0x10'],
     ['iso', '100.5'], ['iso', '0'], ['iso', '많이'],
     ['focal', 'abc'], ['focal', '-400'], ['focal', '1e3'],
     ['fNumber', '0'], ['fNumber', 'f/'],

@@ -45,8 +45,9 @@ function positive(text: string): number | null {
 const READ: Record<NumField, (text: string) => number | null> = {
   focal: (t) => positive(t.replace(/\s*mm$/i, '')),
   fNumber: (t) => positive(t.replace(/^f\s*\/?\s*/i, '')),
-  // 셔터는 초 단위 실수로 저장한다 — 역수를 정수로 반올림하지 않는 규칙은 parseExposure가 지킨다 (CLAUDE.md)
-  exposure: parseExposure,
+  // 셔터는 초 단위 실수로 저장한다 — 역수를 정수로 반올림하지 않는 규칙은 parseExposure가 지킨다 (CLAUDE.md).
+  // 모양('1/200s'·'0.5'·'2"')을 먼저 본다 — parseExposure는 Number()로 읽어 '1e3'(1000초)·'0x10'(16초)도 받는다 (positive와 같은 이유)
+  exposure: (t) => (/^(1\s*\/\s*)?(\d+\.?\d*|\.\d+)\s*[s"″]?$/i.test(t) ? parseExposure(t) : null),
   iso: (t) => {
     const n = positive(t.replace(/^iso\s*/i, ''))
     return n !== null && Number.isInteger(n) ? n : null
