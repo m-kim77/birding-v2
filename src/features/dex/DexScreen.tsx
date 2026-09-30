@@ -6,7 +6,7 @@ import Sheet from '../../ui/Sheet'
 import { dayOf } from '../../ui/when'
 import BirdCard from './BirdCard'
 import { bySpecies, type SpeciesEntry } from './bySpecies'
-import { speciesInYear } from './speciesCount'
+import { showsYearCount, speciesInYear } from './speciesCount'
 import CardActions from './CardActions'
 import CardStylePicker from './CardStylePicker'
 import SyncBanner from './SyncBanner'
@@ -57,8 +57,8 @@ export default function DexScreen({ onOpenRecord }: { onOpenRecord: (id: string)
   // 해는 그릴 때마다 읽어 memo의 기준에 넣는다 — 기록에만 매이면 앱을 연 채 해가 바뀔 때 도감만 전해로 남아 일지의 "올해 K종"과 달라진다
   const year = new Date().getFullYear()
   const thisYear = useMemo(() => speciesInYear(sightings ?? [], year), [sightings, year])
-  // 올해 종이 0이거나 전부면 칩이 없다 (눌러도 달라지지 않거나 빈 도감이 된다). 칩이 안 보이면 거르지도 않는다 — 풀 길 없는 거르기가 남지 않게
-  const yearChip = thisYear.size > 0 && thisYear.size < species.length
+  // 올해 종이 0이거나 전부면 칩이 없다 (눌러도 달라지지 않거나 빈 도감이 된다) — 일지 요약의 "올해 K종"과 같은 규칙 (showsYearCount). 칩이 안 보이면 거르지도 않는다 — 풀 길 없는 거르기가 남지 않게
+  const yearChip = showsYearCount(thisYear.size, species.length)
   // 켜 둔 칩은 기록을 열었다 돌아와도 남는다 (useYearChip — 이번 실행 동안만). 기록을 읽는 중에는 칩이 안 보여도 기억을 끄지 않는다
   const [onlyThisYear, toggleThisYear] = useYearChip(sightings ? yearChip : null)
   const shown = yearChip && onlyThisYear ? species.filter((e) => thisYear.has(e.name)) : species

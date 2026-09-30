@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { countSpecies, speciesInYear, yearTally } from '../src/features/dex/speciesCount.ts'
+import { countSpecies, showsYearCount, speciesInYear, yearTally } from '../src/features/dex/speciesCount.ts'
 import type { Sighting } from '../src/types.ts'
 
 /** 종 세기에 쓰는 칸만 든 가짜 기록 */
@@ -31,14 +31,28 @@ test('speciesInYear: 이름 미정·못 읽는 시각은 넣지 않고, 같은 �
   assert.equal(speciesInYear([], 2026).size, 0)
 })
 
-test('yearTally: 전체 종 수·그 해의 종 수·다른 해의 이름 있는 기록이 있나', () => {
+test('yearTally: 전체 종 수·그 해의 종 수', () => {
   const list = [at('딱새', '2026-03-01T00:00:00.000Z'), at('딱새', '2025-03-01T00:00:00.000Z'), at('물총새', '2025-04-01T00:00:00.000Z')]
-  assert.deepEqual(yearTally(list, 2026), { total: 2, inYear: 1, otherYears: true })
-  assert.deepEqual(yearTally(list, 2024), { total: 2, inYear: 0, otherYears: true })
+  assert.deepEqual(yearTally(list, 2026), { total: 2, inYear: 1 })
+  assert.deepEqual(yearTally(list, 2024), { total: 2, inYear: 0 })
+  assert.deepEqual(yearTally([], 2026), { total: 0, inYear: 0 })
 })
 
-test('yearTally: 이름 있는 기록이 전부 그 해면 otherYears는 false — 다른 해의 이름 미정 기록은 따지지 않는다', () => {
-  const list = [at('딱새', '2026-03-01T00:00:00.000Z'), at('', '2025-03-01T00:00:00.000Z')]
-  assert.deepEqual(yearTally(list, 2026), { total: 1, inYear: 1, otherYears: false })
-  assert.deepEqual(yearTally([], 2026), { total: 0, inYear: 0, otherYears: false })
+test('showsYearCount: 그 해의 종이 하나 이상이고 전체보다 적을 때만 — 일지 요약과 도감 칩이 같은 답', () => {
+  assert.equal(showsYearCount(1, 2), true)
+  assert.equal(showsYearCount(0, 2), false)
+  assert.equal(showsYearCount(2, 2), false)
+  assert.equal(showsYearCount(0, 0), false)
+})
+
+test('showsYearCount: 작년에 본 종을 올해 모두 다시 봤으면 보이지 않는다 — 다른 해의 기록이 있어도 종으로는 같은 말', () => {
+  const list = [at('박새', '2025-05-01T00:00:00.000Z'), at('박새', '2026-03-01T00:00:00.000Z')]
+  const t = yearTally(list, 2026)
+  assert.deepEqual(t, { total: 1, inYear: 1 })
+  assert.equal(showsYearCount(t.inYear, t.total), false)
+})
+
+test('showsYearCount: 다른 해의 이름 미정 기록은 따지지 않는다', () => {
+  const t = yearTally([at('딱새', '2026-03-01T00:00:00.000Z'), at('', '2025-03-01T00:00:00.000Z')], 2026)
+  assert.equal(showsYearCount(t.inYear, t.total), false)
 })

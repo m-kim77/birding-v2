@@ -26,15 +26,18 @@ export interface YearTally {
   total: number
   /** 그 해에 만난 종 수 */
   inYear: number
-  /** 이름 있는 기록 가운데 그 해가 아닌 것(시각을 못 읽는 것 포함)이 있나 — 없으면 "올해 K종"은 앞의 "M종"과 같은 말이다 */
-  otherYears: boolean
 }
 
-/** 전체 종 수와 그 해의 종 수를 한 번에 센다. 기록이 없으면 { 0, 0, false } */
+/** 전체 종 수와 그 해의 종 수를 한 번에 센다. 기록이 없으면 { 0, 0 } */
 export function yearTally(list: Sighting[], year: number): YearTally {
-  return {
-    total: countSpecies(list),
-    inYear: speciesInYear(list, year).size,
-    otherYears: list.some((s) => s.speciesKo && yearMonthOf(s)?.year !== year),
-  }
+  return { total: countSpecies(list), inYear: speciesInYear(list, year).size }
+}
+
+/**
+ * "올해 K종"을 따로 보일지 — 그 해의 종이 하나 이상이고 전체 종보다 적을 때만. 일지 요약 줄과 도감의 "올해" 칩이 이 한 규칙을 쓴다.
+ * 0종이면 할 말이 없고(칩은 빈 도감이 된다), 전체와 같으면 앞의 "M종"과 같은 말이다(칩은 눌러도 달라지지 않는다).
+ * 종으로 견준다 — 다른 해의 기록이 있어도 그 종을 올해 모두 다시 봤으면 같은 말이다.
+ */
+export function showsYearCount(inYear: number, total: number): boolean {
+  return inYear > 0 && inYear < total
 }

@@ -4,7 +4,7 @@ import { useJournal } from '../../data/journal'
 import { Banner, ScreenHead } from '../../ui/bits'
 import Button from '../../ui/Button'
 import Icon from '../../ui/Icon'
-import { countSpecies, yearTally } from '../dex/speciesCount'
+import { countSpecies, showsYearCount, yearTally } from '../dex/speciesCount'
 import JournalFilter from './JournalFilter'
 import JournalNotices from './JournalNotices'
 import { countUnnamed, monthSections, sortNewest } from './journalList'
@@ -57,8 +57,8 @@ export default function RecordsScreen({ onOpen, onBackup, onAdd, onSettings }: P
   const shown = filterJournal(sorted, view)
   // 올해는 이 기기의 달력으로 정하고, 기록의 해는 촬영지 시각으로 센다
   const tally = yearTally(sightings, new Date().getFullYear())
-  // 전부 올해 기록이면 앞의 종 수와 같은 말이라, 0종이면 할 말이 없어서 붙이지 않는다
-  const thisYear = tally.inYear > 0 && tally.otherYears ? ` · 올해 ${tally.inYear}종` : ''
+  // 올해 종이 전체와 같으면 앞의 종 수와 같은 말이라, 0종이면 할 말이 없어서 붙이지 않는다 — 도감의 "올해" 칩과 같은 규칙 (showsYearCount)
+  const thisYear = showsYearCount(tally.inYear, tally.total) ? ` · 올해 ${tally.inYear}종` : ''
 
   if (journal.sightings === null) return <div className="screen"><p className="hint">기록을 읽는 중…</p></div>
   if (journal.error) return <div className="screen"><Banner tone="err" icon="alert">{journal.error}</Banner></div>
