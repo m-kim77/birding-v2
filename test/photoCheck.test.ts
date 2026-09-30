@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { checkPhotos, findOrphanKeys } from '../src/data/photoCheck.ts'
-import { PHOTO_KINDS, photoKey, photoOwner } from '../src/data/photoKey.ts'
+import { PHOTO_KINDS, expectsPhoto, photoKey, photoOwner } from '../src/data/photoKey.ts'
 
 /** 기록 한 건의 사진 키들 */
 const keysOf = (id: string, kinds: string[]) => kinds.map((k) => `${id}:${k}`)
@@ -13,7 +13,7 @@ test('photoKey·photoOwner: 왕복하고, id에 ":"가 있어도 마지막 ":" �
 })
 
 test('checkPhotos: 큰 판·작은 판이 다 있으면 멀쩡하다 — 잘라낸 판은 없어도 된다', () => {
-  const r = checkPhotos([{ id: 'a', fromSound: false }, { id: 'b', fromSound: false }], [...keysOf('a', ['full', 'thumb', 'crop']), ...keysOf('b', ['full', 'thumb'])])
+  const r = checkPhotos([{ id: 'a', fromSound: false, noPhoto: false }, { id: 'b', fromSound: false, noPhoto: false }], [...keysOf('a', ['full', 'thumb', 'crop']), ...keysOf('b', ['full', 'thumb'])])
   assert.deepEqual(r.missing, [])
   assert.deepEqual(r.orphanKeys, [])
   assert.equal(r.orphanRecords, 0)
@@ -21,7 +21,7 @@ test('checkPhotos: 큰 판·작은 판이 다 있으면 멀쩡하다 — 잘라�
 
 test('checkPhotos: 사진이 빠진 기록은 무엇이 없는지와 함께, 읽은 순서대로', () => {
   const r = checkPhotos(
-    [{ id: 'none', fromSound: false }, { id: 'noThumb', fromSound: false }, { id: 'noFull', fromSound: false }, { id: 'ok', fromSound: false }],
+    [{ id: 'none', fromSound: false, noPhoto: false }, { id: 'noThumb', fromSound: false, noPhoto: false }, { id: 'noFull', fromSound: false, noPhoto: false }, { id: 'ok', fromSound: false, noPhoto: false }],
     [...keysOf('noThumb', ['full', 'crop']), ...keysOf('noFull', ['thumb']), ...keysOf('ok', ['full', 'thumb'])],
   )
   assert.deepEqual(r.missing, [
@@ -32,11 +32,25 @@ test('checkPhotos: 사진이 빠진 기록은 무엇이 없는지와 함께, 읽
 })
 
 test('checkPhotos: 소리 기록은 사진이 없어도 빠진 것으로 치지 않는다', () => {
-  assert.deepEqual(checkPhotos([{ id: 's', fromSound: true }], []).missing, [])
+  assert.deepEqual(checkPhotos([{ id: 's', fromSound: true, noPhoto: false }], []).missing, [])
+})
+
+test('checkPhotos: 사진 없이 남긴 기록도 사진이 없어도 빠진 것으로 치지 않는다 — 사진이 있어야 하는 기록만 본다 (작업 39)', () => {
+  const r = checkPhotos([{ id: 'quick', fromSound: false, noPhoto: true }, { id: 'lost', fromSound: false, noPhoto: false }], [])
+  assert.deepEqual(r.missing, [{ id: 'lost', kinds: ['full', 'thumb'] }])
+  // 사진 없는 기록에 딸린 사진 키가 있어도(앱은 만들지 않는다) 기록이 있으니 주인 없는 사진이 아니다
+  assert.deepEqual(checkPhotos([{ id: 'quick', fromSound: false, noPhoto: true }], ['quick:full']).orphanKeys, [])
+})
+
+test('expectsPhoto: 소리 기록도 사진 없는 기록도 아니면 사진이 있어야 한다 — 칸이 없는 옛 기록은 사진 기록', () => {
+  assert.equal(expectsPhoto({}), true)
+  assert.equal(expectsPhoto({ fromSound: false, noPhoto: false }), true)
+  assert.equal(expectsPhoto({ fromSound: true }), false)
+  assert.equal(expectsPhoto({ noPhoto: true }), false)
 })
 
 test('checkPhotos: 기록이 없는 사진은 키 전부, 수는 (없어진) 기록 수로 센다', () => {
-  const r = checkPhotos([{ id: 'a', fromSound: false }], [...keysOf('a', ['full', 'thumb']), ...keysOf('gone1', ['full', 'thumb', 'crop']), ...keysOf('gone2', ['full'])])
+  const r = checkPhotos([{ id: 'a', fromSound: false, noPhoto: false }], [...keysOf('a', ['full', 'thumb']), ...keysOf('gone1', ['full', 'thumb', 'crop']), ...keysOf('gone2', ['full'])])
   assert.deepEqual(r.orphanKeys, [...keysOf('gone1', ['full', 'thumb', 'crop']), 'gone2:full'])
   assert.equal(r.orphanRecords, 2, '판 넷이 아니라 기록 둘이다')
 })
