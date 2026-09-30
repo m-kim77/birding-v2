@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { statusLine, type StatusInput } from '../src/features/settings/driveText.ts'
+import { disconnectedText, statusLine, type StatusInput } from '../src/features/settings/driveText.ts'
 
 /** 지금 — 날짜 경계는 브라우저(여기서는 node) 시간대라 로컬 시각으로 만든다 (when.test.ts와 같다) */
 const NOW = new Date(2026, 8, 22, 18, 0)
@@ -71,4 +71,14 @@ test('일곱 갈래의 말이 서로 다르다 — 우선순위가 겹쳐 같은
     statusLine(status(), NOW),
   ].map((m) => m.text)
   assert.equal(new Set(texts).size, 7)
+})
+
+test('연결 끊기 결과: 이동 기록 올리기를 켜 두었으면 그것도 꺼졌다고 더하고, 꺼져 있었으면 더하지 않는다', () => {
+  const plain = disconnectedText(false)
+  assert.deepEqual(plain, { tone: 'ok', text: '연결을 끊었습니다. 드라이브의 사본과 이 기기의 기록은 그대로 있습니다.' })
+  const withTracks = disconnectedText(true)
+  assert.equal(withTracks.tone, 'ok')
+  assert.ok(withTracks.text.startsWith(plain.text), '기록 쪽 말은 그대로 앞에 둔다')
+  assert.match(withTracks.text, /이동 기록 올리기도 껐습니다/)
+  assert.doesNotMatch(plain.text, /이동 기록/)
 })

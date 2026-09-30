@@ -1,10 +1,10 @@
 import { useEffect } from 'react'
 import { connect, disconnect, loadConfig, syncNow } from '../../data/sync'
-import { useSyncStatus } from '../../data/syncStatus'
+import { getSyncStatus, tracksStatusOf, useSyncStatus } from '../../data/syncStatus'
 import { preloadGis } from '../../lib/google/gis'
 import { Card } from '../../ui/bits'
 import Button from '../../ui/Button'
-import { statusLine } from './driveText'
+import { disconnectedText, statusLine } from './driveText'
 import TaskResult from './TaskResult'
 import { useTask } from './useTask'
 
@@ -31,7 +31,12 @@ export default function DriveSection() {
       <div className="row-actions">
         {needLogin && <Button variant="primary" icon="upload" onClick={() => void run(async () => { await connect(); return null })} disabled={busy}>{s.linked ? '다시 로그인' : '구글로 로그인'}</Button>}
         {s.linked && !needLogin && <Button icon="upload" onClick={() => void run(async () => { await syncNow(true); return null })} disabled={busy || s.phase === 'syncing'}>지금 동기화</Button>}
-        {s.linked && <Button variant="quiet" onClick={() => void run(async () => { await disconnect(); return { tone: 'ok', text: '연결을 끊었습니다. 드라이브의 사본과 이 기기의 기록은 그대로 있습니다.' } })} disabled={busy}>연결 끊기</Button>}
+        {s.linked && <Button variant="quiet" onClick={() => void run(async () => {
+          // 끊기 전에 읽는다 — disconnect가 이동 기록 스위치를 끈다
+          const tracksWasOn = tracksStatusOf(getSyncStatus()).on
+          await disconnect()
+          return disconnectedText(tracksWasOn)
+        })} disabled={busy}>연결 끊기</Button>}
       </div>
       <TaskResult message={message} />
     </Card>
