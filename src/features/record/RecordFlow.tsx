@@ -2,12 +2,8 @@ import { useMemo, useRef, useState } from 'react'
 import { useJournal } from '../../data/journal'
 import { Banner, Card, ScreenHead } from '../../ui/bits'
 import Button from '../../ui/Button'
-import type { NormalizedBox, Sighting } from '../../types'
-import { accentFromImage } from '../dex/accentFromPhoto'
-import { styleFromAccent } from '../dex/cardStyle'
-import { isFirstMeet } from '../dex/dexNo'
+import type { NormalizedBox } from '../../types'
 import { soundEntryOn } from '../sound/soundModel'
-import { buildSighting } from './buildSighting'
 import CardResult from './CardResult'
 import DetectView from './DetectView'
 import IdentifyPanel from './IdentifyPanel'
@@ -16,12 +12,13 @@ import { acceptsVerdict } from './nameFields'
 import PhotoStart from './PhotoStart'
 import { FactsCard, NoteCard } from './RecordFacts'
 import SpeciesInput from './SpeciesInput'
-import { imageForAI, makeCrop, makePhotos } from './savePhotos'
+import { imageForAI } from './savePhotos'
 import { useAsk } from './useAsk'
 import { useDetection } from './useDetection'
 import { usePhotoPick } from './usePhotoPick'
 import { useRecordFields } from './useRecordFields'
 import { useRecordPlace } from './useRecordPlace'
+import { useSaveRecord } from './useSaveRecord'
 import './record.css'
 
 interface Props {
@@ -49,13 +46,12 @@ export default function RecordFlow({ onCancel, onDone, onOpenSettings, onOpenSou
   const detection = useDetection(photo?.bitmap ?? null)
   const ask = useAsk()
   const { loc, lastPlace, placeNote, placeHint } = useRecordPlace(photo, existing)
-  const [saved, setSaved] = useState<{ sighting: Sighting; firstMeet: boolean } | null>(null)
+  // 초안 배선보다 먼저 부른다 — 저장을 마쳤는지를 초안 배선이 읽는다 (useSaveRecord 머리말)
+  const { saved, saving, error: saveError, save } = useSaveRecord(journal.add, existing)
   // 위치 훅 뒤에 부른다 — 되살린 위치가 사진 좌표에 밀리지 않게 (useRecordFields 머리말)
   const { draft, crop, setCrop, name, setName, note, setNote, askedBox, setAskedBox, choose, resume } = useRecordFields({ picker, loc, ask, saved: saved !== null })
   const fileInput = useRef<HTMLInputElement>(null)
   const [editingPlace, setEditingPlace] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [saveError, setSaveError] = useState('')
 
   // 새가 한 마리뿐이면 고를 것이 없으니 바로 그 상자를 쓴다
   const only = detection.boxes?.length === 1 ? detection.boxes[0] : null
@@ -67,31 +63,6 @@ export default function RecordFlow({ onCancel, onDone, onOpenSettings, onOpenSou
     if (!photo) return
     setAskedBox(picked?.box ?? null)
     void ask.start(await imageForAI(photo, picked?.box ?? null), { capturedAt: photo.exif.capturedAt, place: loc.place.name })
-  }
-
-  /**
-   * 사진과 기록을 저장하고 카드 화면으로 넘어간다. 실패하면 이유를 보여 주고 화면에 머문다 (초안도 남는다).
-   * 카드 색은 잘라낸 사진(없으면 사진 전체)에서 뽑는다 — 못 뽑으면 기본색. "처음 본 종"은 더하기 전의 목록으로 판단한다.
-   */
-  async function save() {
-    if (!photo) return
-    setSaving(true)
-    setSaveError('')
-    try {
-      const cut = picked ? await makeCrop(photo, picked.box) : null
-      // 자른 영역이 없으면(모델을 안 받았거나 새를 못 찾았거나 여러 마리 중 안 골랐으면) 사진 전체에서 뽑는다 — imageForAI·getBestPhoto와 같은 규칙
-      const cardStyle = styleFromAccent(await accentFromImage(cut?.blob ?? photo.bitmap))
-      const sighting = buildSighting({ name, note, exif: photo.exif, place: loc.place, crop: cut && picked ? { box: cut.box, by: picked.by } : null, verdict: ask.verdict, cardStyle, now: new Date() })
-      // 사진을 다 만든 뒤 기록과 함께 한 번에 쓴다 — 끊겨도 반쪽(사진만·기록만)이 남지 않는다
-      await journal.add(sighting, await makePhotos(photo, cut?.blob ?? null))
-      setSaved({ sighting, firstMeet: isFirstMeet(sighting.speciesKo, existing) })
-      // 기록이 됐으니 초안은 할 일을 다했다. 실패한 저장은 초안을 남긴다
-      void draft.clear()
-    } catch (e) {
-      setSaveError(e instanceof Error ? e.message : '저장하지 못했습니다.')
-    } finally {
-      setSaving(false)
-    }
   }
 
   if (saved) return <CardResult sighting={saved.sighting} firstMeet={saved.firstMeet} onDone={() => onDone(saved.sighting.id)} />
@@ -127,7 +98,7 @@ export default function RecordFlow({ onCancel, onDone, onOpenSettings, onOpenSou
         </div>
       </div>
       <div className="bottom-bar">
-        <Button variant="primary" icon="check" block onClick={() => void save()} disabled={saving}>{saving ? '저장하는 중…' : name.trim() ? '저장' : '이름 없이 저장'}</Button>
+        <Button variant="primary" icon="check" block onClick={() => void save({ photo, picked, name, note, place: loc.place, verdict: ask.verdict }, draft.clear)} disabled={saving}>{saving ? '저장하는 중…' : name.trim() ? '저장' : '이름 없이 저장'}</Button>
       </div>
       {editingPlace && (
         <LocationSheet place={loc.place} error={loc.error} last={lastPlace} onClose={() => setEditingPlace(false)}
