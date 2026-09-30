@@ -52,14 +52,15 @@ function quote(text: string): string {
 
 /**
  * 폴더 안의 파일을 전부 나열한다 (휴지통 제외, 1,000개씩 쪽을 넘긴다).
- * `parentId`를 'root'로 주면 내 드라이브 맨 위.
+ * `parentId`를 'root'로 주면 내 드라이브 맨 위. `orderBy`(드라이브의 정렬 키, 예: 'createdTime')를 주지 않으면 순서는 드라이브 마음대로다.
  */
-export async function listFiles(parentId: string, extraQuery = ''): Promise<DriveFile[]> {
+export async function listFiles(parentId: string, extraQuery = '', orderBy = ''): Promise<DriveFile[]> {
   const out: DriveFile[] = []
   let pageToken = ''
   do {
     const q = `${quote(parentId)} in parents and trashed=false${extraQuery ? ` and ${extraQuery}` : ''}`
     const params = new URLSearchParams({ q, pageSize: '1000', fields: 'nextPageToken,files(id,name,appProperties)', spaces: 'drive' })
+    if (orderBy) params.set('orderBy', orderBy)
     if (pageToken) params.set('pageToken', pageToken)
     const data = (await (await call(`${API}?${params}`)).json()) as { files?: DriveFile[]; nextPageToken?: string }
     out.push(...(data.files ?? []))
@@ -69,12 +70,22 @@ export async function listFiles(parentId: string, extraQuery = ''): Promise<Driv
 }
 
 /**
- * 폴더를 찾고, 없으면 만든다. 같은 이름이 여럿이면(두 기기가 동시에 만든 경우) 가장 먼저 찾은 것을 쓴다.
- * 만든 폴더의 id를 준다.
+ * 폴더 안에서 이 이름의 폴더를 모두 찾는다 — 먼저 만든 것부터. 없으면 빈 배열.
+ * 만든 순서로 정렬하는 이유: 두 기기가 동시에 처음 만들어 같은 이름이 여럿일 때, 드라이브의 기본 순서는 정해져 있지 않아
+ * 기기마다 다른 폴더를 골라 서로의 파일을 못 볼 수 있다.
+ */
+export async function findFolders(name: string, parentId: string): Promise<string[]> {
+  const found = await listFiles(parentId, `name=${quote(name)} and mimeType=${quote(FOLDER)}`, 'createdTime')
+  return found.map((f) => f.id)
+}
+
+/**
+ * 폴더를 찾고, 없으면 만든다. 같은 이름이 여럿이면(두 기기가 동시에 만든 경우) **가장 먼저 만든 것**을 쓴다 (findFolders) —
+ * 모든 기기가 같은 폴더를 고른다. 만든 폴더의 id를 준다.
  */
 export async function ensureFolder(name: string, parentId: string): Promise<string> {
-  const found = await listFiles(parentId, `name=${quote(name)} and mimeType=${quote(FOLDER)}`)
-  if (found[0]) return found[0].id
+  const [first] = await findFolders(name, parentId)
+  if (first) return first
   const res = await call(`${API}?fields=id`, {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ name, mimeType: FOLDER, parents: [parentId] }),
