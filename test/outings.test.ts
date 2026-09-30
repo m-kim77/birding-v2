@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { outingsOf, SAME_OUTING_M, type Outing } from '../src/features/records/outings.ts'
+import { outingHeadText, outingsOf, SAME_OUTING_M, type Outing } from '../src/features/records/outings.ts'
 import type { Sighting } from '../src/types.ts'
 
 /*
@@ -135,4 +135,24 @@ test('입력 배열을 바꾸지 않는다, 빈 입력은 빈 배열', () => {
   outingsOf(list)
   assert.deepEqual(list.map((s) => s.id), ['late', 'early'])
   assert.deepEqual(outingsOf([]), [])
+})
+
+test('outingHeadText: 날짜·장소 / 첫~마지막 시각·종 수·기록 수 / 종 이름들', () => {
+  // 서울 2026-09-22 06:40 · 07:10 · 09:10
+  const [o] = outingsOf([
+    rec('a', '2026-09-21T21:40:00.000Z', { speciesKo: '박새', place: '가상 습지' }),
+    rec('b', '2026-09-21T22:10:00.000Z', { speciesKo: '쇠오리' }),
+    rec('c', '2026-09-22T00:10:00.000Z', { speciesKo: '박새' }),
+  ])
+  assert.deepEqual(outingHeadText(o), { title: '9월 22일 · 가상 습지', facts: '06:40~09:10 · 2종 · 기록 3건', names: '박새 · 쇠오리' })
+})
+
+test('outingHeadText: 장소 이름이 없으면 날짜만, 같은 분이면 시각 하나, 이름 붙은 종이 없으면 종 수와 이름 줄을 뺀다', () => {
+  const [o] = outingsOf([rec('a', '2026-09-21T21:40:05.000Z'), rec('b', '2026-09-21T21:40:50.000Z')])
+  assert.deepEqual(outingHeadText(o), { title: '9월 22일', facts: '06:40 · 기록 2건', names: '' })
+})
+
+test("outingHeadText: 시각을 못 읽는 한 건짜리에 불러도 'NaN'을 적지 않는다", () => {
+  const [o] = outingsOf([rec('bad', 'not-a-date', { place: '연습 공원' })])
+  assert.deepEqual(outingHeadText(o), { title: '연습 공원', facts: '기록 1건', names: '' })
 })

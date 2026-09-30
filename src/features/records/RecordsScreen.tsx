@@ -7,8 +7,9 @@ import Icon from '../../ui/Icon'
 import { countSpecies, yearTally } from '../dex/speciesCount'
 import JournalFilter from './JournalFilter'
 import JournalNotices from './JournalNotices'
-import { countUnnamed, sortNewest } from './journalList'
+import { countUnnamed, monthSections, sortNewest } from './journalList'
 import { filterJournal, periodOptions, placeOptions } from './journalView'
+import { outingsOf } from './outings'
 import RecordList from './RecordList'
 import { useJournalView } from './useJournalView'
 
@@ -42,6 +43,7 @@ function EmptyJournal({ onAdd, onBackup }: Pick<Props, 'onAdd' | 'onBackup'>) {
  * 종으로 거르는 고르개는 두지 않는다 (검색 칸과 도감의 종 시트가 한다). 정렬은 날짜순 하나다.
  * 알림 띠는 JournalNotices, 목록 그리기는 RecordList, 거르기·묶기 계산은 journalList.ts·journalView.ts가 맡는다.
  * 검색어·칩·기간·장소는 기록을 열었다 돌아와도 남는다 (useJournalView — 이번 실행 동안만).
+ * 탐조 묶음(outings.ts)은 거르기 전의 **모든 기록**으로 계산한다 — 걸러서 몇 건만 보여도 머리줄의 숫자는 그 탐조 전체다. 저장하지 않는다.
  */
 export default function RecordsScreen({ onOpen, onBackup, onAdd, onSettings }: Props) {
   const journal = useJournal()
@@ -49,6 +51,7 @@ export default function RecordsScreen({ onOpen, onBackup, onAdd, onSettings }: P
   const sorted = useMemo(() => sortNewest(sightings), [sightings])
   const periods = useMemo(() => periodOptions(sightings), [sightings])
   const places = useMemo(() => placeOptions(sightings), [sightings])
+  const outings = useMemo(() => outingsOf(sightings), [sightings])
   const unnamed = countUnnamed(sightings)
   const [view, setView] = useJournalView(journal.sightings && { unnamed, periods, places })
   const shown = filterJournal(sorted, view)
@@ -71,7 +74,7 @@ export default function RecordsScreen({ onOpen, onBackup, onAdd, onSettings }: P
       </label>
       <JournalFilter view={view} onChange={setView} periods={periods} places={places} unnamed={unnamed} shownCount={shown.length} shownSpecies={countSpecies(shown)} />
       {shown.length === 0 && <p className="hint">{view.query ? `"${view.query}"에 맞는 기록이 없습니다.` : '맞는 기록이 없습니다.'}</p>}
-      <RecordList shown={shown} onOpen={onOpen} />
+      <RecordList sections={monthSections(shown, outings)} onOpen={onOpen} />
     </div>
   )
 }

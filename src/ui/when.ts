@@ -24,6 +24,15 @@ export function dateTimeOf(s: Pick<Sighting, 'capturedAt' | 'capturedAtOffset'>)
   return `${p.year}. ${pad2(p.month)}. ${pad2(p.day)}. ${pad2(p.hour)}:${pad2(p.minute)}`
 }
 
+/**
+ * 촬영지 시각의 시:분 '06:48' — 일지의 탐조 머리줄이 첫~마지막 시각에 쓴다.
+ * 시각을 못 읽으면 '' ('NaN:NaN'을 보이지 않게 — 부르는 쪽이 빈 글자를 뺀다).
+ */
+export function timeOf(s: Pick<Sighting, 'capturedAt' | 'capturedAtOffset'>): string {
+  const p = partsOf(s)
+  return Number.isFinite(p.hour) && Number.isFinite(p.minute) ? `${pad2(p.hour)}:${pad2(p.minute)}` : ''
+}
+
 /** 목록을 묶는 달 제목. '2026년 9월' */
 export function monthOf(s: Pick<Sighting, 'capturedAt' | 'capturedAtOffset'>): string {
   const p = partsOf(s)

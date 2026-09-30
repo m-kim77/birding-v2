@@ -1,6 +1,17 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { daysAgoOf, fileDateOf, fileDateToday, yearMonthOf } from '../src/ui/when.ts'
+import { daysAgoOf, fileDateOf, fileDateToday, timeOf, yearMonthOf } from '../src/ui/when.ts'
+
+test('timeOf: 촬영지 시각의 시:분, 두 자리로 — UTC로는 전날 밤이어도', () => {
+  // 서울 2026-09-22 06:48 = 2026-09-21T21:48Z
+  assert.equal(timeOf({ capturedAt: '2026-09-21T21:48:00.000Z', capturedAtOffset: '+09:00' }), '06:48')
+  assert.equal(timeOf({ capturedAt: '2026-09-22T00:05:59.000Z', capturedAtOffset: '+09:00' }), '09:05', '초는 버린다')
+})
+
+test("timeOf: 못 읽는 시각은 빈 글자 ('NaN:NaN'을 주지 않는다)", () => {
+  assert.equal(timeOf({ capturedAt: 'not-a-date', capturedAtOffset: '+09:00' }), '')
+  assert.equal(timeOf({ capturedAt: '', capturedAtOffset: null }), '')
+})
 
 test('yearMonthOf: 한국 1월 1일 00:30은 새해 — UTC로는 전해 12월 31일이다', () => {
   // 2026-01-01 00:30 KST = 2025-12-31T15:30Z

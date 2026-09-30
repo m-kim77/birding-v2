@@ -1,5 +1,5 @@
 /**
- * 한 번의 탐조(outing) 묶기 — 같은 날 가까운 곳에서 찍은 기록을 한 묶음으로 모은다 (작업 37). 일지의 머리줄이 쓴다.
+ * 한 번의 탐조(outing) 묶기 — 같은 날 가까운 곳에서 찍은 기록을 한 묶음으로 모은다 (작업 37). 일지가 묶음 위에 머리줄(outingHeadText)을 얹는다.
  *
  * **저장하지 않고 볼 때 모든 기록으로 계산한다** (도감 번호 dex/dexNo.ts와 같은 생각). 묶음에 id를 매겨 저장하면
  * 폰과 PC가 같은 탐조에 서로 다른 id를 줘서, 드라이브·백업으로 합칠 때 한 탐조가 둘로 갈린다.
@@ -17,7 +17,7 @@
 // 확장자를 적는 이유: node --test가 이 파일을 직접 읽는다 (Vite는 어느 쪽이든 된다)
 import { distanceM } from '../../lib/tracklog/match.ts'
 import { instantOf } from '../../lib/timeOrder.ts'
-import { fileDateOf } from '../../ui/when.ts'
+import { dayOf, fileDateOf, timeOf } from '../../ui/when.ts'
 import type { Sighting } from '../../types'
 
 /**
@@ -102,4 +102,31 @@ export function outingsOf(sightings: Sighting[]): Outing[] {
     ...chain(readable).map((items) => summarize(items, fileDateOf(items[0]))),
     ...unreadable.map((s) => summarize([s], '')),
   ]
+}
+
+/** 일지의 탐조 머리줄에 쓰는 글 세 줄 */
+export interface OutingHeadText {
+  /** '9월 22일 · 가상 습지' — 장소 이름이 없으면 날짜만 */
+  title: string
+  /** '06:40~09:10 · 14종 · 기록 20건' */
+  facts: string
+  /** '박새 · 쇠오리 · …' (처음 찍힌 순). 이름 붙은 종이 없으면 '' — 화면이 이 줄을 그리지 않는다 */
+  names: string
+}
+
+/**
+ * 머리줄의 글. 숫자는 묶음 **전체**다 (검색·거르기와 상관없다 — '박새'를 찾았다고 그 탐조가 1종이 되면 틀린 말이다).
+ * 시각은 첫 기록~마지막 기록의 촬영지 시각이고, 둘이 같은 분이면 하나만 적는다. 이름 붙은 종이 없으면 종 수를 뺀다 ('0종'은 할 말이 아니다).
+ * 시각을 못 읽는 한 건짜리 묶음에는 머리줄이 없어 부를 일이 없지만, 불러도 던지지 않고 날짜·시각을 빼고 적는다 ('NaN월'을 보이지 않게).
+ */
+export function outingHeadText(o: Outing): OutingHeadText {
+  const first = o.items[0]
+  const from = timeOf(first)
+  const to = timeOf(o.items[o.items.length - 1])
+  const time = from === to ? from : `${from}~${to}`
+  return {
+    title: [o.date ? dayOf(first) : '', o.place].filter(Boolean).join(' · '),
+    facts: [time, o.species.length > 0 ? `${o.species.length}종` : '', `기록 ${o.items.length}건`].filter(Boolean).join(' · '),
+    names: o.species.join(' · '),
+  }
 }
