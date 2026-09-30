@@ -6,6 +6,7 @@ import type { NormalizedBox, Sighting } from '../../types'
 import { accentFromImage } from '../dex/accentFromPhoto'
 import { styleFromAccent } from '../dex/cardStyle'
 import { isFirstMeet } from '../dex/dexNo'
+import { soundEntryOn } from '../sound/soundModel'
 import { buildSighting } from './buildSighting'
 import CardResult from './CardResult'
 import DetectView from './DetectView'
@@ -28,6 +29,8 @@ interface Props {
   onDone: (id: string) => void
   /** 기본 제공 AI가 쉴 때 "설정에서 내 키 넣기"가 가는 곳 */
   onOpenSettings: () => void
+  /** 첫 화면의 '새소리 듣기'가 가는 곳 */
+  onOpenSound: () => void
 }
 
 /** 상자 둘이 같은 영역인지 (참조가 아니라 값으로) */
@@ -38,7 +41,7 @@ const sameBox = (a: NormalizedBox | null, b: NormalizedBox | null) => JSON.strin
  * 사용자가 직접 적는 것은 이름과 메모뿐이고, 둘 다 비워도 저장된다. (뺀 버튼과 이유: ref_design/design_v01/BUTTONS.md)
  * 쓰던 것은 초안으로 남는다 — 뒤로 가거나 설정에 다녀와도 다음에 "이어 쓰기"로 돌아온다 (useRecordFields).
  */
-export default function RecordFlow({ onCancel, onDone, onOpenSettings }: Props) {
+export default function RecordFlow({ onCancel, onDone, onOpenSettings, onOpenSound }: Props) {
   const journal = useJournal()
   const existing = journal.sightings ?? []
   const picker = usePhotoPick()
@@ -101,7 +104,7 @@ export default function RecordFlow({ onCancel, onDone, onOpenSettings }: Props) 
   const pickError = picker.error ? <Banner tone="err" icon="alert">{picker.error}</Banner> : null
   if (!photo) {
     return <PhotoStart onBack={onCancel} onPick={() => fileInput.current?.click()} input={input} draft={draft.pending}
-      onResume={() => void resume()} onDiscard={() => void draft.clear()} error={pickError} />
+      onResume={() => void resume()} onDiscard={() => void draft.clear()} error={pickError} onSound={soundEntryOn ? onOpenSound : undefined} />
   }
 
   return (

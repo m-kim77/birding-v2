@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import type { Draft } from '../../data/draft'
 import { ScreenHead } from '../../ui/bits'
+import Button from '../../ui/Button'
 import Icon from '../../ui/Icon'
 import DraftNotice from './DraftNotice'
 
@@ -16,13 +17,15 @@ interface Props {
   onDiscard: () => void
   /** 사진을 열지 못했을 때의 안내. 없으면 null */
   error: ReactNode
+  /** '새소리 듣기'를 눌렀을 때. 없으면 버튼을 그리지 않는다 — 판정기가 시험용 가짜인 배포판 (sound/soundModel.ts soundEntryOn) */
+  onSound?: () => void
 }
 
 /**
- * 사진을 고르기 전의 첫 화면 — 사진 고르기 한 칸과, 쓰던 기록이 있으면 "이어 쓰기 / 버리기".
+ * 사진을 고르기 전의 첫 화면 — 사진 고르기 한 칸과, 쓰던 기록이 있으면 "이어 쓰기 / 버리기". 그 아래에 새소리 듣기로 가는 버튼.
  * 사진을 열면 RecordFlow가 작성 화면으로 바꾼다. 열지 못하면 이 화면에 머물고 `error`를 보여 준다.
  */
-export default function PhotoStart({ onBack, onPick, input, draft, onResume, onDiscard, error }: Props) {
+export default function PhotoStart({ onBack, onPick, input, draft, onResume, onDiscard, error, onSound }: Props) {
   return (
     <div className="screen">
       <ScreenHead title="새 기록" onBack={onBack} />
@@ -32,6 +35,14 @@ export default function PhotoStart({ onBack, onPick, input, draft, onResume, onD
         <Icon name="camera" size={40} /><strong>사진 고르기</strong><span>시각·위치·촬영 정보는 사진에서 자동으로 읽습니다</span>
       </button>
       {error}
+      {onSound && (
+        // 새소리 듣기: 안 보이는 새를 소리로 알아보는 길. 탭이나 "+" 시트가 아니라 여기 둔 이유 — 사진 기록은 지금처럼 한 번에 닿고, 새소리는 두 번이면 닿는다.
+        // 기록을 만들지 않으므로 주 버튼(사진 고르기) 아래의 조용한 버튼이고, 그 사실을 바로 밑에 적는다
+        <div className="sound-entry">
+          <Button variant="quiet" icon="mic" onClick={onSound}>새소리 듣기</Button>
+          <span className="hint">들린 새를 알려 줍니다 · 기록은 남기지 않습니다</span>
+        </div>
+      )}
     </div>
   )
 }

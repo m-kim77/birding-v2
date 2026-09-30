@@ -41,7 +41,8 @@ npm run build
 화면에 버튼을 미리 만들어 두지 않았다 — 동작하지 않는 버튼은 넣지 않는다. 필요한 기능의 전체 목록은 [`FEATURES.md`](FEATURES.md), 할 순서와 진행 상태는 [`ROADMAP.md`](ROADMAP.md).
 작업 지시 넷(손실 막기 → 카드 등급 제거 → 초안 보존·다시 판정 → 타임라인 위치)은 끝났다 (2026-09-24). 저장 방식은 2026-09-26에 정했다 — 기기가 원본, 사용자 자신의 구글 드라이브가 사본이다 (운영자 서버에는 두지 않는다). 드라이브 동기화는 작업 19로 만들었다 (2026-09-27 — 위 표).
 
-- **소리로 기록 (새소리 인식)** — 디자인은 `ref_design/design_v01`에 있다. 모델은 BirdNET의 브라우저(TF.js)판을 쓸 계획이다: 공식 구현 [birdnet-team/real-time-pwa](https://github.com/birdnet-team/real-time-pwa)(코드 MIT, 모델 CC BY-SA 4.0 — 저장소 표기 기준, 넣기 전에 다시 확인). 넣을 자리는 `features/detect`와 같은 모양의 어댑터다.
+- **소리로 기록 (새소리 인식)** — 디자인은 `ref_design/design_v01`에 있다. 모델은 BirdNET 2.4의 브라우저(TF.js)판을 쓸 계획이다: 공식 구현 [birdnet-team/real-time-pwa](https://github.com/birdnet-team/real-time-pwa)의 가중치(약 53MB)를 실행할 때 받는다. 코드는 MIT, **모델은 CC BY-NC-SA 4.0으로 보고 쓴다** — 같은 가중치를 그 저장소는 CC BY-SA 4.0, BirdNET-Analyzer는 CC BY-NC-SA 4.0이라고 적어 더 엄한 쪽을 따른다 (무료·비상업이라 어느 쪽이어도 쓸 수 있다). 맥 브라우저에서 v1과 같은 답을 내는 것까지 확인했고 폰 측정은 아직이다 (작업 31, 2026-09-27). 넣을 자리는 `features/detect`와 같은 모양의 어댑터다.
+- **새소리 듣기 (작업 32)** — 화면·판정 규칙·마이크와 소리 파일 읽기는 들어와 있다 (`features/sound`). 판정기가 아직 **시험용 가짜**라서 배포판에서는 들어가는 버튼이 닫혀 있다 — 개발 서버(`npm run dev`)의 새 기록 첫 화면 '새소리 듣기'에서 본다 (빌드한 판에서 보려면 `VITE_SOUND_DEMO=1`). 판정만 하고 아무것도 저장하지 않는다. 진짜 모델(BirdNET 2.4)은 작업 31이 폰에서 통과한 뒤에 붙인다.
 - **오프라인(서비스 워커)** — 서비스 워커가 없다 (홈 화면 설치용 매니페스트·아이콘만 있다). 글꼴·탐지 wasm이 아직 CDN에서 온다.
 - **도장(천연기념물 등)과 보호종 자료** — 종별 자료가 없어 도장은 비어 있다. 위치 숨기기는 기록마다 손으로 켠다 — 보호종이라고 저절로 켜지지는 않는다.
 - **관찰지 꾸미기** — 자동 카드가 "간단한 결과물" 자리를 맡는다. 꾸미기는 뒤 단계.
@@ -63,6 +64,7 @@ src/
     record/           사진으로 기록: 훅(usePhotoPick · useDetection · useAsk · useRecordPlace — 위치 · useRecordFields — 쓰는 값과 초안)이 상태를, 컴포넌트가 그리기를 맡는다. RecordFlow는 잇고 저장만 한다
     tracks/           워커·가져오기·60일 알림 (이동 기록)
     detect/           탐지 모델 어댑터. 모델을 바꾸면 mediapipeDetector.ts만 바뀐다
+    sound/            새소리 듣기: 판정 규칙(heard · windows · session — 순수) · 마이크와 소리 파일 · 화면. 판정기는 어댑터(classifier.ts) 뒤에 있고 쓰는 것은 soundModel.ts 한 줄이 정한다
     identify/         판정 루프 · 프롬프트 · 연결 · 답 읽기
       tools/          LLM 도구 — 정의(설명·인자·순서)는 definitions.ts 한 곳(서버도 읽는다), 실행은 **도구 하나 = 파일 하나**, 짝은 index.ts
     dex/ records/ map/ settings/
@@ -75,6 +77,7 @@ ref_design/design_v01 디자인 초안과 BUTTONS.md (버튼마다 존재 이유
 
 - **LLM 도구 더하기**: `features/identify/tools/definitions.ts`의 배열 **끝에** 정의(이름·설명·인자) 하나 → 실행 파일 하나 → `index.ts`의 `RUNNERS`에 한 줄. 실행부를 빠뜨리면 `npm run check`의 타입 검사가 막는다. 순서를 바꾸면 LLM 서버의 KV 캐시가 깨진다 (이유는 그 파일 주석). 정의 파일은 서버(`api/`)도 읽으니 다른 파일을 import하지 않는다 (CLAUDE.md의 `.ts` 규칙).
 - **탐지 모델 바꾸기**: `features/detect/detector.ts`의 모양을 따르는 파일을 만들고, `useDetection.ts`·`ModelSection.tsx`의 import 한 줄을 바꾼다. 설정 > 출처에도 한 줄.
+- **새소리 모델 바꾸기**: `features/sound/classifier.ts`의 모양을 따르는 파일을 만들고 `soundModel.ts`의 한 줄을 바꾼다. 무거운 실행 코드는 `load()` 안에서 `import()`로 받는다 (그 파일은 기록 화면·설정 묶음에도 들어간다). 설정 > 출처와 '무엇이 어디로 가나요'에도 한 줄씩. 보여 줄 하한과 '확실하지 않음'의 문턱은 `heard.ts`의 상수 둘.
 - **테마 더하기**: `theme/themes.ts`에 항목 하나(폰 위쪽 띠 색 `bar` 포함) → `npm run check`가 대비와 밝기 짝(`colorScheme`·`bar`)을 검사한다.
 - **카드 색 바꾸기**: 추천 색·기본색·옛 기록의 색은 `features/dex/cardStyle.ts` 한 곳. 사진에서 뽑는 방법은 `accentFromPhoto.ts`. 모든 카드가 함께 쓰는 값(바탕·글꼴)은 `cardLook.ts`.
 - **설정 카드 더하기**: "누르면 → 진행 중 → 결과 한 줄"은 `features/settings/useTask.ts`(실패는 결과 줄에, 끝난 뒤 할 일은 `after`)와 `TaskResult.tsx`를 쓴다 — 카드마다 복사하지 않는다.

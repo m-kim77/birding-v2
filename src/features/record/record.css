@@ -4,6 +4,8 @@
   border: 2px dashed var(--border); border-radius: var(--radius-card); background: var(--bg-card); color: var(--text-1);
 }
 .photo-drop .icon { color: var(--primary); } .photo-drop strong { font-size: 19px; } .photo-drop span { color: var(--text-3); font-size: 14px; }
+/* 첫 화면의 새소리 듣기 — 버튼과 그 밑의 한 줄 설명 */
+.sound-entry { display: grid; justify-items: center; text-align: center; }
 
 .record-cols, .record-side, .detect { display: grid; gap: var(--sp-4); align-content: start; }
 .detect .btn-quiet { justify-self: start; }

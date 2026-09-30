@@ -1,3 +1,5 @@
+import { soundEntryOn } from '../sound/soundModel'
+
 /**
  * 이 앱이 기기 밖과 닿는 곳 전부. 사진·위치가 언제 어디로 가는지 알아야 기본 제공 AI·장소 이름 찾기를 믿고 쓸지 사용자가 정할 수 있다.
  * **바깥으로 나가는 요청을 더하거나 보내는 값을 바꾸면 여기를 같이 고친다** (CLAUDE.md) — 안 고치면 이 안내가 거짓이 된다.
@@ -5,6 +7,8 @@
  * · 위키백과 API와 참고 사진(identify/tools/wikipedia.ts, VerdictDetails) · 지도 타일(map/LeafletMap.tsx) · 글꼴(index.html)
  * · 새 찾기 모델과 wasm(detect/mediapipeDetector.ts) · 공유 창·내려받기(dex/saveFile.ts, 백업)
  * · 구글 드라이브 동기화(data/sync*.ts, lib/google/ — 로그인은 `/api/drive`를 거치고 기록·사진은 브라우저에서 드라이브로 곧장).
+ * · 새소리 듣기(features/sound/ — 마이크·소리 파일은 기기 안에서만 쓴다. 지금 판정기는 시험용 가짜라 받는 것이 없다.
+ *   **진짜 모델을 붙이면 '받기만 하는 것'에 새소리 모델을 받는 곳을 더한다** — WORK_ORDERS 작업 32).
  */
 const FLOWS: Array<{ where: string; what: string }> = [
   { where: '이 기기에만', what: '기록·사진·쓰던 기록·이동 기록·내 API 키. 이 사이트의 서버에 올리지 않습니다. 기기를 바꿀 때는 백업 파일이나 구글 드라이브 동기화로 옮깁니다.' },
@@ -15,6 +19,8 @@ const FLOWS: Array<{ where: string; what: string }> = [
   { where: '지도 그림 — OpenStreetMap', what: '지도를 볼 때 보이는 구역의 지도 그림을 받습니다. 어느 구역을 보는지 그쪽이 압니다.' },
   { where: '받기만 하는 것', what: '글꼴(Google Fonts · jsDelivr)과 새 찾기 모델(Google)을 내려받습니다. 새 찾기는 이 기기 안에서 하므로 사진은 보내지 않습니다.' },
   { where: '이동 기록', what: '파일은 이 기기 밖으로 나가지 않고 백업에도 들지 않습니다. 다만 사진의 위치를 찾으면 그 한 점은 기록의 위치가 되어 장소 이름 찾기로 갑니다.' },
+  // 새소리 듣기를 열어 둔 판에서만 보인다 — 없는 기능을 안내하지 않는다
+  ...(soundEntryOn ? [{ where: '새소리 듣기', what: '마이크 소리와 고른 소리 파일은 이 기기 안에서만 판정에 쓰고, 저장하지 않고 어디로도 보내지 않습니다. 들린 새 목록도 화면을 떠나면 사라지고 백업·드라이브에 들지 않습니다.' }] : []),
   { where: '백업 파일 · 카드 이미지와 영상', what: "내가 고른 곳으로만 갑니다. 백업에는 기록(좌표 포함)과 사진이 들고, 이동 기록·API 키는 들지 않습니다. 카드에는 날짜와 장소 이름이 적힙니다 — '카드·지도에서 위치 숨기기'를 켠 기록은 '위치 비공개'로." },
 ]
 
