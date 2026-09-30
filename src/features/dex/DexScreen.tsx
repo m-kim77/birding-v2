@@ -11,6 +11,7 @@ import CardActions from './CardActions'
 import CardStylePicker from './CardStylePicker'
 import SyncBanner from './SyncBanner'
 import { useDexNumbers } from './useDexNo'
+import { useYearChip } from './useYearChip'
 
 interface SheetProps {
   /** 연 종 */
@@ -54,9 +55,10 @@ export default function DexScreen({ onOpenRecord }: { onOpenRecord: (id: string)
   // 묶기와 번호에는 늘 모든 기록을 넘기고, 올해 칩은 묶은 뒤의 종 목록만 거른다 — 걸러진 기록으로 번호를 매기면 카드의 No.가 바뀐다
   const species = useMemo(() => bySpecies(sightings ?? [], numbers), [sightings, numbers])
   const thisYear = useMemo(() => speciesInYear(sightings ?? [], new Date().getFullYear()), [sightings])
-  const [onlyThisYear, setOnlyThisYear] = useState(false)
   // 올해 종이 0이거나 전부면 칩이 없다 (눌러도 달라지지 않거나 빈 도감이 된다). 칩이 안 보이면 거르지도 않는다 — 풀 길 없는 거르기가 남지 않게
   const yearChip = thisYear.size > 0 && thisYear.size < species.length
+  // 켜 둔 칩은 기록을 열었다 돌아와도 남는다 (useYearChip — 이번 실행 동안만). 기록을 읽는 중에는 칩이 안 보여도 기억을 끄지 않는다
+  const [onlyThisYear, toggleThisYear] = useYearChip(sightings ? yearChip : null)
   const shown = yearChip && onlyThisYear ? species.filter((e) => thisYear.has(e.name)) : species
   const [openName, setOpenName] = useState('')
   const open = species.find((e) => e.name === openName) ?? null
@@ -68,7 +70,7 @@ export default function DexScreen({ onOpenRecord }: { onOpenRecord: (id: string)
       {yearChip && (
         // 올해 칩: 도감은 지금까지의 종을 다 보여 준다 — 올해 만난 종(올해 목록)만 보려면 골라낼 수단이 있어야 한다. 숫자만 보이고 목표·작년 비교는 붙이지 않는다
         <div className="chips">
-          <button type="button" className={`chip${onlyThisYear ? ' is-on' : ''}`} aria-pressed={onlyThisYear} onClick={() => setOnlyThisYear((v) => !v)}>올해 {thisYear.size}종</button>
+          <button type="button" className={`chip${onlyThisYear ? ' is-on' : ''}`} aria-pressed={onlyThisYear} onClick={toggleThisYear}>올해 {thisYear.size}종</button>
         </div>
       )}
       {species.length === 0 && <p className="hint">이름이 정해진 기록이 생기면 여기에 종마다 카드가 한 장씩 모입니다.</p>}
