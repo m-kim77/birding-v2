@@ -2,6 +2,7 @@ import { Suspense, lazy, useState } from 'react'
 import { useJournal } from '../../data/journal'
 import { Card } from '../../ui/bits'
 import Button from '../../ui/Button'
+import { expectsPhoto } from '../../data/photoKey'
 import type { Sighting } from '../../types'
 import { EVIDENCE_LOSS_WARNING } from '../identify/verdictText'
 import { CountField, PlaceRow } from '../record/RecordFacts'
@@ -40,6 +41,8 @@ export default function RecordEdit({ sighting: s, onClose, onDeleted }: Props) {
 
   const patch = editPatch(s, { name, count, note, time, place: loc.place }, new Date())
   // 이동 기록에서 온 위치는 고치기 전 시각으로 찾은 것이다 — 시각만 고치면 둘이 어긋난다 (다시 찾지는 않는다 — WORK_ORDERS 작업 12)
+  // 사진 없는 기록의 시각은 찍은 때가 아니라 본 때다 — 칸 이름과 안내를 그에 맞춘다
+  const timeLabel = expectsPhoto(s) ? '촬영 시각' : '본 시각'
   const staleTrack = patch?.capturedAt !== undefined && patch.locationSource === undefined && s.locationSource === 'tracklog'
 
   /** 바뀐 것을 저장하고 읽는 화면으로. 바뀐 것이 없으면 기록을 건드리지 않는다 — 그래도 쓰면 `updatedAt`이 바뀌어 "백업 안 된 기록"으로 세진다 */
@@ -61,8 +64,8 @@ export default function RecordEdit({ sighting: s, onClose, onDeleted }: Props) {
         {/* 이름을 고치면 근거를 떼는 것은 의도된 동작(editPatch)이지만, 말없이 지우면 안 된다 */}
         {s.verdict && name.trim() !== s.speciesKo && <p className="status-line is-warn">{EVIDENCE_LOSS_WARNING}</p>}
         {/* 촬영 시각: 사진에 시각이 없어 기록한 시각이 들어갔거나 카메라 시계가 틀렸을 때 고칠 유일한 길. 화면에 보이는 것과 같은 촬영지 시각이다 */}
-        <label className="field"><span>촬영 시각</span><input type="datetime-local" value={time} onChange={(e) => setTime(e.target.value)} /></label>
-        {!patch && <p className="status-line is-warn" role="alert">촬영 시각을 끝까지 채워 주세요.</p>}
+        <label className="field"><span>{timeLabel}</span><input type="datetime-local" value={time} onChange={(e) => setTime(e.target.value)} /></label>
+        {!patch && <p className="status-line is-warn" role="alert">{timeLabel}을 끝까지 채워 주세요.</p>}
         {/* 위치 줄: 위치가 없거나 틀린 기록을 고칠 유일한 길 — 기록 화면과 같은 한 줄, 같은 시트다 */}
         <div className="field"><span>위치</span><PlaceRow place={loc.place} onClick={() => setPickingPlace(true)} /></div>
         {staleTrack && <p className="status-line is-warn">이 위치는 고치기 전 시각으로 이동 기록에서 찾은 것입니다. 위치도 맞는지 봐 주세요.</p>}
