@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useJournal } from '../../data/journal'
+import { hideHint } from '../../data/protectedSpecies'
 import type { Sighting } from '../../types'
 import './hideLocation.css'
 
@@ -11,11 +12,15 @@ import './hideLocation.css'
  * 카드가 크게 보이고 밖으로 내보내는 두 곳(저장 직후 `CardResult` · 기록 상세의 카드 보기)에서 카드 아래, 저장 버튼 위에 붙는다.
  * 도감의 종 시트에는 두지 않는다 — 거기 색 고르개는 그 종의 모든 기록에 걸리는데 이 스위치는 기록 하나에만 걸려 헷갈린다.
  * 위치가 없는 기록은 가릴 것이 없어 아무것도 그리지 않는다. 저장이 실패하면 스위치는 저장된 값 그대로 두고 이유를 적는다.
+ *
+ * 보호종(data/protectedSpecies.ts)이고 스위치가 꺼져 있으면 아래에 켜기를 권하는 한 줄을 적는다. 켜면 그 줄은 사라진다.
+ * 권하기만 하고 저절로 켜지 않는다 — `sensitive`를 바꾸는 것은 지금처럼 사용자의 체크뿐이다.
  */
 export default function HideLocationSwitch({ sighting }: { sighting: Sighting }) {
   const { update } = useJournal()
   const [error, setError] = useState('')
   if (!sighting.place && sighting.lat === null) return null
+  const hint = sighting.sensitive ? '' : hideHint(sighting.speciesKo)
 
   /** 켜고 끈다. 화면의 값은 저장이 끝난 뒤 저장소에서 온다 — 실패하면 그대로다 */
   function toggle(on: boolean) {
@@ -32,6 +37,7 @@ export default function HideLocationSwitch({ sighting }: { sighting: Sighting })
           <small>켜면 카드(이미지·영상 포함)에 장소 대신 '위치 비공개'를 적고, 지도에 올리지 않습니다. 둥지처럼 알려지면 안 되는 곳에 씁니다.</small>
         </span>
       </label>
+      {hint && <p className="hide-location-hint">{hint}</p>}
       {error && <p className="status-line is-warn" role="alert">{error}</p>}
     </div>
   )
