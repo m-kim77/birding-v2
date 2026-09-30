@@ -8,9 +8,8 @@ import { Card, Fact, ScreenHead } from '../../ui/bits'
 import Button from '../../ui/Button'
 import SightingPhoto from '../../ui/SightingPhoto'
 import Sheet from '../../ui/Sheet'
-import { nameText } from '../../ui/sightingText'
+import { nameText, placeText, sourceText } from '../../ui/sightingText'
 import { dateTimeOf } from '../../ui/when'
-import type { LocationSource } from '../../types'
 import BirdCard from '../dex/BirdCard'
 import CardActions from '../dex/CardActions'
 import CardStylePicker from '../dex/CardStylePicker'
@@ -21,10 +20,6 @@ import { shotFact } from './shotEdit'
 import VerdictDetails from '../identify/VerdictDetails'
 import { verdictHeading } from '../identify/verdictText'
 import './detail.css'
-
-const SOURCE_LABEL: Record<LocationSource, string> = {
-  exif: '사진 정보에서', tracklog: '이동 기록으로 추정', gps: '기록할 때의 현재 위치', manual: '지도에서 직접 고름', none: '',
-}
 
 interface Props {
   id: string
@@ -66,7 +61,7 @@ export default function RecordDetail({ id, onBack, onOpenSettings }: Props) {
                 사진 없는 기록의 시각은 사람이 적은 것이라 이 추정이 맞지 않는다 */}
             <Fact icon="clock" sub={photo && s.capturedAt === s.createdAt ? '사진에 촬영 시각이 없어 기록한 시각입니다' : undefined}>{dateTimeOf(s)}</Fact>
             {/* 위치가 없어도 줄을 그린다 — 없다는 것이 보여야 '수정'에서 채울 생각을 한다 */}
-            <Fact icon="pin" sub={SOURCE_LABEL[s.locationSource]}>{s.place || (s.lat !== null ? `${s.lat.toFixed(4)}, ${s.lng!.toFixed(4)}` : '위치 없음')}</Fact>
+            <Fact icon="pin" sub={sourceText(s.locationSource)}>{placeText({ name: s.place, lat: s.lat, lng: s.lng })}</Fact>
             {/* 개체 수는 세었을 때만 — 안 셌으면 줄이 없다 (옛 기록 포함) */}
             {counted && <Fact icon="bird">{counted}</Fact>}
             {/* 보호종이면 법정 이름과 급 — 저장하지 않고 볼 때 국명으로 찾는다 (data/protectedSpecies.ts). 이름을 고치면 따라 바뀐다. 카드에는 급을 적지 않는다 */}

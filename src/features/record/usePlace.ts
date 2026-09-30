@@ -11,11 +11,6 @@ export interface PlaceValue {
 
 const NONE: PlaceValue = { lat: null, lng: null, name: '', source: 'none' }
 
-/** 위치가 어디서 왔는지 사용자에게 보여 주는 말 */
-export const SOURCE_LABEL: Record<LocationSource, string> = {
-  exif: '사진 정보에서', tracklog: '이동 기록으로 추정', gps: '기록할 때의 현재 위치', manual: '지도에서 직접 고름', none: '위치 없음 — 눌러서 고르기',
-}
-
 /**
  * 위치 하나와 그것을 고치는 동작 — 지도에서 고르기 · 현재 위치 · 다른 위치 복사 · 비어 있을 때만 채우기. 사진과는 상관없다.
  * 기록 화면은 아래 usePlace(사진 규칙이 붙는다)로 쓰고, 저장한 기록의 수정 칸(records/RecordEdit)은 그 기록의 위치로 시작해 이것만 쓴다.

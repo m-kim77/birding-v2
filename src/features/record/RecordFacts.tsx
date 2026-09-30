@@ -2,8 +2,9 @@ import { isBadCount } from '../../lib/count'
 import { formatShot } from '../../lib/format'
 import { Card, Fact } from '../../ui/bits'
 import Icon from '../../ui/Icon'
+import { placeText, sourceText } from '../../ui/sightingText'
 import { dateTimeOf } from '../../ui/when'
-import { SOURCE_LABEL, type PlaceValue } from './usePlace'
+import type { PlaceValue } from './usePlace'
 import type { PickedPhoto } from './usePhotoPick'
 
 /**
@@ -29,10 +30,10 @@ export function FactsCard({ photo, place, placeNote, placeHint, onEditPlace }: {
  * 기록 화면(FactsCard)·사진 없이 기록(QuickRecord)·저장한 기록의 수정 칸(records/RecordEdit)이 같이 쓴다. `note`는 출처 옆에 붙는 근거(이동 기록의 앞뒤 점 간격).
  */
 export function PlaceRow({ place, note, onClick }: { place: PlaceValue; note?: string; onClick: () => void }) {
-  const sub = [SOURCE_LABEL[place.source], note].filter(Boolean).join(' · ')
+  const sub = [sourceText(place.source, '위치 없음 — 눌러서 고르기'), note].filter(Boolean).join(' · ')
   return (
     <button type="button" className="fact-button" onClick={onClick}>
-      <Fact icon="pin" sub={sub}>{place.name || (place.lat !== null ? `${place.lat.toFixed(4)}, ${place.lng!.toFixed(4)}` : '위치 없음')}</Fact>
+      <Fact icon="pin" sub={sub}>{placeText(place)}</Fact>
       <Icon name="chevron" size={18} />
     </button>
   )

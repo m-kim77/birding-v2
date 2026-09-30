@@ -1,5 +1,6 @@
 import Button from '../../ui/Button'
 import Sheet from '../../ui/Sheet'
+import { placeText } from '../../ui/sightingText'
 import LeafletMap from '../map/LeafletMap'
 import '../map/map.css'
 import type { PlaceValue } from './usePlace'
@@ -29,7 +30,7 @@ export default function LocationSheet({ place, error, last, onClose, onPickOnMap
         <LeafletMap markers={has ? [{ key: 'here', lat: place.lat!, lng: place.lng!, picked: true }] : []}
           center={last?.lat != null && last.lng != null ? [last.lat, last.lng] : SEOUL} onPick={onPickOnMap} />
       </div>
-      <p className="hint">지도를 눌러 위치를 옮기세요.{has && ` 지금: ${place.name || `${place.lat!.toFixed(4)}, ${place.lng!.toFixed(4)}`}`}</p>
+      <p className="hint">지도를 눌러 위치를 옮기세요.{has && ` 지금: ${placeText(place)}`}</p>
       {error && <p className="status-line is-warn" role="alert">{error}</p>}
       <div className="sheet-actions">
         {/* 현재 위치로: 카메라 사진에는 위치가 없는 경우가 많고, 현장에서 바로 기록할 때는 지금 선 곳이 답이다 */}
