@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 import { detectShape, extractPoints, parseCoord, parseTimelineText } from '../src/lib/tracklog/parse.ts'
 import { explainMiss, matchTrackPoint, tierOf, TIER1_SOURCES, type TrackMatch } from '../src/lib/tracklog/match.ts'
 import { comparePoints, dayKeyOf, groupByDay, mergeSorted, rangeOf } from '../src/lib/tracklog/points.ts'
+import { nextMeta, type TracksMeta } from '../src/data/tracks.ts'
 import { fixture } from './helpers.ts'
 
 // 픽스처는 v1 조각의 좌표를 옮긴 가짜다. 시각·출처·정확도는 v1 그대로라 간격·tier·deltaSec 기대값이 v1과 같다.
@@ -305,4 +306,35 @@ test('mergeSorted 결과는 comparePoints 순이고, groupByDay는 UTC 날짜로
   assert.equal(dayKeyOf(range.start), '2026-05-22')
   assert.equal(dayKeyOf(range.end), '2026-08-02')
   assert.equal(rangeOf([]), null)
+})
+
+// ── 20. 요약의 넣은 날 (data/tracks.ts nextMeta) ──────────────────────────
+// 시각만 다룬다 (좌표 없음). 드라이브에서 받은 점은 올린 기기의 넣은 시각을 들고 온다 — 받은 순간으로 바꾸면 60일 알림이 미뤄진다
+const metaAt = (importedAt: string): TracksMeta => ({ v: 1, rangeStart: '2026-01-10T00:00:00.000Z', rangeEnd: '2026-02-10T00:00:00.000Z', count: 10, importedAt })
+
+test('nextMeta — 처음이면 넘겨받은 시각, 범위는 합집합, 점 수는 이전 + 새로 든 수', () => {
+  const first = nextMeta(null, { start: Date.parse('2026-01-05T00:00:00Z'), end: Date.parse('2026-01-06T00:00:00Z') }, 3, new Date('2026-03-01T00:00:00Z'))
+  assert.deepEqual(first, { v: 1, rangeStart: '2026-01-05T00:00:00.000Z', rangeEnd: '2026-01-06T00:00:00.000Z', count: 3, importedAt: '2026-03-01T00:00:00.000Z' })
+  const merged = nextMeta(metaAt('2026-03-01T00:00:00.000Z'), { start: Date.parse('2026-01-20T00:00:00Z'), end: Date.parse('2026-02-20T00:00:00Z') }, 4, new Date('2026-03-05T00:00:00Z'))
+  assert.equal(merged.rangeStart, '2026-01-10T00:00:00.000Z')
+  assert.equal(merged.rangeEnd, '2026-02-20T00:00:00.000Z')
+  assert.equal(merged.count, 14)
+})
+
+test('nextMeta — 넣은 날은 더 늦은 쪽: 더 이른 시각을 넘겨도(드라이브에서 받은 옛 점) 있던 값이 남는다', () => {
+  const range = { start: Date.parse('2026-01-20T00:00:00Z'), end: Date.parse('2026-01-21T00:00:00Z') }
+  assert.equal(nextMeta(metaAt('2026-03-01T00:00:00.000Z'), range, 1, new Date('2026-02-01T00:00:00Z')).importedAt, '2026-03-01T00:00:00.000Z')
+  assert.equal(nextMeta(metaAt('2026-03-01T00:00:00.000Z'), range, 1, new Date('2026-04-01T00:00:00Z')).importedAt, '2026-04-01T00:00:00.000Z')
+})
+
+test('nextMeta — 같은 시각이면 있던 문자열을 그대로 둔다 (60일 알림의 닫은 기억이 문자열로 견준다)', () => {
+  const range = { start: Date.parse('2026-01-20T00:00:00Z'), end: Date.parse('2026-01-21T00:00:00Z') }
+  // 밀리초가 없는 모양도 같은 시각이면 바꾸지 않는다
+  assert.equal(nextMeta(metaAt('2026-03-01T00:00:00Z'), range, 0, new Date('2026-03-01T00:00:00.000Z')).importedAt, '2026-03-01T00:00:00Z')
+})
+
+test('nextMeta — 넘겨받은 시각이 Invalid Date면 있던 값을 남기고, 둘 다 없으면 던지지 않고 지금을 적는다', () => {
+  const range = { start: Date.parse('2026-01-20T00:00:00Z'), end: Date.parse('2026-01-21T00:00:00Z') }
+  assert.equal(nextMeta(metaAt('2026-03-01T00:00:00.000Z'), range, 0, new Date('garbage')).importedAt, '2026-03-01T00:00:00.000Z')
+  assert.ok(Number.isFinite(Date.parse(nextMeta(null, range, 1, new Date('garbage')).importedAt)))
 })

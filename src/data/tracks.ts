@@ -6,7 +6,7 @@
  * 다시 넣으면 있던 점과 합친다 (중복은 points.ts의 pointKey로 거른다) — 3개월마다 넣어 가며 범위가 길어진다.
  */
 // 확장자를 적는 이유: node --test가 이 파일을 직접 읽는다 (Vite는 어느 쪽이든 된다)
-import { dbGet, dbWriteAll } from './db.ts'
+import { dbGet, dbGetAll, dbWriteAll } from './db.ts'
 // 확장자를 적는 이유: 위와 같다
 import { comparePoints, dayKeyOf, groupByDay, mergeSorted, pack, rangeOf, unpack, type PackedPoint, type TrackPoint } from '../lib/tracklog/points.ts'
 
@@ -70,8 +70,31 @@ export async function readPointsAround(tMs: number): Promise<TrackPoint[]> {
   return lists.flat().sort(comparePoints)
 }
 
-/** 새 점의 범위와 이전 요약을 합친 요약. 범위는 둘의 합집합, 점 수는 이전 수 + 실제로 새로 든 수 */
-function nextMeta(prev: TracksMeta | null, range: { start: number; end: number }, added: number, now: Date): TracksMeta {
+/**
+ * 저장된 점 전부 (`comparePoints` 순). 드라이브 동기화가 달마다 지문을 만들 때 쓴다 — 2만 점이어도 1MB 안쪽이라 한 번에 읽는다.
+ * 저장소가 비었으면 빈 배열, 배열이 아닌 값이 끼어 있으면 그 키만 건너뛴다. DB 오류는 던진다.
+ */
+export async function readAllPoints(): Promise<TrackPoint[]> {
+  const days = await dbGetAll<unknown>('tracks')
+  return days.flatMap((rows) => (Array.isArray(rows) ? (rows as PackedPoint[]) : [])).map(unpack).sort(comparePoints)
+}
+
+/**
+ * 넣은 날: 이전 값과 새 값 중 **더 늦은 쪽**. 같으면 이전 문자열을 그대로 둔다 — 60일 알림의 "닫은 기억"이 이 문자열과 견준다(refreshNudge.ts).
+ * 새 값이 Invalid Date면 이전 값을, 둘 다 못 쓰면 지금을 준다 (toISOString의 RangeError로 넣기 전체가 실패하지 않게).
+ */
+function laterImportedAt(prev: string | undefined, next: Date): string {
+  const before = prev === undefined ? NaN : Date.parse(prev)
+  if (Number.isFinite(before) && !(next.getTime() > before)) return prev!
+  return Number.isFinite(next.getTime()) ? next.toISOString() : new Date().toISOString()
+}
+
+/**
+ * 새 점의 범위와 이전 요약을 합친 요약. 범위는 둘의 합집합, 점 수는 이전 수 + 실제로 새로 든 수.
+ * 넣은 날은 이전 값과 `importedAt` 중 더 늦은 쪽이다 — 드라이브에서 받은 점은 올린 기기가 넣은 시각을 들고 오는데, 받은 순간(지금)으로
+ * 바꾸면 60일 알림이 미뤄져 그사이 구글이 3개월 지난 타임라인을 지운다. 파일을 직접 넣을 때는 `importedAt`이 지금이라 전과 같다.
+ */
+export function nextMeta(prev: TracksMeta | null, range: { start: number; end: number }, added: number, importedAt: Date): TracksMeta {
   const start = prev ? Math.min(range.start, Date.parse(prev.rangeStart)) : range.start
   const end = prev ? Math.max(range.end, Date.parse(prev.rangeEnd)) : range.end
   return {
@@ -79,13 +102,14 @@ function nextMeta(prev: TracksMeta | null, range: { start: number; end: number }
     rangeStart: new Date(start).toISOString(),
     rangeEnd: new Date(end).toISOString(),
     count: (prev?.count ?? 0) + added,
-    importedAt: now.toISOString(),
+    importedAt: laterImportedAt(prev?.importedAt, importedAt),
   }
 }
 
 /**
  * 점들을 저장소에 합쳐 넣고 요약을 갱신한다. 날마다 있던 점을 읽어 합친다(중복 제거·정렬).
  * `onProgress(done, total)`은 날짜 하나를 합칠 때마다 부른다 (total = 날짜 수).
+ * `importedAt`은 이 점들을 넣은 시각 — 파일을 넣을 때는 지금(기본값). 요약의 넣은 날은 이전 값과 견줘 더 늦은 쪽이 된다 (nextMeta).
  * **쓰기는 날짜별 점과 요약을 트랜잭션 하나로 한다** — 다 들어가거나 하나도 안 들어간다. 날짜마다 따로 쓰면 첫 넣기 도중
  * 탭이 닫혔을 때 점만 남고 요약이 없어, 설정 화면에 '지우기'가 안 보이는(요약이 있어야 그린다) 민감한 자료가 남는다.
  * 점이 0개면 던진다 — 부르는 쪽에서 이미 걸렀겠지만 요약(범위)을 망가뜨리지 않게. DB 오류도 던진다 (그때는 아무것도 바뀌지 않는다).
@@ -93,7 +117,7 @@ function nextMeta(prev: TracksMeta | null, range: { start: number; end: number }
 export async function mergeTracks(
   points: TrackPoint[],
   onProgress?: (done: number, total: number) => void,
-  now = new Date(),
+  importedAt = new Date(),
 ): Promise<{ added: number; meta: TracksMeta }> {
   const range = rangeOf(points)
   if (!range) throw new Error('넣을 점이 없습니다.')
@@ -109,7 +133,7 @@ export async function mergeTracks(
     added += merged.added
     onProgress?.(days.length, groups.size)
   }
-  const meta = nextMeta(prev, range, added, now)
+  const meta = nextMeta(prev, range, added, importedAt)
   await dbWriteAll(['tracks', 'meta'], (store) => {
     for (const [day, rows] of days) store('tracks').put(rows, day)
     store('meta').put(meta, TRACKS_META_KEY)
