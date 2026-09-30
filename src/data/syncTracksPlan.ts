@@ -111,6 +111,14 @@ export function remoteMonthOf(file: TracksDriveFile): RemoteMonth | null {
   return { month: m[1], fileId: file.id, digest: tags.digest, count: Number.isFinite(count) ? count : 0, importedAt: tags.importedAt }
 }
 
+/**
+ * 목록에 달 파일(remoteMonthOf로 읽히는 것)이 하나라도 있는지 — 드라이브에 이동 기록이 있다고 볼지.
+ * "지웠음" 표시가 있어도 누가 지우다 끊겼으면 달 파일이 남는다 — 그때 true여야 '드라이브의 이동 기록 지우기'가 남아 다시 지울 수 있다.
+ */
+export function hasMonthFiles(files: TracksDriveFile[]): boolean {
+  return files.some((f) => remoteMonthOf(f) !== null)
+}
+
 /** 달 파일에 달 꼬리표. 좌표는 넣지 않는다 (꼬리표는 목록에서 누구나 읽는다) */
 export function monthTags(digest: string, count: number, importedAt: string): Record<string, string> {
   return { digest, count: String(count), importedAt }

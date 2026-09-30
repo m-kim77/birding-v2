@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  CLEARED_FILE, TRACKS_RETRY_MS, clearDecision, clearedAtOf, decodeMonth, digestOf, encodeMonth, groupByMonth, localMonthsOf, monthFileName, monthKeyOf,
+  CLEARED_FILE, TRACKS_RETRY_MS, clearDecision, clearedAtOf, decodeMonth, digestOf, encodeMonth, groupByMonth, hasMonthFiles, localMonthsOf, monthFileName, monthKeyOf,
   monthTags, planDownload, planUpload, remoteMonthOf, shouldRunTracksStep, type LocalMonth, type RemoteMonth, type TracksStepMemo,
 } from '../src/data/syncTracksPlan.ts'
 import { mergeSorted, pointKey, type TrackPoint } from '../src/lib/tracklog/points.ts'
@@ -141,6 +141,15 @@ test('clearDecision: 켠 뒤 처음이면 지금 값을 받아들이고, 켠 뒤
   assert.equal(clearDecision('', '2026-03-01T00:00:00.000Z'), 'stop')
   assert.equal(clearDecision('2026-03-01T00:00:00.000Z', '2026-03-02T00:00:00.000Z'), 'stop')
   assert.equal(clearDecision('2026-03-01T00:00:00.000Z', ''), 'go', '표시가 없어진 것은 새로 지운 것이 아니다')
+})
+
+test('hasMonthFiles: 표시만 있으면 false, 누가 지우다 끊겨 달 파일이 남았으면 true (지우기 버튼을 남긴다)', () => {
+  const marker = { id: 'm', name: CLEARED_FILE, appProperties: { clearedAt: '2026-03-01T00:00:00.000Z' } }
+  const month = { id: 'x', name: '2026-01.json', appProperties: monthTags('abc', 1, '2026-03-01T00:00:00.000Z') }
+  assert.equal(hasMonthFiles([]), false)
+  assert.equal(hasMonthFiles([marker]), false)
+  assert.equal(hasMonthFiles([marker, month]), true)
+  assert.equal(hasMonthFiles([marker, { id: 'y', name: '2026-01.json' }]), false, '꼬리표 없는 파일은 달 파일이 아니다 (지우기도 건드리지 않는다)')
 })
 
 test('shouldRunTracksStep: 누르면 늘 돈다 · 맞춘 뒤 바뀐 것이 없으면 안 돈다 · 실패한 뒤에는 30분 동안 자동으로 다시 돌지 않는다', () => {
