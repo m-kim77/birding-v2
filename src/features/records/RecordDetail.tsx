@@ -31,6 +31,7 @@ interface Props {
 /**
  * 기록 상세. 읽는 화면이라 동작은 둘뿐이다 — 고치기('수정' → RecordEdit: 새 이름·촬영 시각·위치·개체 수·촬영 정보·메모, 그 안에 삭제)와 카드 보기.
  * 삭제를 이 화면에 꺼내 두지 않은 이유: 되돌릴 수 없는 동작이 읽는 화면의 엄지 닿는 곳에 있으면 안 된다.
+ * 예외 하나: 보호종이고 위치가 있는 기록은 사실 카드에 위치 숨기기 스위치를 꺼내 둔다 (카드 보기 안의 것과 같은 스위치) — 사진 없이 기록은 저장 직후 화면을 거치지 않아 여기가 권유를 처음 보는 곳이다.
  * 사진 없이 남긴 기록(`noPhoto`)은 큰 사진 칸을 그리지 않는다 — 폰에서 화면 절반이 빈 상자가 된다. 사진을 전제로 하는 것(AI에게 물어보기,
  * '사진에 촬영 시각이 없어' 안내)은 사진이 있어야 하는 기록(expectsPhoto)에만 둔다. 카드 보기는 그대로 둔다 — 카드는 사진 없이 그린다.
  */
@@ -66,6 +67,10 @@ export default function RecordDetail({ id, onBack, onOpenSettings }: Props) {
             {counted && <Fact icon="bird">{counted}</Fact>}
             {/* 보호종이면 법정 이름과 급 — 저장하지 않고 볼 때 국명으로 찾는다 (data/protectedSpecies.ts). 이름을 고치면 따라 바뀐다. 카드에는 급을 적지 않는다 */}
             {guarded && <Fact icon="bird" sub={protectionBy(s.speciesKo)}>{guarded}</Fact>}
+            {/* 보호종이면 보호종 줄 바로 아래에 위치 숨기기 스위치(꺼져 있으면 권하는 한 줄까지) — 사진 없이 기록은 저장 직후 화면(CardResult)을 건너뛰고 곧장 여기로 와서,
+                카드 보기를 열지 않으면 권유를 한 번도 못 본 채 핀이 지도에 올라간다. 켠 뒤에도 보인다 (끌 곳). 저절로 켜지 않는다. 위치가 없으면 스위치가 그리지 않는다.
+                수정 중에는 뺀다 — 수정 칸의 '저장'과 따로 바로 저장되는 칸이 한 화면에 섞이지 않게 */}
+            {guarded && !editing && <HideLocationSwitch sighting={s} />}
             {/* 카메라·렌즈만 있어도 줄을 그린다. 렌즈 이름과 '직접 고친' 표시는 아랫줄 — 고친 값이 사진에서 읽은 값처럼 보이면 안 된다 (shotFact) */}
             {shot && <Fact icon="aperture" sub={shot.sub}>{shot.main}</Fact>}
           </Card>

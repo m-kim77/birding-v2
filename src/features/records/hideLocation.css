@@ -1,6 +1,8 @@
 /* 위치 숨기기 스위치 — 카드 아래 한 줄. 카드(card.css)와 달리 앱의 일부라 앱 테마 토큰으로 그린다.
    저장 직후 화면은 가운데 정렬이라(.screen-result) 글 정렬을 여기서 다시 왼쪽으로 잡는다 */
 .hide-location { justify-self: center; width: 100%; max-width: 340px; display: grid; gap: var(--sp-2); text-align: left; }
+/* 기록 상세의 사실 카드 안(보호종 줄 아래)에서는 위의 사실 줄들처럼 카드 폭을 채운다 — 가운데 340px로 두면 넓은 화면에서 줄의 왼쪽 끝이 어긋난다 */
+.card > .hide-location { justify-self: stretch; max-width: none; }
 .hide-location label { display: flex; gap: var(--sp-3); align-items: flex-start; min-height: var(--touch); padding: var(--sp-2) 0; cursor: pointer; }
 /* 설정의 라디오(.radio-rows)와 같은 크기·색 — 직접 그린 스위치는 테마마다 옅은 테두리 색에 묻힌다 */
 .hide-location input { flex: none; width: 22px; height: 22px; margin: 2px 0 0; accent-color: var(--primary); }
