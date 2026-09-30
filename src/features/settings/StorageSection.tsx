@@ -3,6 +3,7 @@ import { useJournal } from '../../data/journal'
 import { deleteOrphanPhotos } from '../../data/photoCheck'
 import { Card } from '../../ui/bits'
 import Button from '../../ui/Button'
+import { nameText } from '../../ui/sightingText'
 import { dayOf } from '../../ui/when'
 import { missingKindsText, missingRows, usageLine, type MissingRow } from './storageText'
 import TaskResult from './TaskResult'
@@ -82,7 +83,7 @@ function MissingList({ items, onOpenRecord }: { items: MissingRow[]; onOpenRecor
       <ul className="model-list">
         {items.slice(0, SHOW_MISSING).map(({ s, kinds }) => (
           <li key={s.id}>
-            <div><strong>{s.speciesKo || '이름 미정'}</strong><small>{dayOf(s)} · {missingKindsText(kinds)}</small></div>
+            <div><strong>{nameText(s.speciesKo)}</strong><small>{dayOf(s)} · {missingKindsText(kinds)}</small></div>
             <Button variant="quiet" onClick={() => onOpenRecord(s.id)}>열기</Button>
           </li>
         ))}

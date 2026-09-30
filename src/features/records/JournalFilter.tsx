@@ -1,4 +1,5 @@
 import Button from '../../ui/Button'
+import { UNNAMED } from '../../ui/sightingText'
 import { isNarrowed, type JournalView, type ViewOption } from './journalView'
 import './journal.css'
 
@@ -61,7 +62,7 @@ export default function JournalFilter({ view, onChange, periods, places, unnamed
           )}
           {unnamed > 0 && (
             // 이름 미정 칩: 이름 없이 저장한 기록을 나중에 모아서 채우려면 골라낼 수단이 있어야 한다. 그런 기록이 없으면 칩도 없다
-            <button type="button" className={`chip${view.onlyUnnamed ? ' is-on' : ''}`} aria-pressed={view.onlyUnnamed} onClick={() => onChange({ ...view, onlyUnnamed: !view.onlyUnnamed })}>이름 미정 {unnamed}건</button>
+            <button type="button" className={`chip${view.onlyUnnamed ? ' is-on' : ''}`} aria-pressed={view.onlyUnnamed} onClick={() => onChange({ ...view, onlyUnnamed: !view.onlyUnnamed })}>{UNNAMED} {unnamed}건</button>
           )}
         </div>
       )}

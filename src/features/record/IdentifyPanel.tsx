@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Banner } from '../../ui/bits'
 import Button from '../../ui/Button'
 import Icon from '../../ui/Icon'
+import { nameText } from '../../ui/sightingText'
 import type { Verdict } from '../../types'
 import VerdictDetails from '../identify/VerdictDetails'
 import { verdictHeading } from '../identify/verdictText'
@@ -78,7 +79,7 @@ function VerdictResult({ verdict: v, name, applied, into, cropChanged, onAsk, on
   return (
     <div className="verdict">
       <p className="verdict-kind"><Icon name="sparkle" size={16} /> {verdictHeading(v.kind)}</p>
-      <h3 className="display">{v.speciesKo || '이름 미정'} {v.latin && <em>{v.latin}</em>}</h3>
+      <h3 className="display">{nameText(v.speciesKo)} {v.latin && <em>{v.latin}</em>}</h3>
       {!v.speciesKo && (
         <p className="status-line is-warn">
           국명을 확인하지 못했습니다. 이름은 직접 적어 주세요.

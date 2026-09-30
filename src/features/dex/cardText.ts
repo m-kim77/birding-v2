@@ -1,5 +1,7 @@
 // 확장자를 적는 이유: node --test가 이 파일을 직접 읽는다
 import { formatShot } from '../../lib/format.ts'
+// 확장자를 적는 이유: 위와 같다
+import { nameText } from '../../ui/sightingText.ts'
 import type { Sighting } from '../../types'
 
 /**
@@ -11,9 +13,9 @@ export function dexLabel(no: number | undefined): string {
   return `No. ${no ? String(no).padStart(3, '0') : '—'}`
 }
 
-/** 카드에 적는 이름. 이름이 비어 있으면(이름을 아직 못 붙인 기록) '이름 미정' */
+/** 카드에 적는 이름. 이름이 비어 있으면(이름을 아직 못 붙인 기록) '이름 미정' — 일지·상세와 같은 말 (ui/sightingText.ts) */
 export function cardName(s: Pick<Sighting, 'speciesKo'>): string {
-  return s.speciesKo || '이름 미정'
+  return nameText(s.speciesKo)
 }
 
 /**

@@ -8,6 +8,7 @@ import { Card, Fact, ScreenHead } from '../../ui/bits'
 import Button from '../../ui/Button'
 import SightingPhoto from '../../ui/SightingPhoto'
 import Sheet from '../../ui/Sheet'
+import { nameText } from '../../ui/sightingText'
 import { dateTimeOf } from '../../ui/when'
 import type { LocationSource } from '../../types'
 import BirdCard from '../dex/BirdCard'
@@ -54,11 +55,11 @@ export default function RecordDetail({ id, onBack, onOpenSettings }: Props) {
   const shot = shotFact(s)
   return (
     <div className="screen screen-detail">
-      <ScreenHead title={s.speciesKo || '이름 미정'} sub={s.latin} onBack={onBack}
+      <ScreenHead title={nameText(s.speciesKo)} sub={s.latin} onBack={onBack}
         right={!editing && <Button variant="quiet" icon="edit" onClick={() => setEditing(true)}>수정</Button>} />
       {/* 소리 기록은 지금처럼 자리 표시(소리 그림)를 그린다 — 사진 없이 남긴 기록만 칸을 뺀다 */}
       <div className={`detail-cols${s.noPhoto ? ' is-no-photo' : ''}`}>
-        {!s.noPhoto && <SightingPhoto id={s.id} kind="full" alt={s.speciesKo || '이름 미정'} ratio="3 / 2" sound={s.fromSound} />}
+        {!s.noPhoto && <SightingPhoto id={s.id} kind="full" alt={nameText(s.speciesKo)} ratio="3 / 2" sound={s.fromSound} />}
         <div className="detail-side">
           <Card>
             {/* 사진에 촬영 시각이 없으면 기록한 시각이 들어간다 — buildSighting이 capturedAt과 createdAt에 같은 값을 넣는다. 알려야 '수정'에서 고친다.

@@ -1,4 +1,5 @@
 import SightingPhoto from '../../ui/SightingPhoto'
+import { nameText } from '../../ui/sightingText'
 import { dayOf } from '../../ui/when'
 import { countText } from '../../lib/count'
 import type { Sighting } from '../../types'
@@ -36,9 +37,9 @@ function OutingHead({ outing }: { outing: Outing }) {
 function RecordItem({ s, onOpen }: { s: Sighting; onOpen: (id: string) => void }) {
   return (
     <button type="button" className="record-item card" onClick={() => onOpen(s.id)}>
-      <SightingPhoto id={s.id} kind="thumb" alt={s.speciesKo || '이름 미정'} ratio="3 / 2" sound={s.fromSound} />
+      <SightingPhoto id={s.id} kind="thumb" alt={nameText(s.speciesKo)} ratio="3 / 2" sound={s.fromSound} />
       <div className="record-item-text">
-        <strong className="display">{s.speciesKo || '이름 미정'}</strong>
+        <strong className="display">{nameText(s.speciesKo)}</strong>
         {s.latin && <em>{s.latin}</em>}
         <span>{[dayOf(s), s.place, countText(s.count)].filter(Boolean).join(' · ')}</span>
       </div>

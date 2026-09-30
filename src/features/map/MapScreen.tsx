@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useJournal } from '../../data/journal'
 import { ScreenHead } from '../../ui/bits'
 import Icon from '../../ui/Icon'
+import { nameText } from '../../ui/sightingText'
 import { dayOf } from '../../ui/when'
 import LeafletMap, { type MapMarker } from './LeafletMap'
 import { groupPlaces, hiddenCount } from './places'
@@ -33,7 +34,7 @@ export default function MapScreen({ onOpen }: { onOpen: (id: string) => void }) 
             <ul>
               {picked.items.map((s) => (
                 <li key={s.id}><button type="button" onClick={() => onOpen(s.id)}>
-                  <strong>{s.speciesKo || '이름 미정'}</strong><span>{dayOf(s)}</span><Icon name="chevron" size={16} />
+                  <strong>{nameText(s.speciesKo)}</strong><span>{dayOf(s)}</span><Icon name="chevron" size={16} />
                 </button></li>
               ))}
             </ul>
