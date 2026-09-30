@@ -64,6 +64,7 @@ function shown(field: NumField, n: number): string {
 
 /** 수정 칸을 열 때의 글자 — 지금의 촬영 정보 그대로. 없는 항목은 빈칸. 이 값을 그대로 shotPatch에 넣으면 빈 변경이다 */
 export function shotFormOf(shot: ShotInfo): ShotForm {
+  /** 숫자 칸 하나의 처음 글자 — 저장된 값이 없으면 빈칸 */
   const num = (field: NumField) => {
     const n = shot[NUM[field]]
     return n === undefined ? '' : shown(field, n)
