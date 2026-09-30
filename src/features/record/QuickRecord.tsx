@@ -6,6 +6,7 @@ import { Banner, Card, ScreenHead } from '../../ui/bits'
 import Button from '../../ui/Button'
 import { styleFromAccent } from '../dex/cardStyle'
 import { buildSighting } from './buildSighting'
+import { lastPlaceOf } from './lastPlace'
 import { CountField, PlaceRow } from './RecordFacts'
 import SpeciesInput from './SpeciesInput'
 import { usePlaceValue, type PlaceValue } from './usePlace'
@@ -41,11 +42,8 @@ export default function QuickRecord({ onCancel, onDone }: Props) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const known = useMemo(() => [...new Set(existing.map((s) => s.speciesKo).filter(Boolean))], [existing])
-  // 직전 기록 위치: 마지막으로 **만든** 기록 중 위치가 있는 것 — 사진 기록 화면과 같은 규칙 (useRecordPlace). 한자리에서 여러 마리를 연달아 적을 때 쓴다
-  const lastPlace = useMemo<PlaceValue | null>(() => {
-    const last = [...existing].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).find((s) => s.lat !== null)
-    return last ? { lat: last.lat, lng: last.lng, name: last.place, source: 'manual' } : null
-  }, [existing])
+  // 직전 기록 위치: 마지막으로 **만든** 기록 중 위치가 있는 것 — 사진 기록 화면(useRecordPlace)과 같은 규칙 한 곳 (lastPlace.ts). 한자리에서 여러 마리를 연달아 적을 때 쓴다
+  const lastPlace = useMemo(() => lastPlaceOf(existing), [existing])
   // 입력칸 값을 기록의 시각으로. 빈칸·없는 날짜면 null — 저장을 막는다. 오프셋은 그날의 브라우저 오프셋이 붙는다
   const at = fromTimeInput(time, null)
 

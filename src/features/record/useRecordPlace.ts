@@ -1,7 +1,8 @@
 import { useEffect, useMemo } from 'react'
 import type { Sighting } from '../../types'
+import { lastPlaceOf } from './lastPlace'
 import type { PickedPhoto } from './usePhotoPick'
-import { usePlace, type PlaceValue } from './usePlace'
+import { usePlace } from './usePlace'
 import { useTrackMatch } from './useTrackMatch'
 
 /**
@@ -15,10 +16,8 @@ import { useTrackMatch } from './useTrackMatch'
 export function useRecordPlace(photo: PickedPhoto | null, existing: Sighting[]) {
   const loc = usePlace(photo?.exif ?? null)
   const track = useTrackMatch(photo)
-  const lastPlace = useMemo<PlaceValue | null>(() => {
-    const last = [...existing].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).find((s) => s.lat !== null)
-    return last ? { lat: last.lat, lng: last.lng, name: last.place, source: 'manual' } : null
-  }, [existing])
+  // 직전 기록 위치: 사진 없이 기록(QuickRecord)과 같은 규칙 한 곳 (lastPlace.ts)
+  const lastPlace = useMemo(() => lastPlaceOf(existing), [existing])
 
   // 이동 기록에서 찾았으면 바로 넣는다 — 자동으로 할 수 있는 일에 버튼을 두지 않는다 (BUTTONS.md). 이미 위치가 있으면 fillIfEmpty가 거른다
   useEffect(() => { if (track.status === 'found') void loc.fillIfEmpty(track.lat, track.lng, 'tracklog') }, [track]) // eslint-disable-line react-hooks/exhaustive-deps
