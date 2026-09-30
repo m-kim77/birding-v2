@@ -11,7 +11,7 @@ import type { Sighting } from '../../types'
 import type { Outing } from './outings'
 
 /**
- * 검색어가 종 이름·학명·장소·메모 중 어디든 들어 있으면 남긴다. 빈 검색어는 전부 통과 (메모는 개체 수·행동을 적으라고 만든 칸이라 같이 찾는다).
+ * 검색어가 종 이름·학명·장소·메모 중 어디든 들어 있으면 남긴다. 빈 검색어는 전부 통과 (메모는 행동·날씨와 개체 수 칸에 못 넣는 어림·범위('약 300'·'10~20')를 적는 칸이라 같이 찾는다).
  * 옛 백업에서 온 기록은 키가 비어 있을 수 있어 `?? ''`로 받는다 — 검색하다 화면이 죽으면 안 된다.
  */
 export function matchesQuery(s: Sighting, query: string): boolean {
