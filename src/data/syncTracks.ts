@@ -11,7 +11,7 @@
  * 스위치는 기기마다다 (`meta`, 기본 끔) — 같은 계정으로 로그인한 공용 PC에 몇 달치 이동 경로가 말없이 내려오지 않게.
  */
 import { NotConnectedError } from '../lib/google/driveAuth'
-import { deleteFile, downloadFile, ensureFolder, listFiles, uploadFile } from '../lib/google/driveApi'
+import { deleteFile, downloadFile, ensureFolder, findFolders, listFiles, uploadFile, type DriveFile } from '../lib/google/driveApi'
 import { dbGet, dbPut, dbWriteAll } from './db'
 import { ROOT_FOLDER } from './syncPlan'
 import { getSyncStatus, setTracksStatus, tracksStatusOf, type TracksSyncStatus } from './syncStatus'
@@ -166,12 +166,14 @@ async function send(folder: string, months: Map<string, LocalMonth>, remote: Rem
  * 그 표시를 본 것으로 적고 → 달 파일을 지운다. 표시가 먼저여야 도중에 끊겨도 스위치를 켠 다른 기기가 다시 올리지 않는다 (그 기기는 표시를 보고 스위치만 끈다).
  * 스위치를 달 파일보다 먼저 끄는 것은, 지우다 끊긴 뒤 이 기기가 자기 표시를 '다른 기기가 지움'으로 읽지도 남은 달 파일을 다시 올리지도 않게 —
  * 끊긴 동안은 '드라이브에 있음'으로 두어 지우기 버튼이 남는다 (다시 누르면 남은 달 파일부터 다시 지운다).
+ * 두 기기가 동시에 처음 켜 `tracks` 폴더가 둘 생겼으면, 동기화가 보지 않는 나머지 폴더의 달 파일도 지운다 (표시는 동기화가 보는 폴더에만 둔다).
  * 드라이브를 사람이 웹에서 직접 지운 경우는 막지 못한다 — 그래서 안내는 앱의 이 버튼을 쓰라고 한다.
  * 연결이 풀렸으면 NotConnectedError, 그 밖의 실패는 DriveError(한국어)로 던진다.
  * 동기화와 겹치지 않게 sync.ts clearDriveTracksNow로 부른다.
  */
 export async function clearDriveTracks(): Promise<void> {
-  const folder = await ensureFolder(TRACKS_FOLDER, await ensureFolder(ROOT_FOLDER, 'root'))
+  const root = await ensureFolder(ROOT_FOLDER, 'root')
+  const folder = await ensureFolder(TRACKS_FOLDER, root)
   const files = await listFiles(folder)
   const marker = files.find((f) => f.name === CLEARED_FILE)
   const clearedAt = new Date().toISOString()
@@ -186,7 +188,18 @@ export async function clearDriveTracks(): Promise<void> {
   })
   setTracksStatus({ on: false, onDrive: true, note: null })
   // 달 파일과, 두 기기가 동시에 지워 생긴 남는 표시 파일을 지운다 (방금 덮은 표시는 남긴다)
-  for (const f of files) if (f !== marker && (f.name === CLEARED_FILE || remoteMonthOf(f))) await deleteFile(f.id)
+  await removeTrackFiles(files, marker)
+  // 같은 이름의 다른 tracks 폴더 — 동기화(ensureFolder)는 가장 먼저 만든 폴더만 보지만, 동시에 처음 켠 기기가 다른 폴더에 먼저 올린 이동 경로가 남는다
+  for (const other of await findFolders(TRACKS_FOLDER, root)) if (other !== folder) await removeTrackFiles(await listFiles(other))
+  // 여기까지 끝나야 '드라이브에 있음'을 거둔다 — 도중에 끊기면 버튼이 남아 다시 누르면 남은 것부터 지운다
   await dbPut('meta', false, ON_DRIVE_KEY)
   setTracksStatus({ onDrive: false })
+}
+
+/**
+ * 폴더의 파일 가운데 이 앱의 이동 기록 파일(달 파일·"지웠음" 표시)을 지운다. `keep`은 남긴다.
+ * 이름·꼬리표가 우리 모양이 아닌 파일(사람이 넣은 것)은 건드리지 않는다. 실패는 던진다.
+ */
+async function removeTrackFiles(files: DriveFile[], keep?: DriveFile): Promise<void> {
+  for (const f of files) if (f !== keep && (f.name === CLEARED_FILE || remoteMonthOf(f))) await deleteFile(f.id)
 }
