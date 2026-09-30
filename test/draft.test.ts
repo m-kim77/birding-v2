@@ -27,6 +27,12 @@ test('isDraftFields: 온전한 초안은 통과 (crop·verdict·askedBox가 null
   assert.equal(isDraftFields({ ...GOOD, crop: null, askedBox: { x1: 0, y1: 0, x2: 1, y2: 1 }, verdict: { kind: '확정' } }), true)
 })
 
+test('isDraftFields: 개체 수 칸이 생기기 전의 초안도, 개체 수를 적은 초안도 통과한다 (가산 확장, 작업 39)', () => {
+  assert.ok(!('count' in GOOD))
+  assert.equal(isDraftFields({ ...GOOD, count: '3' }), true)
+  assert.equal(isDraftFields({ ...GOOD, count: '' }), true)
+})
+
 test('isDraftFields: 판이 다르거나 필수 키가 빠지거나 모양이 틀리면 거른다 — 반쪽 초안을 되살리지 않는다', () => {
   assert.equal(isDraftFields(undefined), false)
   assert.equal(isDraftFields({ ...GOOD, v: 2 }), false)

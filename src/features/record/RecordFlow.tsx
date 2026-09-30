@@ -35,7 +35,7 @@ const sameBox = (a: NormalizedBox | null, b: NormalizedBox | null) => JSON.strin
 
 /**
  * 사진으로 기록하기. 한 화면을 위에서 아래로 훑으면 끝난다 — 단계 이동(다음·이전) 버튼이 없다.
- * 사용자가 직접 적는 것은 이름과 메모뿐이고, 둘 다 비워도 저장된다. (뺀 버튼과 이유: ref_design/design_v01/BUTTONS.md)
+ * 사용자가 직접 적는 것은 이름·개체 수·메모뿐이고, 모두 비워도 저장된다. (뺀 버튼과 이유: ref_design/design_v01/BUTTONS.md)
  * 쓰던 것은 초안으로 남는다 — 뒤로 가거나 설정에 다녀와도 다음에 "이어 쓰기"로 돌아온다 (useRecordFields).
  */
 export default function RecordFlow({ onCancel, onDone, onOpenSettings, onOpenSound }: Props) {
@@ -49,7 +49,7 @@ export default function RecordFlow({ onCancel, onDone, onOpenSettings, onOpenSou
   // 초안 배선보다 먼저 부른다 — 저장을 마쳤는지를 초안 배선이 읽는다 (useSaveRecord 머리말)
   const { saved, saving, error: saveError, save } = useSaveRecord(journal.add, existing)
   // 위치 훅 뒤에 부른다 — 되살린 위치가 사진 좌표에 밀리지 않게 (useRecordFields 머리말)
-  const { draft, crop, setCrop, name, setName, note, setNote, askedBox, setAskedBox, choose, resume } = useRecordFields({ picker, loc, ask, saved: saved !== null })
+  const { draft, crop, setCrop, name, setName, count, setCount, note, setNote, askedBox, setAskedBox, choose, resume } = useRecordFields({ picker, loc, ask, saved: saved !== null })
   const fileInput = useRef<HTMLInputElement>(null)
   const [editingPlace, setEditingPlace] = useState(false)
 
@@ -92,13 +92,13 @@ export default function RecordFlow({ onCancel, onDone, onOpenSettings, onOpenSou
             <IdentifyPanel ask={ask} hasCrop={picked !== null} cropChanged={ask.state === 'done' && !sameBox(askedBox, picked?.box ?? null)} name={name} applied={acceptsVerdict(name, ask.verdict)}
               onAsk={() => void askAI()} onApply={(v) => setName(v.speciesKo)} onPickName={setName} onOpenSettings={onOpenSettings} />
           </Card>
-          <NoteCard value={note} onChange={setNote} />
+          <NoteCard value={note} onChange={setNote} count={count} onCount={setCount} />
           {pickError}
           {saveError && <Banner tone="err" icon="alert">{saveError}</Banner>}
         </div>
       </div>
       <div className="bottom-bar">
-        <Button variant="primary" icon="check" block onClick={() => void save({ photo, picked, name, note, place: loc.place, verdict: ask.verdict }, draft.clear)} disabled={saving}>{saving ? '저장하는 중…' : name.trim() ? '저장' : '이름 없이 저장'}</Button>
+        <Button variant="primary" icon="check" block onClick={() => void save({ photo, picked, name, count, note, place: loc.place, verdict: ask.verdict }, draft.clear)} disabled={saving}>{saving ? '저장하는 중…' : name.trim() ? '저장' : '이름 없이 저장'}</Button>
       </div>
       {editingPlace && (
         <LocationSheet place={loc.place} error={loc.error} last={lastPlace} onClose={() => setEditingPlace(false)}

@@ -8,11 +8,11 @@ function verdict(over: Partial<Verdict> = {}): Verdict {
   return { kind: '확정', speciesKo: '해오라기', latin: 'Nycticorax nycticorax', summary: '', evidence: [{ text: '근거', source: '위키백과' }], others: [], model: 'm', ...over }
 }
 
-/** 기록 하나를 만든다. 이름과 판정만 바꿔 본다 */
-function build(name: string, v: Verdict | null) {
+/** 기록 하나를 만든다. 이름과 판정(과 개체 수)만 바꿔 본다 */
+function build(name: string, v: Verdict | null, over: { count?: number } = {}) {
   return buildSighting({
     name, note: '', exif: {}, place: { lat: null, lng: null, name: '', source: 'none' }, crop: null, verdict: v,
-    cardStyle: { accent: '#000000', glow: false }, now: new Date('2026-09-27T00:00:00Z'),
+    cardStyle: { accent: '#000000', glow: false }, now: new Date('2026-09-27T00:00:00Z'), ...over,
   })
 }
 
@@ -48,4 +48,10 @@ test('새 기록에는 이름이 붙은 시각(도감 순서)을 적고, 도감 
   assert.equal(s.namedAt, '2026-09-27T00:00:00.000Z')
   assert.ok(!('dexNo' in s))
   assert.equal(build('', null).namedAt, undefined)
+})
+
+test('개체 수는 세었을 때만 키가 생긴다 — 안 셌으면 키가 없다(1을 채우지 않는다) (작업 39)', () => {
+  assert.ok(!('count' in build('박새', null)))
+  assert.equal(build('박새', null, { count: 3 }).count, 3)
+  assert.ok(!('count' in build('박새', null, { count: 0 })), '개체 수로 읽히지 않는 값은 넣지 않는다')
 })

@@ -1,3 +1,4 @@
+import { MAX_COUNT, isBadCount } from '../../lib/count'
 import { formatShot } from '../../lib/format'
 import { Card, Fact } from '../../ui/bits'
 import Icon from '../../ui/Icon'
@@ -37,12 +38,28 @@ export function PlaceRow({ place, note, onClick }: { place: PlaceValue; note?: s
   )
 }
 
-/** 메모 칸. 비워도 된다 */
-export function NoteCard({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+/**
+ * 개체 수 칸. 비워도 된다 — 비우면 '세지 않음'. 1 이상의 정수가 아닌 값을 적으면 칸 밑에 알린다 — 그대로 저장하면 개체 수 없이 저장된다 (lib/count.ts).
+ * 새 기록의 메모 카드(NoteCard)가 쓴다. 어림·범위는 메모에 적는다.
+ */
+export function CountField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <>
+      <label className="field"><span>개체 수</span>
+        <input type="number" inputMode="numeric" min={1} max={MAX_COUNT} step={1} placeholder="세지 않았으면 비워 두세요" value={value} onChange={(e) => onChange(e.target.value)} />
+      </label>
+      {isBadCount(value) && <p className="status-line is-warn" role="alert">개체 수는 1 이상의 정수로 적어 주세요. 이대로 저장하면 개체 수 없이 저장됩니다 — 어림·범위는 메모에.</p>}
+    </>
+  )
+}
+
+/** 개체 수와 메모 칸. 둘 다 비워도 된다 */
+export function NoteCard({ value, onChange, count, onCount }: { value: string; onChange: (v: string) => void; count: string; onCount: (v: string) => void }) {
   return (
     <Card>
+      <CountField value={count} onChange={onCount} />
       <label className="field"><span>메모</span>
-        <textarea rows={3} placeholder="행동, 개체 수, 날씨 — 기억하고 싶은 것" value={value} onChange={(e) => onChange(e.target.value)} />
+        <textarea rows={3} placeholder="행동, 날씨 — 기억하고 싶은 것" value={value} onChange={(e) => onChange(e.target.value)} />
       </label>
     </Card>
   )
