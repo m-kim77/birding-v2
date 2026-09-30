@@ -11,7 +11,9 @@ npm run check                # 타입 + 테마 대비 + 파일·함수 크기 + 
 npm run build
 ```
 
-## 지금 되는 것 (2026-09-27)
+## 지금 되는 것 (2026-10-01)
+
+작업 34~40(2026-10-01)은 통합 브랜치에서 코드·테스트까지 됐고 브라우저 확인은 일부만 했다 — 줄마다 적었다.
 
 | 기능 | 상태 |
 |---|---|
@@ -60,20 +62,23 @@ api/                  Vercel 함수 (웹 표준 Request → Response). 개발 �
   place.ts            좌표 → 장소 이름 (Nominatim은 User-Agent를 요구해서 브라우저에서 직접 못 부른다)
 src/
   theme/              테마 토큰 — 겉모습의 단일 원본. 컴포넌트는 테마 이름을 모른다
-  styles/ ui/ app/    바탕 규칙 · 공통 컴포넌트 · 뼈대(폰 하단 탭 ↔ PC 사이드바, 컨테이너 쿼리)
-  data/               로컬 DB(IndexedDB) · 사진 · 백업 · 종 표 · 이동 기록(tracks.ts — UTC 날짜별 점, 백업에 안 넣는다). 화면은 journal.tsx의 인터페이스만 본다
-  lib/                v1에서 가져온 순수 로직 (exif · crop · format) + resize · place
+  styles/ ui/ app/    바탕 규칙 · 공통 컴포넌트 · 뼈대(폰 하단 탭 ↔ PC 사이드바, 컨테이너 쿼리). 여러 화면이 같이 쓰는 기록 문구는 ui/sightingText('이름 미정' · 위치 한 줄 · 위치 출처), 시각 글자는 ui/when
+  data/               로컬 DB(IndexedDB) · 사진 · 백업 · 종 표 · 보호종 표(protectedSpecies.ts — 법령·국가유산청 원문에서 옮김) · 이동 기록(tracks.ts — UTC 날짜별 점, 백업에 안 넣는다). "사진이 있어야 하는 기록인가"는 photoKey.ts expectsPhoto 한 곳. 화면은 journal.tsx의 인터페이스만 본다
+  lib/                v1에서 가져온 순수 로직 (exif · crop · format) + resize · place · count(개체 수) · timeOrder(기록 시각의 앞뒤를 순간으로)
     tracklog/         타임라인 파싱·보간 (순수, v1 이식)
   features/
-    record/           사진으로 기록: 훅(usePhotoPick · useDetection · useAsk · useRecordPlace — 위치 · useRecordFields — 쓰는 값과 초안)이 상태를, 컴포넌트가 그리기를 맡는다. RecordFlow는 잇고 저장만 한다
-    tracks/           워커·가져오기·60일 알림 (이동 기록)
+    record/           사진으로 기록: 훅(usePhotoPick · useDetection · useAsk · useRecordPlace — 위치 · useRecordFields — 쓰는 값과 초안 · useSaveRecord — 저장)이 상태를, 컴포넌트가 그리기를 맡는다. RecordFlow는 잇기만 한다. 사진 없이 기록은 QuickRecord, '직전 기록 위치'는 lastPlace 한 곳
+    tracks/           워커·가져오기·60일 알림 · 카드 문구(trackText) (이동 기록)
     detect/           탐지 모델 어댑터. 모델을 바꾸면 mediapipeDetector.ts만 바뀐다
     sound/            새소리 듣기: 판정 규칙(heard · windows · session — 순수) · 마이크와 소리 파일 · 화면. 판정기는 어댑터(classifier.ts) 뒤에 있고 쓰는 것은 soundModel.ts 한 줄이 정한다
-    identify/         판정 루프 · 프롬프트 · 연결 · 답 읽기 · 결과의 보이는 말(verdictText)
+    identify/         판정 루프 · 프롬프트 · 연결(내 키 연결 확인 checkConnection 포함) · 답 읽기 · 결과의 보이는 말(verdictText)
       tools/          LLM 도구 — 정의(설명·인자·순서)는 definitions.ts 한 곳(서버도 읽는다), 실행은 **도구 하나 = 파일 하나**, 짝은 index.ts
-    dex/ records/ map/ settings/
+    dex/              도감·카드 — 종별 묶기(bySpecies) · 종 수와 올해 종 수(speciesCount) · 도감 번호(dexNo) · 카드에 적는 글자(cardText — 화면 카드와 내보낸 카드가 같이 쓴다)
+    records/          일지·상세·수정 — 목록 계산(journalList) · 기간·장소 거르기(journalView) · 탐조 묶음(outings — 저장하지 않고 볼 때 계산) · 촬영 정보 고치기(shotEdit)
+    map/              지도 — 핀 묶기와 숨긴 기록 수(places — Leaflet 없이 테스트)
+    settings/         설정 카드 — 카드마다의 문구(storageText · backupText · driveText), "누르면 → 진행 중 → 결과 한 줄"(useTask)
 scripts/              check-contrast · check-size
-test/                 순수 로직 테스트 (node --test)
+test/                 순수 로직 테스트 (node --test) — 2026-10-01 통합 브랜치에서 521개
 ref_design/design_v01 디자인 초안과 BUTTONS.md (버튼마다 존재 이유)
 ```
 
