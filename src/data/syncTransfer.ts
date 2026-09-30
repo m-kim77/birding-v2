@@ -61,7 +61,8 @@ export async function pullRecord(r: RemoteRecord, remote: Remote): Promise<boole
 /**
  * 줄의 항목 하나를 드라이브에 반영한다. 성공해야 돌아온다 — 실패는 던진다 (항목은 줄에 남는다).
  * - put: 사진을 **먼저**, 기록 파일을 **마지막에** 올린다. 기록 파일이 드라이브에 보이면 그 사진도 이미 있다는 뜻이 된다.
- *   기록이 그새 지워졌으면 할 일이 없다 (지움 항목이 이 항목을 이미 덮었다).
+ *   기록이 그새 지워졌으면 할 일이 없다 (지움 항목이 이 항목을 이미 덮었거나, 드라이브의 더 늦은 지움을 따라
+ *   `planPull`이 기기에서 지웠다 — 이때 올리면 지운 기록이 되살아난다).
  * - delete: 사진 파일을 지우고, 기록 파일을 "지웠음" 표시로 바꾼다 — 다른 기기가 보고 따라 지운다.
  */
 export async function pushEntry(e: QueueEntry, remote: Remote): Promise<void> {

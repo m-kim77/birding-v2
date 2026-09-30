@@ -1,32 +1,13 @@
 import { useRef, useState } from 'react'
-import { clearTracks, type TracksMeta } from '../../data/tracks'
+import { clearTracks } from '../../data/tracks'
 import { Card, Progress } from '../../ui/bits'
 import Button from '../../ui/Button'
-import { daysAgoOf } from '../../ui/when'
 import { importTimelineFile, type ImportProgress } from '../tracks/importTracks'
-import { pointCountText, trackRangeText } from '../tracks/trackText'
+import { pointCountText, progressOf, summaryOf, trackRangeText } from '../tracks/trackText'
 import { useTracksMeta } from '../tracks/useTracksMeta'
 import TaskResult from './TaskResult'
 import { notifyStorageChanged } from './useStorageStatus'
 import { useTask } from './useTask'
-
-/**
- * 진행 단계를 막대 값과 문구로. 읽기·파싱은 워커가 진행률을 줄 수 없어 고정값(0.1·0.5)으로 "멈추지 않았다"만 보인다 — 부정확한 진행이다.
- * 저장은 날짜 수로 정확히 잰다 (done/total). total이 0이면 0.
- */
-function progressOf(p: ImportProgress): { value: number; text: string } {
-  if (p.stage === 'reading') return { value: 0.1, text: '파일을 읽는 중…' }
-  if (p.stage === 'parsing') return { value: 0.5, text: '점을 고르는 중…' }
-  const done = p.done ?? 0
-  const total = p.total ?? 0
-  return { value: total ? done / total : 0, text: `저장하는 중 · ${done}/${total}일` }
-}
-
-/** 상태 줄: '5월 22일 ~ 8월 20일 · 22,426점 · 넣은 날 3일 전'. 넣은 시각을 못 읽으면 그 부분만 뺀다 */
-function summaryOf(meta: TracksMeta): string {
-  const ago = daysAgoOf(meta.importedAt)
-  return [trackRangeText(meta), pointCountText(meta.count), ago && `넣은 날 ${ago}`].filter(Boolean).join(' · ')
-}
 
 /**
  * 이동 기록(구글 타임라인). 위치 없는 카메라 사진의 위치를 촬영 시각으로 찾는 데 쓴다 (record/useTrackMatch).
