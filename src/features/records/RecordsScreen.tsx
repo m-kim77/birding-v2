@@ -8,28 +8,9 @@ import { Banner, ScreenHead } from '../../ui/bits'
 import Button from '../../ui/Button'
 import Icon from '../../ui/Icon'
 import SightingPhoto from '../../ui/SightingPhoto'
-import { dayOf, monthOf } from '../../ui/when'
-import type { Sighting } from '../../types'
-
-/**
- * 검색어가 종 이름·학명·장소·메모 중 어디든 들어 있으면 남긴다. 빈 검색어는 전부 통과 (메모는 개체 수·행동을 적으라고 만든 칸이라 같이 찾는다).
- * 옛 백업에서 온 기록은 키가 비어 있을 수 있어 `?? ''`로 받는다 — 검색하다 화면이 죽으면 안 된다.
- */
-function matches(s: Sighting, query: string): boolean {
-  const q = query.trim().toLowerCase()
-  if (!q) return true
-  return [s.speciesKo, s.latin, s.place, s.note].some((v) => (v ?? '').toLowerCase().includes(q))
-}
-
-/** 달별로 묶는다. 입력이 최신순이면 결과도 최신 달부터 나온다 */
-function groupByMonth(list: Sighting[]): Array<[string, Sighting[]]> {
-  const groups = new Map<string, Sighting[]>()
-  for (const s of list) {
-    const key = monthOf(s)
-    groups.set(key, [...(groups.get(key) ?? []), s])
-  }
-  return [...groups.entries()]
-}
+import { dayOf } from '../../ui/when'
+import { countSpecies } from '../dex/speciesCount'
+import { countUnnamed, groupByMonth, shownRecords, sortNewest } from './journalList'
 
 /**
  * 백업 알림을 띄우는 기준 건수. 브라우저가 저장소 보존을 거절한 **폰**에서는 1건부터 — 폰은 저장 공간이 자주 모자라고, 모자라면 이 앱의 자료부터 지워진다.
@@ -62,10 +43,10 @@ export default function RecordsScreen({ onOpen, onBackup, onAdd, onSettings }: P
   const trackMeta = useTracksMeta().meta
   const [nudgeDismissed, setNudgeDismissed] = useState(loadTrackNudgeDismissed)
   const closeTrackNudge = (importedAt: string) => { dismissTrackNudge(importedAt); setNudgeDismissed(importedAt) }
-  const sorted = useMemo(() => [...sightings].sort((a, b) => b.capturedAt.localeCompare(a.capturedAt)), [sightings])
-  const unnamed = sightings.filter((s) => !s.speciesKo).length
-  const shown = sorted.filter((s) => matches(s, query) && (!onlyUnnamed || !s.speciesKo))
-  const speciesCount = new Set(sightings.filter((s) => s.speciesKo).map((s) => s.speciesKo)).size
+  const sorted = useMemo(() => sortNewest(sightings), [sightings])
+  const unnamed = countUnnamed(sightings)
+  const shown = shownRecords(sorted, query, onlyUnnamed)
+  const speciesCount = countSpecies(sightings)
 
   if (journal.sightings === null) return <div className="screen"><p className="hint">기록을 읽는 중…</p></div>
   if (journal.error) return <div className="screen"><Banner tone="err" icon="alert">{journal.error}</Banner></div>
