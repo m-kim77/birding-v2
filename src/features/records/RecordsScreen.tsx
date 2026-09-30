@@ -4,7 +4,7 @@ import { useJournal } from '../../data/journal'
 import { Banner, ScreenHead } from '../../ui/bits'
 import Button from '../../ui/Button'
 import Icon from '../../ui/Icon'
-import { countSpecies } from '../dex/speciesCount'
+import { countSpecies, yearTally } from '../dex/speciesCount'
 import JournalFilter from './JournalFilter'
 import JournalNotices from './JournalNotices'
 import { countUnnamed, sortNewest } from './journalList'
@@ -52,7 +52,10 @@ export default function RecordsScreen({ onOpen, onBackup, onAdd, onSettings }: P
   const unnamed = countUnnamed(sightings)
   const [view, setView] = useJournalView(journal.sightings && { unnamed, periods, places })
   const shown = filterJournal(sorted, view)
-  const speciesCount = countSpecies(sightings)
+  // 올해는 이 기기의 달력으로 정하고, 기록의 해는 촬영지 시각으로 센다
+  const tally = yearTally(sightings, new Date().getFullYear())
+  // 전부 올해 기록이면 앞의 종 수와 같은 말이라, 0종이면 할 말이 없어서 붙이지 않는다
+  const thisYear = tally.inYear > 0 && tally.otherYears ? ` · 올해 ${tally.inYear}종` : ''
 
   if (journal.sightings === null) return <div className="screen"><p className="hint">기록을 읽는 중…</p></div>
   if (journal.error) return <div className="screen"><Banner tone="err" icon="alert">{journal.error}</Banner></div>
@@ -60,7 +63,7 @@ export default function RecordsScreen({ onOpen, onBackup, onAdd, onSettings }: P
 
   return (
     <div className="screen">
-      <ScreenHead title="일지" sub={`날짜순 · 기록 ${sightings.length}건 · ${speciesCount}종`} />
+      <ScreenHead title="일지" sub={`날짜순 · 기록 ${sightings.length}건 · ${tally.total}종${thisYear}`} />
       <JournalNotices onBackup={onBackup} onSettings={onSettings} />
       <label className="search">
         <Icon name="search" size={18} />
