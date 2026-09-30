@@ -5,7 +5,7 @@
  * 종 수 세기는 도감과 같이 쓰므로 `dex/speciesCount.ts`에 따로 둔다.
  */
 // 확장자를 적는 이유: node --test가 이 파일을 직접 읽는다 (Vite는 어느 쪽이든 된다)
-import { newestFirst } from '../../lib/timeOrder.ts'
+import { newestRecordFirst } from '../../lib/timeOrder.ts'
 import { monthOf } from '../../ui/when.ts'
 import type { Sighting } from '../../types'
 import type { Outing } from './outings'
@@ -22,10 +22,10 @@ export function matchesQuery(s: Sighting, query: string): boolean {
 
 /**
  * 촬영 시각의 최신순으로 늘어놓은 새 배열. 입력 배열은 바꾸지 않는다 (journal의 목록을 그대로 정렬하면 다른 화면의 순서까지 바뀐다).
- * 글자가 아니라 순간으로 견준다 (lib/timeOrder.ts) — 같은 순간이면 입력 순서 그대로, 못 읽는 시각은 맨 뒤.
+ * 글자가 아니라 순간으로 견준다 (lib/timeOrder.ts) — 같은 순간이면 id의 거꾸로(탐조 묶음 줄의 정확한 역순), 못 읽는 시각은 맨 뒤.
  */
 export function sortNewest(list: Sighting[]): Sighting[] {
-  return [...list].sort((a, b) => newestFirst(a.capturedAt, b.capturedAt))
+  return [...list].sort(newestRecordFirst)
 }
 
 /** 이름이 아직 없는 기록("이름 미정")의 수. "이름 미정 N건" 칩이 쓴다 — 0이면 칩을 그리지 않는다 */
@@ -87,7 +87,8 @@ function blocksOf(list: Sighting[], outingOf: Map<string, Outing>): ListBlock[] 
  * 일지 목록의 모양 — 달별로 묶고(groupByMonth), 달 안에서는 탐조 묶음마다 덩어리로 나눈다 (blocksOf). `shown`의 순서는 바꾸지 않는다.
  * `outings`는 **모든 기록**으로 계산한 것이다 (outings.ts outingsOf) — 검색·거르기로 한 건만 보여도 그 묶음의 머리줄과 전체 숫자가 나온다.
  * 한 탐조는 한 날짜라 달을 넘지 않는다. `outings`에 없는 기록(있으면 안 되지만)은 한 건짜리로 친다. 보일 기록이 없으면 빈 배열.
- * 같은 순간(밀리초까지)에 서로 먼 두 곳에서 찍힌 기록만 최신순(입력 순서)과 묶음(id 순)의 줄이 엇갈려 같은 머리줄이 두 번 나올 수 있다 — 자료는 그대로다.
+ * `shown`은 sortNewest의 줄(묶음 계산의 정확한 역순 — 같은 순간은 id의 거꾸로)을 거른 것이어야 한 묶음이 이어 나온다.
+ * 다른 순서로 넘기면 같은 머리줄이 두 번 나올 수 있다 — 자료는 그대로다.
  */
 export function monthSections(shown: Sighting[], outings: Outing[]): MonthSection[] {
   const outingOf = new Map<string, Outing>()

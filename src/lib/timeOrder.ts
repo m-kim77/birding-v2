@@ -26,3 +26,15 @@ export function newestFirst(a: string, b: string): number {
   const y = instantOf(b)
   return x > y ? -1 : x < y ? 1 : 0
 }
+
+/**
+ * 기록의 최신순 비교 — 순간으로 견주고(newestFirst), 같은 순간이면 id 글자의 **거꾸로**. 못 읽는 시각은 맨 뒤(서로는 id의 거꾸로).
+ * 탐조 묶음(records/outings.ts — 옛것부터, 같은 순간이면 id 순)의 정확한 역순이라 일지 목록에서 한 묶음의 기록이 이어 나온다.
+ * 같은 순간을 입력 순서에 맡기면 묶음 경계에서 두 줄이 엇갈려 같은 머리줄이 두 번 나온다. 입력·기기의 읽는 순서와 상관없이 늘 같은 줄이다.
+ * id는 localeCompare로 견주지 않는다 — 기기의 언어 설정에 따라 순서가 달라진다.
+ */
+export function newestRecordFirst(a: { capturedAt: string; id: string }, b: { capturedAt: string; id: string }): number {
+  const byTime = newestFirst(a.capturedAt, b.capturedAt)
+  if (byTime !== 0) return byTime
+  return a.id > b.id ? -1 : a.id < b.id ? 1 : 0
+}

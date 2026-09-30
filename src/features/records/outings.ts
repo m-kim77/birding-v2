@@ -44,6 +44,7 @@ export interface Outing {
 /**
  * 촬영 순간의 옛것부터, 같은 순간이면 id 글자 순. 입력 순서와 상관없이 늘 같은 줄이 나온다.
  * id는 localeCompare로 견주지 않는다 — 기기의 언어 설정에 따라 순서가 달라진다.
+ * 일지 목록의 순서(lib/timeOrder.ts newestRecordFirst)가 이것의 정확한 역순이다 — 한쪽만 바꾸면 같은 머리줄이 두 번 나온다.
  */
 function byTimeThenId(a: Sighting, b: Sighting): number {
   const x = instantOf(a.capturedAt)

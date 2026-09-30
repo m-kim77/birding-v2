@@ -48,7 +48,7 @@ test("sortNewest: 글자가 아니라 순간으로 — '+09:00'이 붙은 옛 �
     rec('early', '2026-09-21T10:00:00.000Z'),
     rec('same-as-plus9', '2026-09-21T16:00:00.000Z'),
   ]
-  assert.deepEqual(ids(sortNewest(list)), ['late', 'plus9', 'same-as-plus9', 'early'], '같은 순간이면 입력 순서 그대로')
+  assert.deepEqual(ids(sortNewest(list)), ['late', 'same-as-plus9', 'plus9', 'early'], '같은 순간이면 id의 거꾸로')
 })
 
 test('sortNewest: 못 읽는 시각은 맨 뒤로, 멈추지 않는다', () => {
@@ -129,6 +129,21 @@ test('monthSections: 검색으로 한 건만 남아도 그 탐조의 머리줄�
   const head = sections[0].blocks[0].outing
   assert.equal(head?.items.length, 3)
   assert.deepEqual(head?.species, ['박새', '쇠오리'])
+})
+
+test('monthSections: 묶음 경계에 같은 초의 기록이 있어도 머리줄은 한 번씩 — 입력이 어떤 순서든 (작업 37 fix)', () => {
+  // 아침 두 건(z-p1·z-p2)의 묶음 끝에 위치 없는 'a-n'이 붙고, 같은 초에 20km 밖의 'b-q'가 새 묶음을 연다
+  const tie = [
+    rec('a-n', '2026-09-22T02:00:00.000Z'),
+    rec('b-q', '2026-09-22T02:00:00.000Z', north(20_000)),
+    rec('c-q2', '2026-09-22T02:30:00.000Z', north(20_100)),
+    rec('z-p1', '2026-09-22T00:00:00.000Z', north(0)),
+    rec('z-p2', '2026-09-22T00:10:00.000Z', north(100)),
+  ]
+  const want = [['2026년 9월', [['b-q', ['c-q2', 'b-q']], ['z-p1', ['a-n', 'z-p2', 'z-p1']]]]]
+  assert.deepEqual(layout(monthSections(sortNewest(tie), outingsOf(tie))), want)
+  const flipped = [...tie].reverse()
+  assert.deepEqual(layout(monthSections(sortNewest(flipped), outingsOf(flipped))), want, '읽는 순서가 달라도 같은 줄')
 })
 
 test('monthSections: 보일 기록이 없으면 빈 배열, 묶음에 없는 기록은 한 건짜리로 친다', () => {
