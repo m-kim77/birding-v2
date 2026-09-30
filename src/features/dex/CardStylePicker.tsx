@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useJournal } from '../../data/journal'
+import { expectsPhoto } from '../../data/photoKey'
 import { getBestPhoto } from '../../data/photos'
 import Icon from '../../ui/Icon'
 import type { CardStyle, Sighting } from '../../types'
@@ -20,6 +21,7 @@ interface Props {
  * 카드의 색과 효과를 고른다. 카드가 크게 보이는 세 곳(저장 직후 · 기록 상세 · 도감)에서 카드 아래에 붙는다.
  * 고르면 바로 저장된다 — "적용" 버튼이 없다. 되돌리려면 다른 색을 고르면 된다.
  * 없으면 카드 색을 정할 길이 없다 (BUTTONS.md). 추천 색 · 사진에서 뽑기 · 직접 고르기 · 차분하게/빛나게.
+ * 사진이 없는 기록(expectsPhoto가 아니다)에는 '사진에서 뽑기'를 그리지 않는다 — 누르면 늘 실패하는 버튼이 된다.
  */
 export default function CardStylePicker({ sighting, alsoIds = [] }: Props) {
   const { update } = useJournal()
@@ -82,9 +84,11 @@ export default function CardStylePicker({ sighting, alsoIds = [] }: Props) {
           <input key={style.accent} type="color" defaultValue={style.accent.toLowerCase()} aria-label="직접 고르기" onChange={(e) => pickCustom(e.target.value)} />
         </label>
         {/* 사진에서: 저장할 때 뽑은 색으로 되돌리거나, 옛 기록에 처음 색을 준다 */}
-        <button type="button" className="swatch swatch-photo" aria-label="사진에서 뽑기" title="사진에서 뽑기" disabled={busy} onClick={() => void fromPhoto()}>
-          <Icon name="camera" size={18} />
-        </button>
+        {expectsPhoto(sighting) && (
+          <button type="button" className="swatch swatch-photo" aria-label="사진에서 뽑기" title="사진에서 뽑기" disabled={busy} onClick={() => void fromPhoto()}>
+            <Icon name="camera" size={18} />
+          </button>
+        )}
       </div>
       <div className="chips">
         <button type="button" className={`chip${style.glow ? '' : ' is-on'}`} aria-pressed={!style.glow} onClick={() => apply({ glow: false })}>차분하게</button>

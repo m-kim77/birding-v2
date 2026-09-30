@@ -14,6 +14,7 @@ test('isRoute: 아는 화면만, 상세는 id가 있어야', () => {
   assert.equal(isRoute({ name: 'detail' }), false, 'id 없는 상세')
   assert.equal(isRoute({ name: 'detail', id: '' }), false)
   assert.equal(isRoute({ name: 'sound' }), true, '새소리 듣기 (작업 32)')
+  assert.equal(isRoute({ name: 'quick' }), true, '사진 없이 기록 (작업 39)')
   assert.equal(isRoute({ name: 'home' }), false, '없는 화면 (옛 판·새 판)')
   assert.equal(isRoute(null), false)
   assert.equal(isRoute('records'), false)
@@ -56,6 +57,14 @@ test('planOpen: 화면을 열면 한 칸 쌓는다', () => {
 test('planReplace: 저장 직후 완료 — 기록하기 칸을 상세로 바꿔 끼운다 (칸 수 그대로)', () => {
   const recordFlow = screenEntry({ name: 'record' }, 2)
   assert.deepEqual(planReplace(recordFlow, { name: 'detail', id: 'a' }), { kind: 'replace', entry: screenEntry({ name: 'detail', id: 'a' }, 2) })
+})
+
+test('planReplace: 사진 없이 기록 — 새 기록 첫 화면 칸을 바꿔 끼우고, 저장 뒤 상세도 같은 칸에 (뒤로 = 기록하기를 시작한 화면)', () => {
+  const recordFlow = screenEntry({ name: 'record' }, 1)
+  const quick = screenEntry({ name: 'quick' }, 1)
+  assert.deepEqual(planReplace(recordFlow, { name: 'quick' }), { kind: 'replace', entry: quick })
+  assert.deepEqual(planReplace(quick, { name: 'detail', id: 'a' }), { kind: 'replace', entry: detailOnRecords })
+  assert.deepEqual(planLeave(detailOnRecords), { kind: 'go', delta: -1 })
 })
 
 test('planLeave: 한 칸 뒤로, 맨 아래 일지에서는 할 일 없음', () => {

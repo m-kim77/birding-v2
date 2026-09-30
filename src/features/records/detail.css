@@ -1,0 +1,9 @@
+/*
+ * 기록 상세 — 사진 없이 남긴 기록 (RecordDetail의 detail-cols is-no-photo).
+ * 큰 사진 칸이 없으니 넓은 화면에서도 두 칸 격자(styles/screens.css .detail-cols)를 풀어 한 칸으로 둔다 —
+ * 안 풀면 옆 칸이 사진 자리(왼쪽 넓은 칸)에 들어가고 오른쪽이 빈다. 한 칸이 화면 폭만큼 늘어나지 않게 폭을 줄인다.
+ * 클래스 둘을 겹쳐 적어 screens.css보다 늘 이긴다 (불러오는 순서와 상관없이).
+ */
+@container app (min-width: 860px) {
+  .detail-cols.is-no-photo { grid-template-columns: minmax(0, 1fr); max-width: 640px; }
+}
