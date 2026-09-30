@@ -116,6 +116,18 @@ export function protectionLine(ko: string | undefined): string {
 }
 
 /**
+ * 기록 상세의 보호종 줄 아래에 적을 지정 기관 — 예: '기후에너지환경부 · 국가유산청 지정'. 표에 없는 종은 빈 문자열.
+ * 멸종위기는 시행규칙의 소관 부처(기후에너지환경부 — 2025. 10. 1. 부처 이름이 바뀌었다), 천연기념물은 국가유산청이다.
+ * 둘 중 하나만인 종에 두 기관을 다 적지 않는다 — 예: 솔개는 천연기념물이 아니므로 국가유산청이 지정한 것이 아니다.
+ */
+export function protectionBy(ko: string | undefined): string {
+  const p = protectionOf(ko)
+  if (!p) return ''
+  const who = [p.endangered ? '기후에너지환경부' : '', p.monument ? '국가유산청' : ''].filter(Boolean)
+  return `${who.join(' · ')} 지정`
+}
+
+/**
  * 위치 숨기기 스위치 아래에 적을 안내 — 보호종이면 둥지·번식지의 위치를 가리기를 권한다. 표에 없는 종은 빈 문자열.
  * 권하기만 한다. 스위치를 저절로 켜지 않는다 — 도심에서 흔한 원앙·황조롱이의 핀까지 말없이 지도에서 사라진다.
  */

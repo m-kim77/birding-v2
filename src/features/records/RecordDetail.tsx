@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useBackLayer } from '../../app/useNav'
 import { useJournal } from '../../data/journal'
 import { expectsPhoto } from '../../data/photoKey'
+import { protectionBy, protectionLine } from '../../data/protectedSpecies'
 import { countText } from '../../lib/count'
 import { Card, Fact, ScreenHead } from '../../ui/bits'
 import Button from '../../ui/Button'
@@ -49,6 +50,7 @@ export default function RecordDetail({ id, onBack, onOpenSettings }: Props) {
 
   const photo = expectsPhoto(s)
   const counted = countText(s.count)
+  const guarded = protectionLine(s.speciesKo)
   const shot = shotFact(s)
   return (
     <div className="screen screen-detail">
@@ -66,6 +68,8 @@ export default function RecordDetail({ id, onBack, onOpenSettings }: Props) {
             <Fact icon="pin" sub={SOURCE_LABEL[s.locationSource]}>{s.place || (s.lat !== null ? `${s.lat.toFixed(4)}, ${s.lng!.toFixed(4)}` : '위치 없음')}</Fact>
             {/* 개체 수는 세었을 때만 — 안 셌으면 줄이 없다 (옛 기록 포함) */}
             {counted && <Fact icon="bird">{counted}</Fact>}
+            {/* 보호종이면 법정 이름과 급 — 저장하지 않고 볼 때 국명으로 찾는다 (data/protectedSpecies.ts). 이름을 고치면 따라 바뀐다. 카드에는 급을 적지 않는다 */}
+            {guarded && <Fact icon="bird" sub={protectionBy(s.speciesKo)}>{guarded}</Fact>}
             {/* 카메라·렌즈만 있어도 줄을 그린다. 렌즈 이름과 '직접 고친' 표시는 아랫줄 — 고친 값이 사진에서 읽은 값처럼 보이면 안 된다 (shotFact) */}
             {shot && <Fact icon="aperture" sub={shot.sub}>{shot.main}</Fact>}
           </Card>

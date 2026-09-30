@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { ENDANGERED_1, ENDANGERED_2, MONUMENT_BIRDS, PROTECTED, hideHint, protectionLine, protectionOf } from '../src/data/protectedSpecies.ts'
+import { ENDANGERED_1, ENDANGERED_2, MONUMENT_BIRDS, PROTECTED, hideHint, protectionBy, protectionLine, protectionOf } from '../src/data/protectedSpecies.ts'
 
 // 이름은 모두 공식 목록(시행규칙 별표 1 · 국가유산청 천연기념물 목록)에 있는 종명이다 — 지어낸 이름은 '없는 이름' 쪽에만 쓴다
 
@@ -66,6 +66,14 @@ test('protectionLine: 법정 이름으로 한 줄, 표에 없으면 빈 글자',
   assert.equal(protectionLine('황조롱이'), '천연기념물')
   assert.equal(protectionLine('참새'), '')
   assert.equal(protectionLine(''), '')
+})
+
+test('protectionBy: 지정한 기관만 — 멸종위기는 기후에너지환경부, 천연기념물은 국가유산청, 표에 없으면 빈 글자', () => {
+  assert.equal(protectionBy('새매'), '기후에너지환경부 · 국가유산청 지정')
+  assert.equal(protectionBy('솔개'), '기후에너지환경부 지정')
+  assert.equal(protectionBy('황조롱이'), '국가유산청 지정')
+  assert.equal(protectionBy('참새'), '')
+  assert.equal(protectionBy(undefined), '')
 })
 
 test('hideHint: 보호종이면 지위와 권하는 말, 아니면 빈 글자', () => {
