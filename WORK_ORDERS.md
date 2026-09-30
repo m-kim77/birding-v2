@@ -913,6 +913,45 @@ ROADMAP의 작업 32 줄을 옮겨 쓴 것이다. 지시와 첫 단계를 한 �
 
 ---
 
+## 작업 33 — 새 찾기 모델 다시 고르기 (지시 — 후보 조사와 비교 절차)
+
+ROADMAP의 작업 33 줄을 옮겨 쓴 것이다. 2026-10-01에 **지시와 후보 조사만** 썼다 (묶음 batch-1001의 조사 — 코드 없음, 상태는 ⬜ 그대로). **비교는 사용자가 한다** — 비교용 사진은 사용자만 고를 수 있고(에이전트는 사용자의 실제 사진을 열지 않는다), 성공·놓침·잘림의 눈 판정은 사람이 한다.
+
+**왜**: 지금 모델(MediaPipe EfficientDet-Lite0, Apache-2.0)은 v1 `detection_test`의 샘플 2장만 보고 골랐다. 작은 새·나뭇가지 뒤의 새를 얼마나 놓치는지, 새 없는 사진에서 헛것을 잡는지 내 사진으로 본 적이 없다. 다만 지금도 못 찾으면 사진 위를 끌어 직접 자를 수 있어 놓침의 값이 크지 않다 — 뚜렷이 나을 때만 바꾼다. 바꾸면 새 패키지와 상자 풀기 코드가 들어온다.
+
+**후보 조사 (2026-10-01, 공개 자료만 — 받거나 돌려 보지 않았다)**: 후보는 브라우저에서 돌고 라이선스가 맞는 것만. 근거는 조사 자료 `../v2 docs/patches/batch-1001/briefs/scout-user-side.md`.
+
+| 모델 | 라이선스 | 브라우저용 가중치 | 크기 | 입력 | 돌리려면 |
+|---|---|---|---|---|---|
+| 지금: EfficientDet-Lite0 | Apache-2.0 | 구글 공개 저장소의 float16 tflite | 7MB | 320 | MediaPipe (지금 그대로) |
+| YOLOX-Nano | Apache-2.0 (Megvii) | 공식 릴리스 0.1.1rc0의 `yolox_nano.onnx` | 3.5MB | 416 | onnxruntime-web + 상자 풀기·겹침 정리를 직접 (v1 `adapters/onnx.py`의 YOLOX 풀이를 옮긴다 — BGR, 정규화 없음) |
+| D-FINE-N | Apache-2.0 (COCO만으로 학습한 판) | 허깅페이스 `onnx-community/dfine_n_coco-ONNX` | 15.3MB · fp16 7.9MB · int8 4.5MB | 640 | onnxruntime-web, 겹침 정리 없음 (int8이 안 도는 환경이 있다는 글이 있어 fp16부터) |
+| RF-DETR Nano | Apache-2.0 (Nano~Large. XL·2XL은 다른 라이선스) | 허깅페이스 `onnx-community/rfdetr_nano-ONNX` | 108MB · fp16 54MB · int8 29MB · 가장 작은 판 19MB | 384 | onnxruntime-web, 겹침 정리 없음. 지금 모델의 3~15배라 폰에는 무겁다 |
+
+- YOLO11·YOLO26(Ultralytics)은 AGPL이라 MIT 저장소인 v2에 넣지 않는다.
+- 셋 다 ONNX라 MediaPipe로는 못 돌린다 — 새 실행 패키지 `onnxruntime-web`(MIT)이 필요하다.
+- 조사만으로 모르는 것: 내 사진에서 누가 덜 놓치는지, 폰 브라우저에서의 속도·메모리. 그리고 v1 비교는 v2와 조건이 다르다 — v1은 EfficientDet int8·2×2 조각·맥 네이티브, v2는 float16·3×2 조각·브라우저. v1의 품질 비교는 어림이고 속도는 옮겨 쓸 수 없다.
+
+**정한 것 (조사의 권장안 — 사용자가 다르게 정하면 여기만 고친다)**:
+- 무엇으로 비교하나: v1 `birdbench serve`의 눈 판정(성공·놓침·잘림 성적표)을 먼저. 후보가 이길 때만 브라우저 비교 페이지(저장소 밖 — 작업 31의 시험 페이지와 같은 방식, 앱 코드 없음)를 만들어 폰에서 잰다. 품질에서 못 이기면 브라우저 페이지는 헛일이다.
+- RF-DETR Nano: v1 눈 판정에는 넣는다(정확도의 위쪽 끝을 보려고). 브라우저 후보로는 뚜렷이 이길 때만 — YOLOX·D-FINE이 그 근처면 그쪽을 고른다.
+
+**비교 절차**
+1. (사용자) v1 `detection_test` 폴더에서 한 번: `uv sync --python 3.12 --extra dev --extra mediapipe --extra rfdetr` — 폴더를 옮긴 뒤 파이썬 환경이 옛 경로를 가리켜 지금은 안 돈다. v1 폴더를 건드리는 일이라 사용자가 하거나 허락한다 (ROADMAP "결정 대기").
+2. (사용자) 비교용 사진 — 작은 새 · 나뭇가지 뒤의 새 · 새 없는 사진을 각 10장 이상. 둘 곳은 "결정 대기" (권장: v1 `detection_test/photos/` 아래 하위 폴더 — v1의 `.gitignore`라 저장소에 올라가지 않고, 눈 판정과 보고서가 설정 없이 읽는다).
+3. (사용자) `uv run birdbench serve` → `http://127.0.0.1:8798` (`--host`는 바꾸지 않는다 — 인증이 없고 앱에 저장된 사진 목록도 보여 준다) → 모델 넷(`efficientdet_lite0` · `yolox_nano` · `dfine_n` · `rfdetr_nano`) 체크, 모드 **타일** → 사진마다 '검출 시작' → 성공/놓침/잘림 판정 → '성적표'의 공통 성공률을 알려 준다. 속도 보고서가 필요하면 `uv run birdbench benchmark --images photos --models efficientdet_lite0,yolox_nano,dfine_n,rfdetr_nano --modes tiled --output results/work33`.
+4. (에이전트) 성적표를 받아 바꿀 기준("결정 대기")과 견준다. 후보가 넘으면 브라우저 비교 페이지와 어댑터 작업을 이 절에 이어 쓴다.
+
+**바꾸게 되면 닿는 곳**: 새 `src/features/detect/<모델>Detector.ts` (`detector.ts`의 모양 — `id`·`label`·`sizeMb`·`isCached`·`load`·`detect`·`clearCache`. 상자 풀기·겹침 정리는 순수 파일로 빼 테스트 — 한 파일에 넣으면 목표 200줄을 넘기 쉽다) · `record/useDetection.ts`와 `settings/ModelSection.tsx`의 import 한 줄 · 설정의 출처(`LicenseSection.tsx`) · "무엇이 어디로 가나요"(`PrivacySection.tsx`)의 '받기만 하는 것' — 받는 곳(wasm·모델 파일)이 늘어나므로 안 고치면 안내가 거짓이 된다 · `vite.config.ts`의 `__MEDIAPIPE_VERSION__` · `package.json`. 기록의 `by` 값(모델 id)은 글자라 옛 기록은 그대로 읽힌다.
+
+**정해야 할 것 (ROADMAP "결정 대기" 넷)**: 비교용 사진을 둘 곳 · v1 비교 도구 환경을 다시 만드는 것 · 바꿀 기준 · 새 패키지 `onnxruntime-web`.
+
+**하지 않는 것**: 사용자의 실제 사진·v1 `server/data` 열기 · v1의 추적되는 파일 고치기 · 가중치를 저장소에 넣기 · 모델 바꾸기(비교 결과와 결정 뒤의 따로 된 단계).
+
+**닿는 파일**: 문서만 — `ROADMAP.md`, `WORK_ORDERS.md`. 비교 결과가 나오면 `docs: 작업 33 완료 기록 — 비교 결과와 결정`.
+
+---
+
 ## 코드 정리 메모 (작업 26~28과 나머지) — 순서는 ROADMAP.md
 
 2026-09-27 점검(읽기 전용, main `f147342`)의 근거다. 줄 번호는 그날 기준이다 — 작업을 시작하면 다시 확인하고, 그 작업의 새 "작업 N" 절로 옮겨 자세히 쓴다 (위 "다음 기능 메모"와 같은 방식).
