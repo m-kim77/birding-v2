@@ -5,11 +5,41 @@ import Icon from '../../ui/Icon'
 import Sheet from '../../ui/Sheet'
 import { dayOf } from '../../ui/when'
 import BirdCard from './BirdCard'
-import { bySpecies } from './bySpecies'
+import { bySpecies, type SpeciesEntry } from './bySpecies'
 import CardActions from './CardActions'
 import CardStylePicker from './CardStylePicker'
 import SyncBanner from './SyncBanner'
 import { useDexNumbers } from './useDexNo'
+
+interface SheetProps {
+  /** 연 종 */
+  open: SpeciesEntry
+  onClose: () => void
+  /** 기록 상세로 */
+  onOpenRecord: (id: string) => void
+}
+
+/** 한 종의 시트 — 대표 카드와 카드 색·저장·공유, 그 종을 만난 모든 기록 (누르면 그 기록의 상세로) */
+function SpeciesSheet({ open, onClose, onOpenRecord }: SheetProps) {
+  return (
+    <Sheet title={open.name} onClose={onClose}>
+      <BirdCard sighting={open.best} />
+      {/* 도감에서 고른 색은 그 종의 모든 기록에 준다 — 대표 카드는 새 기록이 오면 바뀌므로, 한 건만 바꾸면 고른 색이 사라진다 */}
+      <CardStylePicker sighting={open.best} alsoIds={open.all.filter((s) => s.id !== open.best.id).map((s) => s.id)} />
+      <CardActions sighting={open.best} />
+      <section className="dex-history">
+        <h3>이 새를 만난 기록 {open.all.length}건</h3>
+        <ul>
+          {open.all.map((s) => (
+            <li key={s.id}><button type="button" onClick={() => onOpenRecord(s.id)}>
+              <span>{dayOf(s)}</span><span>{s.place}</span><Icon name="chevron" size={16} />
+            </button></li>
+          ))}
+        </ul>
+      </section>
+    </Sheet>
+  )
+}
 
 /**
  * 내 새 도감 — **종별로** 본다. 일지가 "언제 무엇을 봤나"라면 도감은 "지금까지 어떤 새를 만났나"다.
@@ -36,24 +66,7 @@ export default function DexScreen({ onOpenRecord }: { onOpenRecord: (id: string)
           </button>
         ))}
       </div>
-      {open && (
-        <Sheet title={open.name} onClose={() => setOpenName('')}>
-          <BirdCard sighting={open.best} />
-          {/* 도감에서 고른 색은 그 종의 모든 기록에 준다 — 대표 카드는 새 기록이 오면 바뀌므로, 한 건만 바꾸면 고른 색이 사라진다 */}
-          <CardStylePicker sighting={open.best} alsoIds={open.all.filter((s) => s.id !== open.best.id).map((s) => s.id)} />
-          <CardActions sighting={open.best} />
-          <section className="dex-history">
-            <h3>이 새를 만난 기록 {open.all.length}건</h3>
-            <ul>
-              {open.all.map((s) => (
-                <li key={s.id}><button type="button" onClick={() => onOpenRecord(s.id)}>
-                  <span>{dayOf(s)}</span><span>{s.place}</span><Icon name="chevron" size={16} />
-                </button></li>
-              ))}
-            </ul>
-          </section>
-        </Sheet>
-      )}
+      {open && <SpeciesSheet open={open} onClose={() => setOpenName('')} onOpenRecord={onOpenRecord} />}
     </div>
   )
 }
