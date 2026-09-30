@@ -1,7 +1,7 @@
 import { Banner } from '../../ui/bits'
 import Button from '../../ui/Button'
 import { recentTimeOf } from '../../ui/when'
-import type { Draft } from '../../data/draft'
+import { draftCount, type Draft } from '../../data/draft'
 import { VERDICT_NOUN } from '../identify/verdictText'
 
 /**
@@ -10,7 +10,8 @@ import { VERDICT_NOUN } from '../identify/verdictText'
  */
 export default function DraftNotice({ draft, onResume, onDiscard }: { draft: Draft; onResume: () => void; onDiscard: () => void }) {
   const when = recentTimeOf(draft.savedAt)
-  const what = [draft.name && `"${draft.name}"`, draft.verdict && VERDICT_NOUN, draft.note && '메모'].filter(Boolean).join(' · ')
+  // 적어 둔 칸을 모두 적는다 — 빠진 칸이 있으면 '버리기'를 누를 때 그 값이 말없이 사라진다. 개체 수는 옛 초안에 없거나 모양이 틀릴 수 있어 draftCount로 읽는다
+  const what = [draft.name && `"${draft.name}"`, draftCount(draft).trim() && '개체 수', draft.verdict && VERDICT_NOUN, draft.note && '메모'].filter(Boolean).join(' · ')
   return (
     <Banner tone="info" icon="edit" action={
       <div className="row-actions">
