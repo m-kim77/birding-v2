@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { DRAFT_MAX_AGE_MS, isDraftFields, isDraftStale } from '../src/data/draft.ts'
+import { DRAFT_MAX_AGE_MS, draftCount, isDraftFields, isDraftStale } from '../src/data/draft.ts'
 import { recentTimeOf } from '../src/ui/when.ts'
 
 const NOW = new Date('2026-09-22T12:00:00.000Z')
@@ -31,6 +31,14 @@ test('isDraftFields: 개체 수 칸이 생기기 전의 초안도, 개체 수를
   assert.ok(!('count' in GOOD))
   assert.equal(isDraftFields({ ...GOOD, count: '3' }), true)
   assert.equal(isDraftFields({ ...GOOD, count: '' }), true)
+})
+
+test('draftCount: 되살릴 개체 수 칸 — 옛 초안(키 없음)·글자가 아닌 값은 빈칸, 글자는 그대로 (틀린 글자도 — 칸 밑 경고가 뜬다)', () => {
+  assert.equal(draftCount({}), '')
+  assert.equal(draftCount({ count: 3 as unknown as string }), '')
+  assert.equal(draftCount({ count: null as unknown as string }), '')
+  assert.equal(draftCount({ count: '3' }), '3')
+  assert.equal(draftCount({ count: '10-20' }), '10-20')
 })
 
 test('isDraftFields: 판이 다르거나 필수 키가 빠지거나 모양이 틀리면 거른다 — 반쪽 초안을 되살리지 않는다', () => {

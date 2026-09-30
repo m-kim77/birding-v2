@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { Draft } from '../../data/draft'
+import { draftCount, type Draft } from '../../data/draft'
 import type { NormalizedBox, Verdict } from '../../types'
 import type { AskState } from './useAsk'
 import { useDraft } from './useDraft'
@@ -49,7 +49,7 @@ export function useRecordFields({ picker, loc, ask, saved }: Deps) {
     setCrop(restoring.crop)
     setName(restoring.name)
     // 개체 수 칸이 생기기 전의 초안에는 없다 — 빈칸(세지 않음)으로
-    setCount(typeof restoring.count === 'string' ? restoring.count : '')
+    setCount(draftCount(restoring))
     setNote(restoring.note)
     setAskedBox(restoring.askedBox)
     // 사진에서 읽은 위치는 방금 다시 읽었다. 사용자가 고른 것과 지난번에 이동 기록으로 찾은 것('tracklog')을 되살린다 — 뒤늦게 끝난 매칭은 이것을 덮지 않는다 (fillIfEmpty)

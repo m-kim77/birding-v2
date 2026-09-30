@@ -85,6 +85,14 @@ export function isDraftFields(v: unknown): v is DraftFields {
   return d.verdict === null || (typeof d.verdict === 'object' && d.verdict !== null)
 }
 
+/**
+ * 되살릴 때 개체 수 칸에 넣을 글자. 이 칸이 생기기 전의 초안(키 없음)이나 글자가 아닌 값은 빈칸(세지 않음)이다.
+ * isDraftFields는 개체 수를 보지 않으므로(옛 초안도 통과해야 한다) 모양은 여기서 거른다. 글자는 고치지 않는다 — 틀린 글자면 칸 밑 경고가 뜬다.
+ */
+export function draftCount(d: Pick<DraftFields, 'count'>): string {
+  return typeof d.count === 'string' ? d.count : ''
+}
+
 /** 사진 칸의 값이 온전한지 */
 function isStoredPhoto(v: unknown): v is StoredPhoto {
   const p = v as Record<string, unknown> | null
