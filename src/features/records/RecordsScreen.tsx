@@ -5,8 +5,10 @@ import { Banner, ScreenHead } from '../../ui/bits'
 import Button from '../../ui/Button'
 import Icon from '../../ui/Icon'
 import { countSpecies } from '../dex/speciesCount'
+import JournalFilter from './JournalFilter'
 import JournalNotices from './JournalNotices'
-import { countUnnamed, shownRecords, sortNewest } from './journalList'
+import { countUnnamed, sortNewest } from './journalList'
+import { filterJournal, periodOptions, placeOptions } from './journalView'
 import RecordList from './RecordList'
 import { useJournalView } from './useJournalView'
 
@@ -36,19 +38,20 @@ function EmptyJournal({ onAdd, onBackup }: Pick<Props, 'onAdd' | 'onBackup'>) {
 
 /**
  * 첫 화면이자 기록 목록. 홈 화면을 따로 두지 않고 요약을 목록 맨 위에 얹었다.
- * 검색은 하나만 둔다 — 필터·정렬 버튼은 기록이 수백 건이 되어 실제로 필요해질 때 더한다.
- * 예외는 "이름 미정" 칩 하나: 이름 없이 저장하라고 권하므로, 그 기록을 다시 찾을 길은 있어야 한다.
- * 알림 띠는 JournalNotices, 목록 그리기는 RecordList, 거르기·묶기 계산은 journalList.ts가 맡는다.
- * 검색어·칩은 기록을 열었다 돌아와도 남는다 (useJournalView — 이번 실행 동안만).
+ * 검색 칸 하나와 그 아래 거르기 줄(JournalFilter) — 기간·장소 고르개와 "이름 미정" 칩. 검색어로는 날짜를 못 찾고, 장소는 이름을 기억해 쳐야 해서 둘만 고르개로 둔다.
+ * 종으로 거르는 고르개는 두지 않는다 (검색 칸과 도감의 종 시트가 한다). 정렬은 날짜순 하나다.
+ * 알림 띠는 JournalNotices, 목록 그리기는 RecordList, 거르기·묶기 계산은 journalList.ts·journalView.ts가 맡는다.
+ * 검색어·칩·기간·장소는 기록을 열었다 돌아와도 남는다 (useJournalView — 이번 실행 동안만).
  */
 export default function RecordsScreen({ onOpen, onBackup, onAdd, onSettings }: Props) {
   const journal = useJournal()
   const sightings = useMemo(() => journal.sightings ?? [], [journal.sightings])
   const sorted = useMemo(() => sortNewest(sightings), [sightings])
+  const periods = useMemo(() => periodOptions(sightings), [sightings])
+  const places = useMemo(() => placeOptions(sightings), [sightings])
   const unnamed = countUnnamed(sightings)
-  // 돌아와도 검색어·칩이 남는다. 기간·장소는 아직 고르개가 없어 늘 전체다
-  const [view, setView] = useJournalView(journal.sightings && { unnamed, periods: [], places: [] })
-  const shown = shownRecords(sorted, view.query, view.onlyUnnamed)
+  const [view, setView] = useJournalView(journal.sightings && { unnamed, periods, places })
+  const shown = filterJournal(sorted, view)
   const speciesCount = countSpecies(sightings)
 
   if (journal.sightings === null) return <div className="screen"><p className="hint">기록을 읽는 중…</p></div>
@@ -63,12 +66,7 @@ export default function RecordsScreen({ onOpen, onBackup, onAdd, onSettings }: P
         <Icon name="search" size={18} />
         <input type="search" placeholder="새 이름·장소·메모로 찾기" value={view.query} onChange={(e) => setView({ ...view, query: e.target.value })} />
       </label>
-      {unnamed > 0 && (
-        // 이름 미정 칩: 이름 없이 저장한 기록을 나중에 모아서 채우려면 골라낼 수단이 있어야 한다. 그런 기록이 없으면 칩도 없다
-        <div className="chips">
-          <button type="button" className={`chip${view.onlyUnnamed ? ' is-on' : ''}`} aria-pressed={view.onlyUnnamed} onClick={() => setView({ ...view, onlyUnnamed: !view.onlyUnnamed })}>이름 미정 {unnamed}건</button>
-        </div>
-      )}
+      <JournalFilter view={view} onChange={setView} periods={periods} places={places} unnamed={unnamed} shownCount={shown.length} shownSpecies={countSpecies(shown)} />
       {shown.length === 0 && <p className="hint">{view.query ? `"${view.query}"에 맞는 기록이 없습니다.` : '맞는 기록이 없습니다.'}</p>}
       <RecordList shown={shown} onOpen={onOpen} />
     </div>
