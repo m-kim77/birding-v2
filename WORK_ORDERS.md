@@ -491,7 +491,7 @@ OpenAI의 v2 검토 의견(저장·복원, 배포 운영, 기능 제안)을 코�
 - **작업 15 — 저장 공간·백업 상태**: `navigator.storage.estimate()`로 쓰는 양, 사진이 빠진 기록 찾기, 작업 7 이전에 쌓였을 수 있는 주인 없는 사진 정리.
 - **작업 16 — 오프라인** (뺌 2026-09-27 — ROADMAP "뺀 것"): 서비스 워커 + 글꼴(`index.html:15-19`)·탐지 wasm 직접 호스팅. 잘못 만들면 옛 판이 계속 뜨므로 "새 판이 있습니다 — 다시 열기" 흐름과 함께. 가장 크다.
 - **작업 17 — v1 기록 가져오기** (뺌 2026-09-27 — ROADMAP "뺀 것"): 작업 8(검사)·10(대량 조회 금지) 뒤. v1 DB는 읽기만, 변환 결과를 `normalizeSighting`으로 검사, 미리보기 뒤 들이기. 장소 이름은 v1에 저장된 것을 그대로 쓴다.
-- **작업 18 — 'AI 판정 · 확정' 표현**: 저장된 값('확정'·'좁힘', `types.ts:67`)은 백업 호환 때문에 그대로 두고 **보이는 말만** 바꾼다(`IdentifyPanel.tsx:89`, `RecordDetail.tsx:91`). '이 이름으로'를 누른 기록은 사람이 받아들인 것이라는 표시도. 어떤 말로 할지는 사용자 결정.
+- **작업 18 — 'AI 판정 · 확정' 표현**: 끝 (2026-10-01) → 아래 "작업 18" 절. 보이는 말만 바꿨고 저장값은 그대로다. '받아들인 기록' 표시는 정하지 않아 넣지 않았다.
 
 그 뒤의 목록(사진 없는 빠른 기록·개체 수, 탐조 세션, 필터·통계, 보호종 자료, 새소리, 모델 비교 세트)과 결정 대기(저장 방식, 로그인, 새소리의 자리)는 ROADMAP.md에 있다.
 
@@ -878,6 +878,35 @@ ROADMAP의 작업 32 줄을 옮겨 쓴 것이다. 지시와 첫 단계를 한 �
 
 ---
 
+## 작업 18 — AI 판정 칸 나누기와 표현 바꾸기
+
+**왜**: AI가 틀릴 때도 화면에는 "AI 판정 · 확정"이라고 떴다 (작업 21 시험에서 틀린 2건이 모두 '확정'이었다). 사용자는 '확정'이라는 말을 믿고 그대로 저장한다. AI의 답은 의견이고, 이름을 정하는 것은 '이 이름으로'를 누른 사람이다. 화면이 그 사실대로 말하게 한다. 함수 상한(80줄)에 닿아 있던 `IdentifyPanel`도 이 작업의 첫 커밋으로 나눴다.
+
+**지켜야 할 것**: **저장값은 바꾸지 않는다.** `Verdict.kind`의 `'확정' | '좁힘'`(`types.ts`)은 기록(IndexedDB)·초안·백업 ZIP·드라이브 사본에 그대로 들어 있고, 읽을 때 `data/normalizeSighting.ts`가 이 두 값이 아니면 판정을 통째로 버린다 — 값을 바꾸면 옛 기록의 AI 근거가 말없이 사라진다. 모델과의 약속도 같은 글자다 (`identify/parseVerdict.ts`, 고정 프롬프트 `prompts.ts` — 서버도 읽는다, 바꾸면 KV 캐시가 깨진다). **바꾼 것은 화면에 보이는 말뿐이다.**
+
+**무엇이 바뀌나**
+1. **판정 칸 나누기** (`refactor`, 동작 그대로): `record/IdentifyPanel.tsx`의 `IdentifyPanel`(79줄)을 같은 파일 안 하위 컴포넌트로 나눴다 (내보내지 않는다, 작업 12의 `PlaceRow` 방식). `AskRunning`(묻는 중 — 단계 목록·지난 시간·30초 넘으면 "앞 순서를 기다리는 중"·중단)과 `VerdictResult`(답이 온 뒤 — 머리글·이름·요약·후보 칩·근거·'이 이름으로'·'다시 물어보기'). `useElapsed`는 `AskRunning` 안에서 부르므로 `IdentifyPanel` 첫 줄의 `state === 'running' ? startedAt : null` 우회가 없어졌다. JSX·JSX 주석은 글자 그대로, `Props`·className·부르는 쪽(`RecordFlow`, `DetailIdentify`)은 그대로다. `IdentifyPanel` 함수는 약 28줄, 40줄 넘는 함수 목록에서 빠졌다.
+2. **보이는 말 한 곳으로** (`refactor`, 동작 그대로): 새 `identify/verdictText.ts` (import는 타입뿐인 순수 파일) — `verdictHeading(kind)`(저장값 → 머리글 표)·`uncheckedNote(kind)`(자료 없이 답했다는 경고, 저장값이 '확정'일 때만 덧붙는 말 포함)·`VERDICT_NOUN`(초안 안내의 낱말)·`EVIDENCE_LOSS_WARNING`(수정에서 이름을 바꿀 때의 경고). 갈아 끼운 곳: `IdentifyPanel`의 `VerdictResult` 머리글 · `records/RecordDetail.tsx` 판정 카드 머리글 · `identify/VerdictDetails.tsx` 경고 문장 · `record/DraftNotice.tsx` · `records/RecordEdit.tsx`. `test/verdictText.test.ts`가 글자를 고정한다. 이 커밋은 글자가 한 글자도 바뀌지 않는다.
+3. **말 바꾸기** (`feat`): `verdictText.ts`의 표와 문장만 바꿨다.
+   - 머리글: '확정' → **"AI 의견 · 한 종"**, '좁힘' → **"AI 의견 · 확실하지 않음"**. '좁힘'은 후보가 여럿 남았을 때만 생기지 않는다 (사진이 흐려 판단 못 함, 모델이 적은 국명을 앱이 버림 — `parseVerdict`) — '후보 여럿'은 뒤 두 경우에 거짓이 된다.
+   - 결과를 가리키는 다른 글자도 같이: 초안 안내 "… · AI 의견 · 메모", 수정 경고 "이름을 바꾸면 이 기록의 AI 의견 근거가 지워집니다.", 근거 안내 "자료를 확인하지 않고 답했습니다 — 한 종으로 나왔어도 근거가 약할 수 있습니다."
+   - 표에 없는 값은 '좁힘' 쪽 말로 (`parseVerdict`의 "확정이 아닌 것은 모두 좁힘"과 같은 쪽 — 모르는 값을 '한 종'이라 하지 않는다).
+   - `types.ts`의 `Verdict.kind` 주석에 "저장값이다 — 글자를 바꾸지 않는다, 화면 말은 `identify/verdictText.ts`"를 적었다.
+
+**닿는 파일**: 새 `src/features/identify/verdictText.ts`·`test/verdictText.test.ts`. 고침 `src/features/record/{IdentifyPanel.tsx,DraftNotice.tsx}`, `src/features/records/{RecordDetail.tsx,RecordEdit.tsx}`, `src/features/identify/VerdictDetails.tsx`, `src/types.ts`(주석만). 문서 `ROADMAP.md`, `WORK_ORDERS.md`, `README.md`, `ref_design/design_v01/BUTTONS.md`.
+
+**하지 않는 것**
+- `Verdict.kind` 값, `normalizeSighting.ts`, `parseVerdict.ts`, `prompts.ts`, 도구 정의, 나가는 요청은 한 글자도 바꾸지 않았다. 읽을 때 값을 옮겨 적지도 않는다 — 상세의 "넣었다" 판단(`DetailIdentify`의 `holds`)이 판정을 값으로 견주고, 드라이브가 바뀐 기록으로 본다.
+- 기능 이름과 동사는 그대로: 설정 제목 'AI 종 판정'과 그것을 가리키는 길 안내(`IdentifyPanel`의 '설정 › AI 종 판정에서'), 'AI 판정' 개인정보 안내(`PrivacySection`·`public/privacy.html` — 나가는 요청이 바뀌지 않았다), '판정 서버가 …' 안내, `DetectView`의 '판정할 새', `VerdictDetails`의 '판정: 모델', `FEATURES.md`.
+- '받아들인 기록' 표시(상세의 판정 카드에 "이 이름은 AI의 의견을 받아들인 것입니다" 한 줄)는 사용자가 정하지 않아 넣지 않았다. 넣기로 하면 새 저장 필드 없이 된다 — 기록의 `verdict`는 받아들였을 때만 남는다(`types.ts Sighting.verdict`). 말은 `verdictText.ts`에 상수로.
+- 지난 작업의 완료 기록에 적힌 '확정'(그때의 사실), `DESIGN_PROMPT.md`, `ref_design/design_v01/src`는 고치지 않는다.
+
+**검증**: `npm run check` 통과 (묶음 브랜치에서 테스트 335 — 새 테스트 5, 통합 브랜치에서 다시 넣은 뒤 518 — 수는 그대로, 같은 다섯 테스트가 새 글자를 고정한다). `grep -rn "AI 판정 ·" src test` 결과 없음. 브라우저 확인은 아직 — AI 답을 받을 서버(`.env.local`)가 없는 폴더에서 했다. 볼 것: 새 기록·상세 카드·초안 안내·수정 경고 네 곳의 새 말, 옛 저장값('확정'·'좁힘') 기록이 새 말로 보이고 근거가 그대로인지, 폰 폭(390px)에서 "AI 의견 · 확실하지 않음"이 한 줄에 드는지.
+
+**완료 (2026-10-01).** 커밋 셋 (묶음 브랜치 `batch-1001/record`) + 통합 브랜치에서 말 바꾸기를 다시 넣은 커밋 하나. 계획과 다르게 한 것: (1) '받아들인 기록' 표시(조사의 커밋 4)는 하지 않았다. 문서 커밋은 합친 뒤 통합 브랜치에서 한다. (2) 표에 없는 값의 말은 1단계에서는 "AI 판정 · 〈그 값〉"(전과 같음), 3단계에서 '좁힘' 쪽 말로 바꿨다. (3) `types.ts`의 `Verdict.kind` 주석 한 줄을 더했다. (4) '한 종'은 사용자가 골랐고, '확실하지 않음'과 근거 안내의 '한 종으로 나왔어도'는 조사 권장안을 기본값으로 쓴 것이다 — 사용자가 알고 진행을 맡겼다. 다른 말을 원하면 `verdictText.ts` 표·문장만. (5) `useElapsed`가 `AskRunning` 안으로 옮겨 가서, 시계 상태가 진행 중이 시작될 때 새로 만들어진다 (전에는 패널이 처음 그려질 때 만들어져 첫 1초 동안 낡은 값이었다 — 보이는 글자는 같다). (6) 말 바꾸기(`336fd27`)는 사용자가 '좁힘'의 말을 정하기 전이라 묶음 브랜치에서 한 번 되돌렸고(`4881926`), 사용자가 2026-10-01에 '한 종'을 고르고 '확실하지 않음' 기본값으로 끝내 달라고 한 뒤 통합 브랜치에서 다시 넣었다(`cab2d11`). 합치면 화면 글자는 새 말이다.
+
+---
+
 ## 코드 정리 메모 (작업 26~28과 나머지) — 순서는 ROADMAP.md
 
 2026-09-27 점검(읽기 전용, main `f147342`)의 근거다. 줄 번호는 그날 기준이다 — 작업을 시작하면 다시 확인하고, 그 작업의 새 "작업 N" 절로 옮겨 자세히 쓴다 (위 "다음 기능 메모"와 같은 방식).
@@ -891,7 +920,7 @@ ROADMAP의 작업 32 줄을 옮겨 쓴 것이다. 지시와 첫 단계를 한 �
 - **작업 26 — 기록 화면(`RecordFlow`) 나누기**: 끝 (2026-09-27) → 위 "작업 26" 절. 점검 때의 계획(뗄 것·남길 것·함정·확인 순서)대로 했다.
 - **작업 27 — AI 판정을 기록에 넣는 규칙 한 곳으로**: 끝 (2026-09-27) → 위 "작업 27" 절. 계획대로 했고, 같은 이름을 다시 넣을 때 도감 번호가 바뀌는 문제를 함께 막았다.
 - **작업 28 — 설정 카드들의 같은 틀 하나로**: 끝 (2026-09-27) → 위 "작업 28" 절. "같이 볼 것"(이동 기록·저장 공간의 지우기 배선, AI 연결 확인을 identify로 옮기기·시간 제한)은 하지 않았다.
-- **작업 18을 시작할 때**: AI 판정 칸(`IdentifyPanel.tsx`) 함수가 80줄로 상한이다. 18의 첫 커밋으로 같은 파일 안 하위 컴포넌트로 나눈다(작업 12의 `PlaceRow` 방식) — 답이 온 뒤 화면(L83-118) → `VerdictResult`, 묻는 중 화면(L67-82)과 `useElapsed` → `AskRunning` (지금의 `state === 'running' ? startedAt : null` 우회가 사라진다). 'AI 판정 · {kind}' 문구가 `IdentifyPanel.tsx:89`·`RecordDetail.tsx:67` 두 곳, '확정'을 문장에 쓰는 곳이 `VerdictDetails.tsx:15` — 보이는 말을 정하는 함수 하나로. (위 "다음 기능 메모"의 `RecordDetail.tsx:91`은 옛 줄 번호다.)
+- **작업 18을 시작할 때**: 끝 (2026-10-01) → 위 "작업 18" 절. 점검 때의 계획대로 첫 커밋에서 `IdentifyPanel`을 `AskRunning`·`VerdictResult`로 나누고, 보이는 말은 `identify/verdictText.ts` 한 곳으로 모았다.
 - **나머지 (ROADMAP "그 뒤")**:
   - 화면 문구 한 곳으로 — 위치 출처 문구 2벌(`usePlace.ts:15-17` ↔ `RecordDetail.tsx:19-21`, '없음' 문구가 이미 다르다), "장소 → 좌표 → 위치 없음" 3벌(`RecordFacts.tsx:34`·`RecordDetail.tsx:56`·`LocationSheet.tsx:32`), 촬영 정보 한 줄 3벌(`RecordFacts.tsx:15`·`RecordDetail.tsx:44`·`dex/cardText.ts:15`), 카드 글자 2쌍(`BirdCard.tsx:22,40` ↔ `cardCanvas.ts:76,86` — '위치 비공개'가 화면 카드와 내보낸 카드에 따로 있다. `cardText.ts`가 모으려던 자리다), '이름 미정' 9곳.
   - 화면 안의 계산을 순수 함수로(+테스트) — 기록 목록의 검색·달별 묶기(`RecordsScreen.tsx:18-40`, 함수 78줄에 여유가 생긴다), 지도·도감의 묶기(`MapScreen.tsx:21-33`·`DexScreen.tsx:21-28`). 같이: 시각을 글자로 견주는 정렬 4곳(`RecordsScreen.tsx:65`·`DexScreen.tsx:25`·`StorageSection.tsx:59`·`MapScreen.tsx:28`)을 `editPatch.ts`처럼 순간으로 — 따로 `fix` 커밋. 지금은 영향이 거의 없다: 앱이 만드는 시각은 모두 UTC 'Z'(`lib/exif.ts` `toISOString`)이고 v1도 UTC 정규형이다. '+09:00' 같은 형식이 섞인 백업을 불러올 때만 몇 시간 범위로 어긋난다.
