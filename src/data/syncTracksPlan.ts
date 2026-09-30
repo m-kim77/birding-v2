@@ -1,0 +1,205 @@
+/**
+ * 이동 기록 드라이브 동기화의 규칙 — 드라이브에 둘 파일의 모양, 두 기기의 점을 합칠 때 무엇을 받고 무엇을 올릴지.
+ * 순수 함수다 (DOM·IndexedDB·네트워크 없음, node --test가 직접 읽는다). 실제로 주고받는 일은 syncTracks.ts가 한다.
+ *
+ * 드라이브의 모양 (기록과 같은 보이는 폴더 아래, 스위치를 켠 기기만 만든다):
+ *   탐조일지 동기화/tracks/<YYYY-MM>.json  UTC 달 하나의 골라 둔 점 — { v: 1, month, points: PackedPoint[] }. 타임라인 원본 파일이 아니다.
+ *     꼬리표 digest(그 달 점의 지문) · count(점 수) · importedAt(올린 기기의 '넣은 날'). 좌표는 꼬리표·파일 이름에 넣지 않는다
+ *   탐조일지 동기화/tracks/cleared.json   "드라이브의 이동 기록을 지웠음" 표시 (꼬리표 clearedAt)
+ * 합치기는 점의 합집합이다 (파일을 다시 넣을 때와 같은 points.ts mergeSorted) — 점은 늘기만 해서 어느 순서로 합쳐도 같은 결과가 된다.
+ * 받을지·올릴지는 달마다 지문을 견줘 정한다. 지문은 pointKey(t|source|lat|lng)만으로 만든다 — 정확도를 넣으면
+ * 같은 점의 정확도가 기기마다 다를 때 두 기기가 끝없이 서로 덮어쓴다 (mergeSorted는 먼저 있던 쪽의 정확도를 남긴다).
+ */
+// 확장자를 적는 이유: node --test가 이 파일을 직접 읽는다 (Vite는 어느 쪽이든 된다)
+import { comparePoints, pack, pointKey, type TrackPoint } from '../lib/tracklog/points.ts'
+
+export const TRACKS_FOLDER = 'tracks'
+export const CLEARED_FILE = 'cleared.json'
+/** 달 파일의 이름 모양 — 'YYYY-MM.json' */
+const MONTH_FILE = /^(\d{4}-(?:0[1-9]|1[0-2]))\.json$/
+/** Date가 나타낼 수 있는 가장 먼 시각(ms). 넘으면 toISOString이 RangeError를 던진다 */
+const MAX_TIME = 8.64e15
+
+/** 드라이브 목록의 파일 하나 — 이 파일이 쓰는 만큼만 (driveApi.ts DriveFile과 같은 모양) */
+export interface TracksDriveFile {
+  id: string
+  name: string
+  appProperties?: Record<string, string>
+}
+
+/** 드라이브에 있는 달 파일 하나를 목록의 꼬리표로 읽은 것 (내용을 받지 않고도 받을지 정한다) */
+export interface RemoteMonth {
+  /** 'YYYY-MM' (UTC) */
+  month: string
+  fileId: string
+  digest: string
+  count: number
+  /** 올린 기기의 넣은 날 (UTC ISO). 받은 기기의 요약은 자기 것과 견줘 더 늦은 쪽을 쓴다 (tracks.ts nextMeta) */
+  importedAt: string
+}
+
+/** 기기의 한 달치 점과 그 지문 */
+export interface LocalMonth {
+  digest: string
+  points: TrackPoint[]
+}
+
+/** 달 파일 하나에 대해 할 일 (planUpload) */
+export interface UploadStep {
+  month: string
+  /** 기기의 점으로 파일을 새로 만들거나 덮는다. false면 남는 파일만 지운다 */
+  upload: boolean
+  /** 덮어쓸 파일 id. 없으면 새로 만든다 */
+  fileId?: string
+  /** 지울 파일 id — 같은 달의 남는 파일 (두 기기가 동시에 처음 올린 경우). 올리기가 성공한 뒤에 지운다 */
+  remove: string[]
+}
+
+/** 점이 속한 UTC 달 'YYYY-MM'. 시각은 파서·decodeMonth가 이미 걸렀다고 본다 (못 쓰는 시각이면 RangeError) */
+export function monthKeyOf(t: number): string {
+  return new Date(t).toISOString().slice(0, 7)
+}
+
+/** 달 파일의 이름 */
+export function monthFileName(month: string): string {
+  return `${month}.json`
+}
+
+/** UTC 달별로 묶는다. 각 묶음의 순서는 입력 순서 그대로다 */
+export function groupByMonth(points: TrackPoint[]): Map<string, TrackPoint[]> {
+  const groups = new Map<string, TrackPoint[]>()
+  for (const p of points) {
+    const key = monthKeyOf(p.t)
+    const list = groups.get(key)
+    if (list) list.push(p)
+    else groups.set(key, [p])
+  }
+  return groups
+}
+
+/**
+ * 점들의 지문: 겹치지 않는 pointKey를 정렬해 줄바꿈으로 이은 것의 SHA-256, 16진수 앞 32자.
+ * 순서·중복·정확도가 달라도 같은 점들이면 같은 값이다. 빈 배열도 값이 있다 (빈 문자열의 지문).
+ */
+export async function digestOf(points: TrackPoint[]): Promise<string> {
+  const keys = [...new Set(points.map(pointKey))].sort()
+  const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(keys.join('\n'))))
+  return Array.from(hash.subarray(0, 16), (b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+/** 기기의 점 전부를 달마다 묶고 지문을 붙인다 */
+export async function localMonthsOf(points: TrackPoint[]): Promise<Map<string, LocalMonth>> {
+  const out = new Map<string, LocalMonth>()
+  for (const [month, list] of groupByMonth(points)) out.set(month, { digest: await digestOf(list), points: list })
+  return out
+}
+
+/** UTC ISO로 읽히는 문자열인지 */
+function isIso(v: unknown): v is string {
+  return typeof v === 'string' && Number.isFinite(Date.parse(v))
+}
+
+/**
+ * 드라이브 목록의 파일 하나를 달 파일로 읽는다. 이름이 'YYYY-MM.json'이 아니거나 꼬리표(digest·importedAt)가 없으면 null
+ * (cleared.json · 사람이 넣은 파일 등). count를 못 읽으면 0 — 화면에 쓰지 않고 판단에도 쓰지 않는다.
+ */
+export function remoteMonthOf(file: TracksDriveFile): RemoteMonth | null {
+  const m = MONTH_FILE.exec(file.name)
+  const tags = file.appProperties ?? {}
+  if (!m || !tags.digest || !isIso(tags.importedAt)) return null
+  const count = Number(tags.count)
+  return { month: m[1], fileId: file.id, digest: tags.digest, count: Number.isFinite(count) ? count : 0, importedAt: tags.importedAt }
+}
+
+/** 달 파일에 달 꼬리표. 좌표는 넣지 않는다 (꼬리표는 목록에서 누구나 읽는다) */
+export function monthTags(digest: string, count: number, importedAt: string): Record<string, string> {
+  return { digest, count: String(count), importedAt }
+}
+
+/** 달 파일의 내용. 점은 `comparePoints` 순이라 같은 점들이면 어느 기기가 만들어도 같은 글이 된다 */
+export function encodeMonth(month: string, points: TrackPoint[]): string {
+  return JSON.stringify({ v: 1, month, points: [...points].sort(comparePoints).map(pack) })
+}
+
+/** 받은 줄 하나를 점으로. 모양이 틀리거나(숫자 아님·위도/경도 범위 밖·그 달이 아닌 시각) 못 읽으면 null */
+function rowToPoint(row: unknown, month: string): TrackPoint | null {
+  if (!Array.isArray(row) || row.length < 5) return null
+  const [t, source, lat, lng, accuracy] = row as unknown[]
+  if (typeof t !== 'number' || !Number.isFinite(t) || Math.abs(t) > MAX_TIME || monthKeyOf(t) !== month) return null
+  if (typeof source !== 'string' || !source) return null
+  if (typeof lat !== 'number' || !Number.isFinite(lat) || lat < -90 || lat > 90) return null
+  if (typeof lng !== 'number' || !Number.isFinite(lng) || lng < -180 || lng > 180) return null
+  if (accuracy !== null && (typeof accuracy !== 'number' || !Number.isFinite(accuracy) || accuracy < 0)) return null
+  return { t, source, lat, lng, accuracy }
+}
+
+/**
+ * 받은 달 파일의 글을 점으로. 줄마다 검사해 틀린 줄은 건너뛴다 (나머지는 쓴다).
+ * JSON이 아니거나 모양이 틀리면 빈 배열 — 깨진 파일이다 (기기의 점으로 덮어 고친다).
+ * **v가 1보다 큰 파일은 null** — 앱이 나중에 파일 모양을 바꿨을 때 옛 앱이 못 읽는 새 파일을 덮어 버리지 않게 (planUpload의 keep).
+ */
+export function decodeMonth(text: string, month: string): TrackPoint[] | null {
+  let body: unknown
+  try { body = JSON.parse(text) } catch { return [] }
+  if (!body || typeof body !== 'object') return []
+  const { v, points } = body as { v?: unknown; points?: unknown }
+  if (typeof v === 'number' && v > 1) return null
+  if (v !== 1 || !Array.isArray(points)) return []
+  return points.flatMap((row) => rowToPoint(row, month) ?? [])
+}
+
+/**
+ * 받을 달 파일: 드라이브의 지문이 기기의 그 달 지문과 다른 파일 전부 (기기에 없는 달 포함, 같은 달 파일이 둘이면 다른 것 모두).
+ * 지문이 같으면 받지 않는다 — 내용이 같다. 달 순서로 준다.
+ */
+export function planDownload(local: Map<string, string>, remote: RemoteMonth[]): RemoteMonth[] {
+  return remote.filter((r) => local.get(r.month) !== r.digest).sort((a, b) => a.month.localeCompare(b.month))
+}
+
+/**
+ * 받아 합친 **뒤의** 기기 지문으로 올릴 것을 정한다. 기기에 있는 달마다:
+ * - 드라이브에 지문이 같은 파일이 하나뿐이면 할 일이 없다.
+ * - 같은 파일이 있으면 그것을 남기고 나머지를 지운다. 없으면 첫 파일을 덮고(PATCH — 요청 하나라 반쪽 파일이 없다) 나머지를 지운다.
+ *   나머지를 지워도 되는 것은 지문이 다른 파일은 모두 받아서 이미 합쳤기 때문이다 (planDownload).
+ * - 드라이브에 없으면 새로 만든다.
+ * `keep`의 달(읽지 못한 새 모양의 파일이 있는 달)은 건드리지 않는다. 드라이브에만 있는 달은 올릴 것이 없다. 달 순서로 준다.
+ */
+export function planUpload(local: Map<string, string>, remote: RemoteMonth[], keep: Set<string> = new Set()): UploadStep[] {
+  const steps: UploadStep[] = []
+  for (const month of [...local.keys()].sort()) {
+    if (keep.has(month)) continue
+    const digest = local.get(month)
+    const files = remote.filter((r) => r.month === month)
+    const same = files.find((r) => r.digest === digest)
+    const target = same ?? files[0]
+    const remove = files.filter((r) => r !== target).map((r) => r.fileId)
+    if (same && remove.length === 0) continue
+    steps.push({ month, upload: !same, fileId: target?.fileId, remove })
+  }
+  return steps
+}
+
+/**
+ * 드라이브의 "지웠음" 표시 시각. 표시 파일이 없으면 ''. 둘 이상이면(두 기기가 동시에 지움) 글자로 가장 뒤의 값 —
+ * 어느 기기가 봐도 같은 값을 고르면 된다 (시계끼리 견주는 것이 아니다).
+ */
+export function clearedAtOf(files: TracksDriveFile[]): string {
+  let at = ''
+  for (const f of files) {
+    const v = f.name === CLEARED_FILE ? f.appProperties?.clearedAt : undefined
+    if (v && v > at) at = v
+  }
+  return at
+}
+
+/**
+ * 드라이브의 "지웠음" 표시를 보고 이 기기가 할 일.
+ * - `adopt`: 스위치를 켠 뒤 처음 본다(`seen`이 null) — 지금 값을 본 것으로 적고 이어 간다 (알고 켠 것이다)
+ * - `stop`: 켠 뒤에 누가 드라이브의 이동 기록을 지웠다 — 이 기기의 점은 두고 스위치만 끈다 (다시 올리면 지운 것이 되살아난다)
+ * - `go`: 그대로 이어 간다. 표시가 없어졌을 때(사람이 드라이브에서 지움)도 새로 지운 것이 아니라 이어 간다
+ * 기기 시계끼리 견주지 않고 값이 같은지만 본다.
+ */
+export function clearDecision(seen: string | null, clearedAt: string): 'adopt' | 'stop' | 'go' {
+  if (seen === null) return 'adopt'
+  return !clearedAt || clearedAt === seen ? 'go' : 'stop'
+}
