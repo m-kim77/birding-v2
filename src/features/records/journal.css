@@ -1,0 +1,5 @@
+/* 일지의 거르기 (JournalFilter). 고르개 자체의 모양은 칩과 같이 ui.css의 select.chip */
+
+/* 거른 결과 한 줄 — 글 옆에 "전체 보기". 좁은 폰에서 둘이 안 들어가면 버튼이 아랫줄로 내려간다 */
+.filter-result { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 var(--sp-2); margin-top: calc(var(--sp-2) * -1); }
+.filter-result > p { color: var(--text-2); font-size: 14px; font-weight: 600; }

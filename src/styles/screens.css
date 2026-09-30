@@ -7,6 +7,14 @@
 .record-item-text strong { font-size: 18px; }
 .record-item-text em { color: var(--text-3); font-size: 13px; }
 .record-item-text > span { color: var(--text-2); font-size: 14px; }
+/* 일지의 덩어리 — [탐조 머리줄] + 기록 격자 (RecordList). 머리줄은 격자 밖이라 PC 너비에서도 격자 칸을 차지하지 않는다. 덩어리 사이는 더 띄워 다른 탐조임이 보이게 */
+.record-block { display: grid; gap: var(--sp-3); }
+.record-block + .record-block { margin-top: var(--sp-5); }
+/* 탐조 머리줄 — 누르는 것이 아니다. 앱 바탕 위의 글이라 대비 검사를 받는 text-1·text-3만 쓴다. 종 이름은 두 줄까지만 보인다 */
+.outing-head { display: grid; gap: 2px; min-width: 0; padding-left: var(--sp-3); border-left: 3px solid var(--primary); }
+.outing-head h3 { font-size: 16px; font-weight: 700; color: var(--text-1); }
+.outing-head p { color: var(--text-3); font-size: 14px; }
+.outing-head .outing-species { font-size: 13px; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 
 .detail-cols { display: grid; gap: var(--sp-4); }
 .detail-side { display: grid; gap: var(--sp-4); align-content: start; }
