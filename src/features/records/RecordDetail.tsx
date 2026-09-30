@@ -15,6 +15,7 @@ import DetailIdentify from './DetailIdentify'
 import HideLocationSwitch from './HideLocationSwitch'
 import RecordEdit from './RecordEdit'
 import VerdictDetails from '../identify/VerdictDetails'
+import { verdictHeading } from '../identify/verdictText'
 
 const SOURCE_LABEL: Record<LocationSource, string> = {
   exif: '사진 정보에서', tracklog: '이동 기록으로 추정', gps: '기록할 때의 현재 위치', manual: '지도에서 직접 고름', none: '',
@@ -64,7 +65,7 @@ export default function RecordDetail({ id, onBack, onOpenSettings }: Props) {
               {s.note && <Card><p className="note">{s.note}</p></Card>}
               {s.verdict && (
                 <Card>
-                  <h2>AI 판정 · {s.verdict.kind}</h2>
+                  <h2>{verdictHeading(s.verdict.kind)}</h2>
                   <p className="note">{s.verdict.summary}</p>
                   <VerdictDetails verdict={s.verdict} />
                 </Card>

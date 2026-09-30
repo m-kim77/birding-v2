@@ -4,6 +4,7 @@ import Button from '../../ui/Button'
 import Icon from '../../ui/Icon'
 import type { Verdict } from '../../types'
 import VerdictDetails from '../identify/VerdictDetails'
+import { verdictHeading } from '../identify/verdictText'
 import type { AskState } from './useAsk'
 
 /** 기본 제공 AI가 이보다 오래 조용하면 "앞 순서를 기다리는 중일 수 있습니다"를 덧붙인다 — 여럿이 한 서버를 쓴다 */
@@ -76,7 +77,7 @@ function AskRunning({ steps, own, startedAt, onCancel }: Pick<Props['ask'], 'ste
 function VerdictResult({ verdict: v, name, applied, into, cropChanged, onAsk, onApply, onPickName }: Pick<Props, 'name' | 'applied' | 'cropChanged' | 'onAsk' | 'onApply' | 'onPickName'> & { verdict: Verdict; into: string }) {
   return (
     <div className="verdict">
-      <p className="verdict-kind"><Icon name="sparkle" size={16} /> AI 판정 · {v.kind}</p>
+      <p className="verdict-kind"><Icon name="sparkle" size={16} /> {verdictHeading(v.kind)}</p>
       <h3 className="display">{v.speciesKo || '이름 미정'} {v.latin && <em>{v.latin}</em>}</h3>
       {!v.speciesKo && (
         <p className="status-line is-warn">

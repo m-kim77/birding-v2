@@ -1,4 +1,5 @@
 import type { Verdict } from '../../types'
+import { uncheckedNote } from './verdictText'
 import './verdict.css'
 
 /**
@@ -12,7 +13,7 @@ export default function VerdictDetails({ verdict, open }: { verdict: Verdict; op
   const refs = verdict.references ?? []
   // 도구를 한 번도 안 쓰고 낸 답 — 옛 기록(references 자체가 없다)은 모르는 것이므로 말하지 않는다. '확정'인데 자료가 없으면 특히 의심할 만하다
   const unchecked = verdict.references !== undefined && refs.length === 0
-    ? <p className="status-line is-warn">자료를 확인하지 않고 답했습니다{verdict.kind === '확정' ? ' — 확정이라도 근거가 약할 수 있습니다' : ''}.</p>
+    ? <p className="status-line is-warn">{uncheckedNote(verdict.kind)}</p>
     : null
   if (verdict.evidence.length === 0 && refs.length === 0) return unchecked
   return (

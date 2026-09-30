@@ -3,6 +3,7 @@ import { useJournal } from '../../data/journal'
 import { Card } from '../../ui/bits'
 import Button from '../../ui/Button'
 import type { Sighting } from '../../types'
+import { EVIDENCE_LOSS_WARNING } from '../identify/verdictText'
 import { PlaceRow } from '../record/RecordFacts'
 import { usePlaceValue } from '../record/usePlace'
 import { editPatch, formOf, placeBefore } from './editPatch'
@@ -68,7 +69,7 @@ export default function RecordEdit({ sighting: s, onClose, onDeleted }: Props) {
       <Card>
         <label className="field"><span>새 이름</span><input value={name} onChange={(e) => setName(e.target.value)} /></label>
         {/* 이름을 고치면 근거를 떼는 것은 의도된 동작(editPatch)이지만, 말없이 지우면 안 된다 */}
-        {s.verdict && name.trim() !== s.speciesKo && <p className="status-line is-warn">이름을 바꾸면 이 기록의 AI 판정 근거가 지워집니다.</p>}
+        {s.verdict && name.trim() !== s.speciesKo && <p className="status-line is-warn">{EVIDENCE_LOSS_WARNING}</p>}
         {/* 촬영 시각: 사진에 시각이 없어 기록한 시각이 들어갔거나 카메라 시계가 틀렸을 때 고칠 유일한 길. 화면에 보이는 것과 같은 촬영지 시각이다 */}
         <label className="field"><span>촬영 시각</span><input type="datetime-local" value={time} onChange={(e) => setTime(e.target.value)} /></label>
         {!patch && <p className="status-line is-warn" role="alert">촬영 시각을 끝까지 채워 주세요.</p>}
