@@ -32,3 +32,11 @@ test("bySpecies: 대표를 순간으로 고른다 — '+09:00'이 붙은 시각�
   const list = [rec('plus9', '딱새', '2026-09-22T01:00:00+09:00'), rec('utc', '딱새', '2026-09-21T20:00:00.000Z'), rec('bad', '딱새', 'not-a-date')]
   assert.deepEqual(shape(bySpecies(list, new Map([['딱새', 1]]))), [['딱새', 'utc', ['utc', 'plus9', 'bad']]])
 })
+
+test('bySpecies: 사진 없는 최근 기록보다 사진 있는 기록이 대표 — 사진 있는 기록이 없으면 그대로 가장 최근 기록 (작업 39)', () => {
+  const quick = { ...rec('quick', '딱새', '2026-09-01T00:00:00.000Z'), noPhoto: true } as Sighting
+  const heard = { ...rec('heard', '딱새', '2026-08-01T00:00:00.000Z'), fromSound: true } as Sighting
+  const photo = rec('photo', '딱새', '2026-01-01T00:00:00.000Z')
+  assert.deepEqual(shape(bySpecies([photo, quick, heard], new Map([['딱새', 1]]))), [['딱새', 'photo', ['quick', 'heard', 'photo']]])
+  assert.deepEqual(shape(bySpecies([heard, quick], new Map([['딱새', 1]]))), [['딱새', 'quick', ['quick', 'heard']]])
+})
