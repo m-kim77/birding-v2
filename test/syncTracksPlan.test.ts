@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  CLEARED_FILE, TRACKS_RETRY_MS, clearDecision, clearedAtOf, decodeMonth, digestOf, encodeMonth, groupByMonth, hasMonthFiles, localMonthsOf, monthFileName, monthKeyOf,
+  CLEARED_FILE, TRACKS_RETRY_MS, clearDecision, clearedAtOf, decodeMonth, digestOf, encodeMonth, groupByMonth, hasMonthFiles, isSyncablePoint, localMonthsOf, monthFileName, monthKeyOf,
   monthTags, planDownload, planUpload, remoteMonthOf, shouldRunTracksStep, type LocalMonth, type RemoteMonth, type TracksStepMemo,
 } from '../src/data/syncTracksPlan.ts'
 import { mergeSorted, pointKey, type TrackPoint } from '../src/lib/tracklog/points.ts'
@@ -45,6 +45,29 @@ test('localMonthsOf: 달마다 점과 지문', async () => {
   assert.deepEqual([...months.keys()], ['2026-01', '2026-02'])
   assert.equal(months.get('2026-01')?.points.length, 62)
   assert.equal(months.get('2026-01')?.digest, await digestOf(range(0, 62)))
+})
+
+test('isSyncablePoint: 받는 쪽(decodeMonth)이 버리는 점은 올리지도 않는다 — 기기의 달 묶음·지문에 들지 않는다', async () => {
+  assert.equal(isSyncablePoint(pt(1)), true)
+  assert.equal(isSyncablePoint(pt(1, null)), true)
+  assert.equal(isSyncablePoint(pt(1, 0)), true)
+  // 기기의 다른 점과 겹치지 않는 시각 — 겹치면 pointKey가 같아 기준 밖인지와 상관없이 지문이 같다
+  const q = { ...pt(1), t: pt(1).t + 1 }
+  const bad: TrackPoint[] = [
+    { ...q, accuracy: -1 },
+    { ...q, source: '' },
+    { ...q, lat: 90.5 },
+    { ...q, lng: -180.5 },
+    { ...q, lat: Number.NaN },
+    { ...q, t: Date.UTC(10000, 0, 1) }, // '+010000-01' — 달 파일 이름으로 다시 읽히지 않아 돌 때마다 파일이 는다
+    { ...q, t: Date.UTC(-1, 0, 1) },
+    { ...q, t: 8.64e15 + 1 }, // Date가 나타낼 수 없는 시각 — 묶다가 던지지 않는다
+  ]
+  bad.forEach((p, i) => assert.equal(isSyncablePoint(p), false, `기준 밖 ${i}`))
+  const months = await localMonthsOf([...range(0, 10), ...bad])
+  assert.deepEqual([...months.keys()], ['2026-01'])
+  assert.equal(months.get('2026-01')?.points.length, 10)
+  assert.equal(months.get('2026-01')?.digest, await digestOf(range(0, 10)))
 })
 
 test('remoteMonthOf: 이름이 YYYY-MM.json이고 꼬리표(digest·importedAt)가 있어야 달 파일이다', () => {
@@ -224,6 +247,19 @@ test('두 기기: 겹치는 점의 정확도가 기기마다 달라도 서로 �
   assert.deepEqual(await round(b, drive), { got: 0, put: 0 })
   assert.deepEqual(await round(a, drive), { got: 0, put: 0 })
   assert.deepEqual(keysOf(a.points), keysOf(b.points))
+})
+
+test('두 기기: 한쪽에만 받는 쪽이 버리는 점(음수 정확도)이 있어도 서로 덮어쓰기를 되풀이하지 않는다', async () => {
+  const drive = new Map<string, FakeFile>()
+  const a: Device = { points: [...range(0, 30), { ...pt(10), t: pt(10).t + 1000, accuracy: -1 }] }
+  const b: Device = { points: range(20, 50) }
+  await round(a, drive)
+  await round(b, drive)
+  await round(a, drive)
+  assert.deepEqual(await round(b, drive), { got: 0, put: 0 })
+  assert.deepEqual(await round(a, drive), { got: 0, put: 0 })
+  assert.equal(a.points.length, 51, 'A의 기준 밖 점은 A에만 남는다')
+  assert.deepEqual(keysOf(b.points), keysOf(range(0, 50)))
 })
 
 test('두 기기: 같은 달 파일이 둘 생겨도(동시에 처음 올림) 다음 바퀴에 하나로 합쳐진다', async () => {

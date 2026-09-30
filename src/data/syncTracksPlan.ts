@@ -19,6 +19,8 @@ export const CLEARED_FILE = 'cleared.json'
 const MONTH_FILE = /^(\d{4}-(?:0[1-9]|1[0-2]))\.json$/
 /** Date가 나타낼 수 있는 가장 먼 시각(ms). 넘으면 toISOString이 RangeError를 던진다 */
 const MAX_TIME = 8.64e15
+/** 달의 모양 'YYYY-MM' — 0000~9999년 밖의 시각은 '+010000-01'처럼 되어 달 파일 이름(MONTH_FILE)으로 다시 읽히지 않는다 */
+const MONTH_KEY = /^\d{4}-(?:0[1-9]|1[0-2])$/
 
 /** 드라이브 목록의 파일 하나 — 이 파일이 쓰는 만큼만 (driveApi.ts DriveFile과 같은 모양) */
 export interface TracksDriveFile {
@@ -55,7 +57,7 @@ export interface UploadStep {
   remove: string[]
 }
 
-/** 점이 속한 UTC 달 'YYYY-MM'. 시각은 파서·decodeMonth가 이미 걸렀다고 본다 (못 쓰는 시각이면 RangeError) */
+/** 점이 속한 UTC 달 'YYYY-MM'. 시각은 isSyncablePoint가 이미 걸렀다고 본다 (Date 범위 밖의 시각이면 RangeError) */
 export function monthKeyOf(t: number): string {
   return new Date(t).toISOString().slice(0, 7)
 }
@@ -63,6 +65,20 @@ export function monthKeyOf(t: number): string {
 /** 달 파일의 이름 */
 export function monthFileName(month: string): string {
   return `${month}.json`
+}
+
+/**
+ * 드라이브로 주고받는 점인지 — 올릴 때(localMonthsOf)와 받을 때(decodeMonth)가 이 한 기준을 쓴다.
+ * 기준이 다르면 받는 쪽이 버리는 점 때문에 두 기기의 지문이 영영 같아지지 않아, 돌 때마다 서로 덮어쓴다.
+ * 시각은 0000~9999년(UTC) · source는 빈 글자가 아님 · 위도 -90~90 · 경도 -180~180 · 정확도는 null 또는 0 이상, 수는 모두 유한해야 한다.
+ * 기준 밖의 점(파서가 받아들인 드문 값 — 음수 정확도 등)은 기기에는 그대로 남고 드라이브로만 가지 않는다.
+ */
+export function isSyncablePoint(p: TrackPoint): boolean {
+  if (!Number.isFinite(p.t) || Math.abs(p.t) > MAX_TIME || !MONTH_KEY.test(monthKeyOf(p.t))) return false
+  if (typeof p.source !== 'string' || !p.source) return false
+  if (!Number.isFinite(p.lat) || p.lat < -90 || p.lat > 90) return false
+  if (!Number.isFinite(p.lng) || p.lng < -180 || p.lng > 180) return false
+  return p.accuracy === null || (Number.isFinite(p.accuracy) && p.accuracy >= 0)
 }
 
 /** UTC 달별로 묶는다. 각 묶음의 순서는 입력 순서 그대로다 */
@@ -87,10 +103,10 @@ export async function digestOf(points: TrackPoint[]): Promise<string> {
   return Array.from(hash.subarray(0, 16), (b) => b.toString(16).padStart(2, '0')).join('')
 }
 
-/** 기기의 점 전부를 달마다 묶고 지문을 붙인다 */
+/** 기기의 점 가운데 주고받는 점(isSyncablePoint)만 달마다 묶고 지문을 붙인다 — 기준 밖의 점은 지문에도 올리는 파일에도 들지 않는다 */
 export async function localMonthsOf(points: TrackPoint[]): Promise<Map<string, LocalMonth>> {
   const out = new Map<string, LocalMonth>()
-  for (const [month, list] of groupByMonth(points)) out.set(month, { digest: await digestOf(list), points: list })
+  for (const [month, list] of groupByMonth(points.filter(isSyncablePoint))) out.set(month, { digest: await digestOf(list), points: list })
   return out
 }
 
@@ -129,16 +145,17 @@ export function encodeMonth(month: string, points: TrackPoint[]): string {
   return JSON.stringify({ v: 1, month, points: [...points].sort(comparePoints).map(pack) })
 }
 
-/** 받은 줄 하나를 점으로. 모양이 틀리거나(숫자 아님·위도/경도 범위 밖·그 달이 아닌 시각) 못 읽으면 null */
+/**
+ * 받은 줄 하나를 점으로. 모양이 틀리거나(칸이 모자람·숫자 아님) 주고받는 점의 기준(isSyncablePoint — 위도/경도 범위 밖·음수 정확도 등) 밖이거나
+ * 그 달이 아닌 시각이면 null.
+ */
 function rowToPoint(row: unknown, month: string): TrackPoint | null {
   if (!Array.isArray(row) || row.length < 5) return null
   const [t, source, lat, lng, accuracy] = row as unknown[]
-  if (typeof t !== 'number' || !Number.isFinite(t) || Math.abs(t) > MAX_TIME || monthKeyOf(t) !== month) return null
-  if (typeof source !== 'string' || !source) return null
-  if (typeof lat !== 'number' || !Number.isFinite(lat) || lat < -90 || lat > 90) return null
-  if (typeof lng !== 'number' || !Number.isFinite(lng) || lng < -180 || lng > 180) return null
-  if (accuracy !== null && (typeof accuracy !== 'number' || !Number.isFinite(accuracy) || accuracy < 0)) return null
-  return { t, source, lat, lng, accuracy }
+  if (typeof t !== 'number' || typeof source !== 'string' || typeof lat !== 'number' || typeof lng !== 'number') return null
+  if (accuracy !== null && typeof accuracy !== 'number') return null
+  const p: TrackPoint = { t, source, lat, lng, accuracy }
+  return isSyncablePoint(p) && monthKeyOf(t) === month ? p : null
 }
 
 /**
