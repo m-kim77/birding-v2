@@ -1,24 +1,12 @@
 import { useEffect } from 'react'
 import { connect, disconnect, loadConfig, syncNow } from '../../data/sync'
-import { useSyncStatus, type SyncStatus } from '../../data/syncStatus'
+import { useSyncStatus } from '../../data/syncStatus'
 import { preloadGis } from '../../lib/google/gis'
 import { Card } from '../../ui/bits'
 import Button from '../../ui/Button'
-import { recentTimeOf } from '../../ui/when'
+import { statusLine } from './driveText'
 import TaskResult from './TaskResult'
-import { useTask, type TaskMessage } from './useTask'
-
-/** 지금 상태를 한 줄로 */
-function statusLine(s: SyncStatus): TaskMessage {
-  const last = recentTimeOf(s.lastSyncAt)
-  if (s.phase === 'syncing') return { tone: 'ok', text: '동기화하는 중…' }
-  if (s.phase === 'disconnected') return { tone: 'warn', text: '구글 로그인이 풀렸습니다. 다시 로그인하면 못 올린 기록부터 이어서 올립니다.' }
-  if (s.phase === 'offline') return { tone: 'warn', text: `인터넷이 끊겨 있습니다${s.pending ? ` — 올릴 기록 ${s.pending}건은 연결되면 올립니다` : ''}.` }
-  if (s.stuck) return { tone: 'warn', text: `${s.stuck}건을 여러 번 올리지 못해 멈췄습니다. "지금 동기화"를 눌러 다시 해 보세요.${s.message ? ` (${s.message})` : ''}` }
-  if (s.phase === 'error') return { tone: 'warn', text: s.message || '동기화하지 못했습니다. 잠시 뒤 다시 합니다.' }
-  if (s.pending) return { tone: 'warn', text: `드라이브에 아직 안 올라간 기록 ${s.pending}건` }
-  return { tone: 'ok', text: last ? `모든 기록이 드라이브에 있습니다 · 마지막 동기화 ${last}` : '연결됨' }
-}
+import { useTask } from './useTask'
 
 /**
  * 구글 드라이브 동기화. "구글로 로그인" 한 번이 곧 드라이브 연결이다 — 그 뒤로는 저장할 때마다 저절로 올리고, 앱을 열 때 받는다.

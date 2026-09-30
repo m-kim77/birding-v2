@@ -1,20 +1,17 @@
 import { useState } from 'react'
 import { useJournal } from '../../data/journal'
 import { deleteOrphanPhotos } from '../../data/photoCheck'
-import type { PhotoKind, Sighting } from '../../types'
 import { Card } from '../../ui/bits'
 import Button from '../../ui/Button'
+import { nameText } from '../../ui/sightingText'
 import { dayOf } from '../../ui/when'
-import { missingKindsText, usageLine } from './storageText'
+import { missingKindsText, missingRows, usageLine, type MissingRow } from './storageText'
 import TaskResult from './TaskResult'
 import { useStorageStatus } from './useStorageStatus'
 import { useTask } from './useTask'
 
 /** 사진이 빠진 기록은 이만큼만 줄로 보인다 — 수백 건이면 카드가 목록이 된다. 나머지는 "외 N건" */
 const SHOW_MISSING = 5
-
-/** 사진이 빠진 기록 한 줄: 그 기록과 없는 판 */
-type MissingRow = { s: Sighting; kinds: PhotoKind[] }
 
 interface Props {
   /** 사진이 빠진 기록의 '열기' — 그 기록의 상세로 */
@@ -42,12 +39,7 @@ export default function StorageSection({ onOpenRecord }: Props) {
 
   // undefined는 재는 중, null은 브라우저가 쓰는 양을 알려 주지 않음
   const usage = estimate ? usageLine(estimate) : estimate
-  const byId = new Map((sightings ?? []).map((s) => [s.id, s]))
-  // 화면에 그릴 수 있는 기록만 — 점검(DB)과 화면 상태(journal)가 잠깐 어긋나도 없는 기록을 줄로 그리지 않는다.
-  // 일지처럼 최신 촬영부터 (DB는 id 순으로 주는데, id는 무작위라 순서에 뜻이 없다)
-  const missing: MissingRow[] = (check?.missing ?? [])
-    .flatMap((m) => { const s = byId.get(m.id); return s ? [{ s, kinds: m.kinds }] : [] })
-    .sort((a, b) => b.s.capturedAt.localeCompare(a.s.capturedAt))
+  const missing = missingRows(check?.missing ?? [], sightings ?? [])
   const orphans = check?.orphanRecords ?? 0
   return (
     <Card>
@@ -57,7 +49,7 @@ export default function StorageSection({ onOpenRecord }: Props) {
       {usage && <p className="hint">기록·사진과 쓰던 기록·받은 모델·이동 기록을 합친 양입니다 (브라우저의 어림값).</p>}
       {usage === null && <p className="hint">이 브라우저는 쓰는 공간을 알려 주지 않습니다.</p>}
       {check === null && <p className="status-line is-warn">사진을 점검하지 못했습니다.</p>}
-      {check && missing.length === 0 && orphans === 0 && byId.size > 0 && <p className="status-line is-ok">모든 기록의 사진이 제자리에 있습니다</p>}
+      {check && missing.length === 0 && orphans === 0 && (sightings ?? []).length > 0 && <p className="status-line is-ok">모든 기록의 사진이 제자리에 있습니다</p>}
       {missing.length > 0 && <MissingList items={missing} onOpenRecord={onOpenRecord} />}
       {orphans > 0 && (
         <>
@@ -91,7 +83,7 @@ function MissingList({ items, onOpenRecord }: { items: MissingRow[]; onOpenRecor
       <ul className="model-list">
         {items.slice(0, SHOW_MISSING).map(({ s, kinds }) => (
           <li key={s.id}>
-            <div><strong>{s.speciesKo || '이름 미정'}</strong><small>{dayOf(s)} · {missingKindsText(kinds)}</small></div>
+            <div><strong>{nameText(s.speciesKo)}</strong><small>{dayOf(s)} · {missingKindsText(kinds)}</small></div>
             <Button variant="quiet" onClick={() => onOpenRecord(s.id)}>열기</Button>
           </li>
         ))}

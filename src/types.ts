@@ -63,7 +63,10 @@ export interface ShotInfo {
 
 /** AI 판정 결과 */
 export interface Verdict {
-  /** '확정'이면 한 종으로 좁혀졌고, '좁힘'이면 후보가 남았다 */
+  /**
+   * '확정'이면 한 종으로 좁혀졌고, '좁힘'이면 후보가 남았다. **저장값이다 — 글자를 바꾸지 않는다** (읽을 때 이 두 값이 아니면
+   * 판정을 통째로 버리므로 옛 기록의 근거가 사라지고, 모델과의 약속·고정 프롬프트도 같은 글자다). 화면에 보이는 말은 `identify/verdictText.ts`가 정한다
+   */
   kind: '확정' | '좁힘'
   /** 확인된 국명. 확인하지 못했으면 빈 문자열이다 — 학명이나 영어 이름을 대신 넣지 않는다 (작업 20, `identify/parseVerdict.ts`) */
   speciesKo: string
@@ -101,7 +104,7 @@ export interface Sighting {
   /** 비어 있으면 "이름 미정" */
   speciesKo: string
   latin: string
-  /** 촬영 순간 (UTC ISO). 사진에 시각이 없으면 기록한 시각 */
+  /** 촬영 순간 (UTC ISO). 사진에 시각이 없으면 기록한 시각. 사진 없는 기록(`noPhoto`)은 사람이 적은 본 시각 */
   capturedAt: string
   /** '+09:00' — capturedAt과 합쳐 촬영지 시각을 복원한다. 모르면 null (브라우저 시간대로 표시) */
   capturedAtOffset: string | null
@@ -113,6 +116,12 @@ export interface Sighting {
   lng: number | null
   locationSource: LocationSource
   shot: ShotInfo
+  /**
+   * 촬영 정보(`shot`)를 사람이 기록 상세의 '수정'에서 한 번이라도 고쳤다는 표시. 키가 없으면 사진에서 읽은 그대로다. true만 쓴다.
+   * 저장된 사진은 캔버스로 다시 만든 것이라 EXIF가 없다 — 고친 뒤에는 사진에서 다시 읽을 수 없으니, 손으로 적은 값이 사진 값처럼 보이지 않게 남긴다.
+   * `shot` 안이 아니라 형제 키인 이유: 읽을 때(data/normalizeSighting.ts) `shot`은 아는 여섯 키만 남겨서 안에 두면 백업·드라이브를 돌고 오며 사라진다.
+   */
+  shotEdited?: true
   note: string
   /** 잘라낸 영역. 직접 기록만 했고 자르지 않았으면 null */
   cropBox: NormalizedBox | null
@@ -122,6 +131,13 @@ export interface Sighting {
   tier: CardTier
   /** 카드의 색·효과. 옛 기록에는 없다 — 그때는 tier로 색을 정한다 */
   cardStyle?: CardStyle
+  /**
+   * 새 기록에는 '천연기념물'·'멸종위기'를 넣지 않는다 (buildSighting은 빈 배열). 종의 보호 지위는 볼 때 국명으로 찾는다 (data/protectedSpecies.ts —
+   * 기록 상세의 보호종 줄) — 저장하면 이름을 고칠 때마다 다시 계산해야 하고, 목록이 개정되면 옛 기록에 옛 표시가 남는다.
+   * 다만 **카드(화면 BirdCard · 이미지·영상 cardCanvas)는 아직 이 배열을 그대로 그리고**, normalizeSighting은 옛 백업의 세 값을 남긴다 —
+   * 옛 백업에서 온 기록은 이름을 고쳐도 카드에 옛 도장이 남아, 볼 때 계산하는 상세의 보호종 줄과 다른 말을 할 수 있다.
+   * 카드에 도장을 찍을지 정하면 카드도 볼 때 계산으로 바꾼다. 키와 타입은 옛 백업 호환으로 그대로.
+   */
   stamps: Stamp[]
   /**
    * 위치 숨기기 — 카드(화면·이미지·영상)에 장소 대신 "위치 비공개"를 적고 지도에 올리지 않는다. 사용자가 기록마다 켠다
@@ -143,6 +159,16 @@ export interface Sighting {
    */
   dexNo?: number
   fromSound: boolean
+  /**
+   * 본 개체 수 — 1~999,999의 정수 (lib/count.ts). 키가 없으면 '세지 않음'이다 — 옛 기록에 1을 채우지 않는다.
+   * 어림·범위는 메모에 적는다. 기록 상세와 일지 목록에 보이고, 카드에는 적지 않는다 (카드 디자인은 하나로 고정).
+   */
+  count?: number
+  /**
+   * 사진 없이 남긴 기록 (망원경으로만 본 새 — record/QuickRecord). 키가 없으면 사진이 있는 기록이다. 사진 없는 기록만 true로 둔다.
+   * 사진이 있어야 하는 기록인지는 이 칸을 직접 보지 말고 `data/photoKey.ts expectsPhoto`에 묻는다 — 소리 기록(`fromSound`)도 사진이 없다.
+   */
+  noPhoto?: boolean
 }
 
 /** 사진 한 장의 세 가지 판. 'crop'은 잘라낸 적이 있을 때만 있다 */

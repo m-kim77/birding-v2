@@ -7,12 +7,15 @@ import type { Sighting } from '../../types'
 import type { PlaceValue } from '../record/usePlace'
 // 확장자를 적는 이유: node --test가 이 파일을 직접 읽는다 (Vite는 어느 쪽이든 된다)
 import { fromTimeInput, toTimeInput } from '../../lib/captureTime.ts'
+import { countOf, parseCount } from '../../lib/count.ts'
 import { nameFields } from '../record/nameFields.ts'
 
 /** 수정 칸의 값 */
 export interface EditForm {
   /** 입력한 글 그대로 (앞뒤 공백은 editPatch가 뗀다) */
   name: string
+  /** 개체 수 칸의 글자 그대로 (lib/count.ts parseCount로 읽는다). 비우면 세지 않은 기록 */
+  count: string
   note: string
   /** 입력칸 값 'YYYY-MM-DDTHH:mm' — 기록의 오프셋 기준 벽시계 (lib/captureTime.ts) */
   time: string
@@ -27,13 +30,16 @@ export function placeOf(s: Sighting): PlaceValue {
 
 /** 수정 칸을 열 때의 값 — 지금의 기록 그대로. 이 값을 그대로 editPatch에 넣으면 빈 변경이다 */
 export function formOf(s: Sighting): EditForm {
-  return { name: s.speciesKo, note: s.note, time: toTimeInput(s.capturedAt, s.capturedAtOffset), place: placeOf(s) }
+  const count = countOf(s.count)
+  return { name: s.speciesKo, count: count === undefined ? '' : String(count), note: s.note, time: toTimeInput(s.capturedAt, s.capturedAtOffset), place: placeOf(s) }
 }
 
 /**
  * 수정 칸의 값으로 기록에 넣을 변경을 만든다. `now`는 이름을 바꿨을 때 이름이 붙은 시각이 된다 (도감 번호의 순서, dex/dexNo.ts).
  * - 이름(앞뒤 공백 뺌)이 바뀌면 학명은 종 표에서 다시 찾고 AI 근거는 뗀다 — 근거는 그 이름에 대한 것이다 (nameFields에 판정 없이).
  *   이름이 붙은 시각도 지금으로 바뀐다 — 새 종이면 도감 맨 뒤에 들어간다. 이름을 비우면 '이름 미정'으로 돌아간다.
+ * - 개체 수는 **읽은 수**로 견준다 — 글자로 견주면 빈칸('')과 키 없음(undefined)이 달라 보여 손대지 않은 기록도 바뀐 것이 된다.
+ *   비우거나 개체 수로 읽히지 않는 값이면 `count: undefined`를 넣어 떼어 낸다 (세지 않음 — 근거를 떼는 방식과 같다).
  * - 메모는 입력한 글 그대로 넣는다.
  * - 시각은 입력칸이 처음 값(toTimeInput)과 다를 때만 다시 계산한다 — 같으면 저장된 초·오프셋이 그대로 남는다.
  *   다시 계산할 수 없는 값(빈칸, 2월 30일)이면 **null** — 부르는 쪽이 저장을 막는다.
@@ -48,10 +54,12 @@ export function editPatch(s: Sighting, form: EditForm, now: Date): Partial<Sight
     if (!time) return null
     retimed = time
   }
+  const count = parseCount(form.count)
   const p = form.place
   const moved = p.lat !== s.lat || p.lng !== s.lng || p.name !== s.place || p.source !== s.locationSource
   return {
     ...renamed,
+    ...(count !== countOf(s.count) ? { count } : {}),
     ...(form.note !== s.note ? { note: form.note } : {}),
     ...retimed,
     ...(moved ? { place: p.name, lat: p.lat, lng: p.lng, locationSource: p.source } : {}),

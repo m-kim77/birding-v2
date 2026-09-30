@@ -4,7 +4,7 @@ import { dotDateOf } from '../../ui/when'
 import type { Sighting } from '../../types'
 import { CARD_BASE, CARD_MARK } from './cardLook'
 import { styleOf } from './cardStyle'
-import { dexLabel, shotLine } from './cardText'
+import { cardName, cardPlace, dexLabel, shotLine } from './cardText'
 import { useCardTilt } from './useCardTilt'
 import { useDexNo } from './useDexNo'
 import './card.css'
@@ -21,7 +21,7 @@ import './card.css'
 export default function BirdCard({ sighting, small }: { sighting: Sighting; small?: boolean }) {
   const s = sighting
   const style = styleOf(s)
-  const name = s.speciesKo || '이름 미정'
+  const name = cardName(s)
   const ref = useRef<HTMLElement>(null)
   useCardTilt(ref, !small)
   const vars = { '--accent': style.accent, '--c-top': CARD_BASE.bgTop, '--c-bottom': CARD_BASE.bgBottom, '--c-ink': CARD_BASE.ink, '--c-sub': CARD_BASE.sub, '--c-hair': CARD_BASE.hair } as CSSProperties
@@ -40,7 +40,7 @@ export default function BirdCard({ sighting, small }: { sighting: Sighting; smal
       {s.latin && <p className="bc-latin">{s.latin}</p>}
       {!small && (
         <footer className="bc-meta">
-          <p><span>{dotDateOf(s)}</span><span>{s.sensitive ? '위치 비공개' : s.place}</span></p>
+          <p><span>{dotDateOf(s)}</span><span>{cardPlace(s)}</span></p>
           {shot && <p className="bc-shot">{shot}</p>}
         </footer>
       )}
