@@ -60,6 +60,13 @@ test('missingRows: 최신 촬영부터 — 점검이 주는 순서(id 순)와 �
   assert.deepEqual(rows.map((r) => r.s.id), ['b', 'c', 'a'])
 })
 
+test("missingRows: 촬영 시각을 순간으로 견준다 — '+09:00'이 붙은 시각이 날짜 글자만 앞서도 앞에 오지 않는다 (작업 35 fix)", () => {
+  // 'plus9'는 서울 22일 01:00 = 21일 16:00 UTC로, 'utc'(21일 20:00 UTC)보다 이르다. 못 읽는 시각은 맨 뒤
+  const sightings = [sighting('plus9', '2026-09-22T01:00:00+09:00'), sighting('utc', '2026-09-21T20:00:00.000Z'), sighting('bad', 'not-a-date')]
+  const rows = missingRows([{ id: 'bad', kinds: ['full'] }, { id: 'plus9', kinds: ['full'] }, { id: 'utc', kinds: ['full'] }], sightings)
+  assert.deepEqual(rows.map((r) => r.s.id), ['utc', 'plus9', 'bad'])
+})
+
 test('missingRows: 없는 판은 점검이 준 그대로, 기록은 화면 쪽 것을 쓴다', () => {
   const s = sighting('a', '2026-09-01T00:00:00.000Z')
   const [row] = missingRows([{ id: 'a', kinds: ['thumb'] }], [s])

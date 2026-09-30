@@ -66,6 +66,22 @@ test('같은 시각이면 id가 앞선 기록이 대표다 (목록 순서와 무
   assert.equal(groupPlaces([b, a])[0].name, '가 곳')
 })
 
+test("핀의 대표는 촬영 순간으로 고른다 — '+09:00'이 붙은 시각이 날짜 글자로는 늦어도 실제로 이르면 대표다 (작업 35 fix)", () => {
+  // 'plus9'는 서울 22일 01:00 = 21일 16:00 UTC로, 'utc'(21일 20:00 UTC)보다 이르다
+  const plus9 = sighting('plus9', { ...at(1), place: '이른 곳', capturedAt: '2026-09-22T01:00:00+09:00' })
+  const utc = sighting('utc', { ...at(2), place: '늦은 곳', capturedAt: '2026-09-21T20:00:00.000Z' })
+  assert.equal(groupPlaces([utc, plus9])[0].name, '이른 곳')
+  assert.equal(groupPlaces([plus9, utc])[0].name, '이른 곳')
+})
+
+test('같은 순간을 다른 글자로 적었어도 id가 앞선 기록이 대표다 (작업 35 fix)', () => {
+  // 둘은 같은 순간(21일 16:00 UTC)이다 — 글자로 견주면 'b'가 앞서 보인다
+  const a = sighting('a', { ...at(1), place: '가 곳', capturedAt: '2026-09-22T01:00:00+09:00' })
+  const b = sighting('b', { ...at(2), place: '나 곳', capturedAt: '2026-09-21T16:00:00.000Z' })
+  assert.equal(groupPlaces([b, a])[0].name, '가 곳')
+  assert.equal(groupPlaces([a, b])[0].name, '가 곳')
+})
+
 test("대표 기록의 장소 이름이 비면 핀 이름은 '이름 없는 장소'", () => {
   assert.equal(groupPlaces([sighting('a', { place: '' })])[0].name, '이름 없는 장소')
 })

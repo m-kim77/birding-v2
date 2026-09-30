@@ -27,3 +27,11 @@ test('lastPlaceOf: 좌표가 없는 기록은 건너뛰고, 좌표 있는 기록
   assert.equal(lastPlaceOf([noCoords]), null)
   assert.equal(lastPlaceOf([]), null)
 })
+
+test("lastPlaceOf: 만든 시각을 순간으로 견준다 — '+09:00'이 붙은 시각이 날짜 글자만 앞서도 '마지막'이 되지 않는다 (작업 35 fix)", () => {
+  // 'plus9'는 서울 22일 01:00 = 21일 16:00 UTC로, 'utc'(21일 20:00 UTC)보다 먼저 만들었다
+  const plus9 = rec('plus9', '2026-09-22T01:00:00+09:00', { place: '먼저 적은 곳' })
+  const utc = rec('utc', '2026-09-21T20:00:00.000Z', { place: '나중에 적은 곳' })
+  assert.equal(lastPlaceOf([plus9, utc])?.name, '나중에 적은 곳')
+  assert.equal(lastPlaceOf([utc, plus9])?.name, '나중에 적은 곳')
+})
