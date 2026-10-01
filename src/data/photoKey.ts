@@ -21,3 +21,12 @@ export function photoOwner(key: string): string {
   const i = key.lastIndexOf(':')
   return i < 0 ? key : key.slice(0, i)
 }
+
+/**
+ * 이 기록에 사진이 있어야 하는지 — 소리로 만든 기록(`fromSound`)도, 사진 없이 남긴 기록(`noPhoto`)도 아니면 true.
+ * 사진을 전제로 하는 곳(사진 점검 · AI에게 물어보기 · 사진에서 색 뽑기 · '사진에 촬영 시각이 없어' 안내)은 이것만 본다 —
+ * 칸을 곳곳에서 따로 보면 사진 없는 기록의 종류가 늘 때 한 곳씩 빠진다. 두 칸 모두 값이 true일 때만 사진 없는 기록으로 친다.
+ */
+export function expectsPhoto(s: { fromSound?: boolean; noPhoto?: boolean }): boolean {
+  return s.fromSound !== true && s.noPhoto !== true
+}

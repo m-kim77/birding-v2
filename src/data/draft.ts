@@ -2,7 +2,7 @@
  * 쓰던 기록(초안)의 저장소. 사진으로 기록하다가 뒤로 가거나 앱이 죽어도 이어 쓸 수 있게 브라우저 DB `meta` 저장소에 둔다.
  *
  * 두 칸으로 나눈 이유: 사진 파일은 수십 MB라 글자 하나 고칠 때마다 다시 쓰면 안 된다.
- * - `draft`: 작은 값들(영역·이름·메모·위치·끝난 판정·저장 시각) — 바뀔 때마다 덮어쓴다
+ * - `draft`: 작은 값들(영역·이름·개체 수·메모·위치·끝난 판정·저장 시각) — 바뀔 때마다 덮어쓴다
  * - `draftPhoto`: 고른 사진 파일 — 사진을 고를 때만 쓴다
  * 둘 중 하나라도 없거나 모양이 틀리면 초안이 없는 것으로 본다 (반쪽짜리 초안을 되살리지 않는다).
  *
@@ -36,6 +36,8 @@ export interface DraftFields {
   verdict: Verdict | null
   /** 판정을 보낼 때의 영역 — 되살린 뒤 영역이 바뀌었는지 보려고 */
   askedBox: NormalizedBox | null
+  /** 개체 수 칸의 글자 그대로 (저장할 때 lib/count.ts parseCount로 읽는다). 이 칸이 생기기 전의 초안에는 없다 — 빈칸으로 되살린다 */
+  count?: string
   /** UTC ISO. 만료 판단과 "어제 오후 3:20" 표시에 쓴다 */
   savedAt: string
 }
@@ -81,6 +83,14 @@ export function isDraftFields(v: unknown): v is DraftFields {
   if (d.crop !== null && !(typeof d.crop === 'object' && isBox((d.crop as Record<string, unknown>).box))) return false
   if (d.askedBox !== null && !isBox(d.askedBox)) return false
   return d.verdict === null || (typeof d.verdict === 'object' && d.verdict !== null)
+}
+
+/**
+ * 되살릴 때 개체 수 칸에 넣을 글자. 이 칸이 생기기 전의 초안(키 없음)이나 글자가 아닌 값은 빈칸(세지 않음)이다.
+ * isDraftFields는 개체 수를 보지 않으므로(옛 초안도 통과해야 한다) 모양은 여기서 거른다. 글자는 고치지 않는다 — 틀린 글자면 칸 밑 경고가 뜬다.
+ */
+export function draftCount(d: Pick<DraftFields, 'count'>): string {
+  return typeof d.count === 'string' ? d.count : ''
 }
 
 /** 사진 칸의 값이 온전한지 */

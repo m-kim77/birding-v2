@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { MAX_TRIES, afterFailure, dueEntries, planPull, queueChange, remoteRecordOf, type QueueEntry, type RemoteRecord } from '../src/data/syncPlan.ts'
+import { MAX_TRIES, afterFailure, dueEntries, planPull, queueChange, recordTags, remoteRecordOf, type QueueEntry, type RemoteRecord } from '../src/data/syncPlan.ts'
 import type { Sighting } from '../src/types.ts'
 
 const T0 = new Date('2026-09-27T00:00:00.000Z')
@@ -71,6 +71,15 @@ test('planPull: 다른 기기에서 지운 기록은 여기서도 지운다 — 
   assert.deepEqual(plan.download, []) // 지움 표시만 있는 기록은 받지 않는다
 })
 
+test('planPull: 줄에 남은 고침도 드라이브의 지움보다 먼저면 지운다 — 늦은 쪽이 이긴다 (지움 뒤의 고침은 남아 올라간다)', () => {
+  const plan = planPull(
+    [s('edited-before', '2026-09-05'), s('edited-after', '2026-09-09')],
+    [r('edited-before', '2026-09-06', true), r('edited-after', '2026-09-05', true)],
+    new Set(['edited-before', 'edited-after']),
+  )
+  assert.deepEqual(plan, { download: [], removeLocal: ['edited-before'], upload: [] })
+})
+
 test('planPull: 줄에 남은 일(여기서 지웠는데 아직 못 올린 것 등)은 드라이브 쪽으로 되돌리지 않는다', () => {
   // 여기서 지운 기록: 기기에는 없고 드라이브에는 아직 살아 있다 — 받으면 지운 기록이 되살아난다
   const plan = planPull([s('edited', '2026-09-01')], [r('deleted-here', '2026-09-01'), r('edited', '2026-09-09')], new Set(['deleted-here', 'edited']))
@@ -81,4 +90,34 @@ test('remoteRecordOf: 우리 모양의 파일만 읽는다', () => {
   assert.deepEqual(remoteRecordOf({ id: 'f1', name: 'abc.json', appProperties: { updatedAt: 'T', deleted: '1' } }), { id: 'abc', fileId: 'f1', updatedAt: 'T', deleted: true })
   assert.equal(remoteRecordOf({ id: 'f2', name: 'notes.txt', appProperties: { updatedAt: 'T' } }), null)
   assert.equal(remoteRecordOf({ id: 'f3', name: 'abc.json' }), null) // 꼬리표 없음 — 사람이 넣은 파일
+})
+
+test('recordTags: 지운 기록은 deleted를 "1", 살아 있는 기록은 "0"으로 적는다 (안 보내면 앞의 "1"이 남는다)', () => {
+  assert.deepEqual(recordTags('T', true), { updatedAt: 'T', deleted: '1' })
+  assert.deepEqual(recordTags('T', false), { updatedAt: 'T', deleted: '0' })
+})
+
+test('remoteRecordOf: deleted "0"과 그 꼬리표가 없는 옛 파일은 살아 있는 기록으로 읽는다', () => {
+  assert.equal(remoteRecordOf({ id: 'f1', name: 'abc.json', appProperties: { updatedAt: 'T', deleted: '0' } })?.deleted, false)
+  assert.deepEqual(remoteRecordOf({ id: 'f2', name: 'abc.json', appProperties: { updatedAt: 'T' } }), { id: 'abc', fileId: 'f2', updatedAt: 'T', deleted: false })
+})
+
+test('다른 기기에서 지운 기록을 여기서 고쳐 올리면, 다음 동기화에서 지우지 않는다', () => {
+  // 드라이브의 PATCH처럼 보낸 꼬리표만 바꾸고 안 보낸 꼬리표는 남긴다
+  const patch = (tags: Record<string, string>, sent: Record<string, string>) => ({ ...tags, ...sent })
+  const deletedThere = recordTags('2026-09-05', true)
+  const editedHere = patch(deletedThere, recordTags('2026-09-09', false))
+  const remote = remoteRecordOf({ id: 'f1', name: 'edited.json', appProperties: editedHere })
+  assert.ok(remote)
+  assert.deepEqual(planPull([s('edited', '2026-09-09')], [remote], new Set()), { download: [], removeLocal: [], upload: [] })
+})
+
+test('여기서 고친 것을 못 올린 사이 다른 기기에서 지우면, 올리지 않고 여기서도 지운다 (지운 기록이 되살아나지 않게)', () => {
+  // 이 기기: 9/5에 고쳤고 올릴 일이 줄에 남았다. 다른 기기: 9/6에 지웠다
+  const deletedThere = remoteRecordOf({ id: 'f1', name: 'x.json', appProperties: recordTags('2026-09-06', true) })
+  assert.ok(deletedThere)
+  const here = planPull([s('x', '2026-09-05')], [deletedThere], new Set(['x']))
+  // 기기에서 지우면 줄의 올리기는 올릴 기록이 없어 그냥 끝난다 (syncTransfer pushEntry) — 드라이브의 지움은 그대로
+  assert.deepEqual(here, { download: [], removeLocal: ['x'], upload: [] })
+  assert.deepEqual(planPull([], [deletedThere], new Set()), { download: [], removeLocal: [], upload: [] }) // 지운 기기는 받지 않는다
 })

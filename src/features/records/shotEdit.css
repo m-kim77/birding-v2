@@ -1,0 +1,16 @@
+/* 촬영 정보 고치기 — 기록 상세 '수정' 안의 접힌 칸 (records/ShotFields). 색·모서리·간격은 앱 테마 토큰만 쓴다 */
+.shot-edit summary {
+  min-height: var(--touch); display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-1) var(--sp-2);
+  font-weight: 600; color: var(--text-2); cursor: pointer; list-style: none;
+}
+/* 브라우저 기본 삼각형 대신 화살표 하나 — summary가 flex면 크롬은 삼각형을 안 그리고 사파리는 그려서 브라우저마다 모양이 갈린다 */
+.shot-edit summary::-webkit-details-marker { display: none; }
+.shot-edit summary .icon { flex: none; color: var(--text-3); transition: transform 0.15s; }
+.shot-edit[open] > summary .icon { transform: rotate(90deg); }
+/* 접힌 채로 틀린 칸이 있을 때 — '저장'이 꺼진 이유 */
+.shot-edit summary small { color: var(--warn); font-size: 14px; }
+.shot-edit-body { display: grid; gap: var(--sp-3); padding-top: var(--sp-2); }
+/* 숫자 칸 넷은 두 칸씩 — 폰 너비(375)에서도 칸 하나가 약 140px라 넘치지 않는다.
+   minmax(0, …)와 min-width: 0이 없으면 입력칸의 기본 폭이 격자 칸을 밀어내 옆으로 넘친다 */
+.shot-nums { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-3); }
+.shot-cell { display: grid; gap: var(--sp-1); min-width: 0; }

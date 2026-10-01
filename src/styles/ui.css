@@ -55,6 +55,17 @@
 .chips { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
 .chip { min-height: var(--touch); padding: 0 var(--sp-4); border-radius: 999px; border: 1.5px solid var(--border); background: var(--bg-card); color: var(--text-2); font-size: 14px; font-weight: 600; }
 .chip.is-on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+/* 고르개(select)를 칩 모양으로 (일지의 기간·장소). 브라우저 기본 모양을 끄고 ▾는 글자색(currentColor)의 두 삼각형으로 그린다 —
+   켜져서 강조색 바탕이 돼도 화살표가 글자와 같은 색으로 보인다. .chip.is-on의 background 줄이 그림을 지우므로 is-on에도 다시 준다.
+   16px: 아이폰 사파리는 16px보다 작은 고르개를 누르면 화면을 확대한다. 긴 장소 이름은 말줄임 — 안 그러면 폰에서 줄 밖으로 밀린다 */
+select.chip { appearance: none; -webkit-appearance: none; max-width: 100%; padding-right: 36px; font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+select.chip, select.chip.is-on {
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: calc(100% - 21px) 50%, calc(100% - 16px) 50%; background-size: 5px 5px; background-repeat: no-repeat;
+}
+/* 펼친 목록은 브라우저 기본 색으로 — Canvas·CanvasText는 테마의 color-scheme(base.css)을 따른다.
+   윈도우의 크롬·파이어폭스는 목록에 고르개의 바탕색을 쓰는데, 켜진 칩의 강조색이나 유리 테마의 반투명 카드색을 물려받으면 글자가 묻힌다 */
+select.chip option { background-color: Canvas; color: CanvasText; }
 
 /* 긴 문장 + 버튼 여럿인 안내 띠: 글이 위, 버튼 줄이 아래 */
 .install-hint { align-items: flex-start; }

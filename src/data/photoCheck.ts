@@ -12,7 +12,7 @@ import type { PhotoKind } from '../types'
 // 확장자를 적는 이유: node --test가 이 파일을 직접 읽는다 (Vite는 어느 쪽이든 된다)
 import { dbReadAll, dbWriteAll } from './db.ts'
 // 확장자를 적는 이유: 위와 같다
-import { photoKey, photoOwner } from './photoKey.ts'
+import { expectsPhoto, photoKey, photoOwner } from './photoKey.ts'
 
 /** 화면이 기대는 판: 목록은 작은 판, 상세는 큰 판. 잘라낸 판은 없어도 두 판이 대신하므로 보지 않는다 */
 const NEEDED: PhotoKind[] = ['full', 'thumb']
@@ -22,6 +22,8 @@ export interface PhotoOwner {
   id: string
   /** 소리로 만든 기록은 사진이 없는 것이 정상이다 */
   fromSound: boolean
+  /** 사진 없이 남긴 기록(빠른 기록)도 사진이 없는 것이 정상이다 */
+  noPhoto: boolean
 }
 
 /** 사진이 빠진 기록 한 건 */
@@ -50,14 +52,14 @@ export function findOrphanKeys(sightingIds: Iterable<string>, photoKeys: string[
 }
 
 /**
- * 사진을 점검한다. 소리 기록은 사진이 없어도 빠진 것으로 치지 않는다.
- * 앞으로 "사진 없는 빠른 기록"이 생기면 그것도 여기서 빼야 한다 — 안 빼면 전부 "사진이 빠진 기록"으로 보인다.
+ * 사진을 점검한다. 사진이 있어야 하는 기록(expectsPhoto)만 본다 — 소리 기록과 사진 없이 남긴 기록은 사진이 없어도 빠진 것으로 치지 않는다.
+ * 안 빼면 사진 없는 기록이 전부 "사진이 빠진 기록"으로 보인다. 기록이 없는 사진을 고를 때는 모든 기록을 본다.
  */
 export function checkPhotos(sightings: PhotoOwner[], photoKeys: string[]): PhotoCheck {
   const have = new Set(photoKeys)
   const missing: MissingPhotos[] = []
   for (const s of sightings) {
-    if (s.fromSound) continue
+    if (!expectsPhoto(s)) continue
     const kinds = NEEDED.filter((kind) => !have.has(photoKey(s.id, kind)))
     if (kinds.length) missing.push({ id: s.id, kinds })
   }
@@ -67,8 +69,9 @@ export function checkPhotos(sightings: PhotoOwner[], photoKeys: string[]): Photo
 
 /** DB에서 읽은 기록을 점검에 쓰는 모양으로. 모양을 믿지 않는다 — id는 저장소의 키라 늘 있지만, 사진 키와 견주려고 글자로 맞춘다 */
 function ownerOf(raw: unknown): PhotoOwner {
-  const r = raw as { id?: unknown; fromSound?: unknown }
-  return { id: String(r.id), fromSound: r.fromSound === true }
+  const r = raw as { id?: unknown; fromSound?: unknown; noPhoto?: unknown }
+  // true일 때만 사진 없는 기록으로 친다 (normalizeSighting과 같은 규칙) — 틀린 값을 받아들이면 사진 유실을 못 찾는다
+  return { id: String(r.id), fromSound: r.fromSound === true, noPhoto: r.noPhoto === true }
 }
 
 /**
