@@ -89,7 +89,8 @@ export async function syncTracksStep(rootFolder: string, manual: boolean): Promi
   } catch (e) {
     if (e instanceof NotConnectedError) { setTracksStatus({ note: null }); throw e }
     memo.failed = { rev, at: Date.now() }
-    setTracksStatus({ note: { kind: 'failed', reason: e instanceof Error ? e.message : '' } })
+    // 받다가 끊겼어도 그 앞의 달은 이미 기기에 합쳐졌다 — 요약을 다시 읽게 해(rev) 카드가 '아직 넣은 파일 없음'에 머물지 않게
+    setTracksStatus({ rev: tracksStatusOf(getSyncStatus()).rev + 1, note: { kind: 'failed', reason: e instanceof Error ? e.message : '' } })
   }
 }
 
