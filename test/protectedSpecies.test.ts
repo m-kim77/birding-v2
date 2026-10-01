@@ -50,13 +50,20 @@ test('표의 모든 종은 제 국명으로 다시 찾힌다', () => {
 })
 
 test('없는 이름은 null — 흔한 새, 빈 이름, 이름 미정, 비슷한 이름, 학명', () => {
-  for (const ko of ['참새', '', '   ', '이름 미정', undefined, '큰부리큰기러기', '고니류', '까막딱', '새 매', 'Accipiter nisus', 'constructor']) {
+  for (const ko of ['참새', '', '   ', '이름 미정', undefined, '큰부리큰기러기', '고니류', '까막딱', 'Accipiter nisus', 'constructor']) {
     assert.equal(protectionOf(ko), null, String(ko))
   }
 })
 
 test('앞뒤 공백은 뗀다', () => {
   assert.equal(protectionOf('  새매 ')?.ko, '새매')
+})
+
+test('띄어 쓴 이름도 찾는다 — 표의 이름에는 공백이 없다', () => {
+  assert.equal(protectionOf('검은머리 물떼새')?.ko, '검은머리물떼새')
+  assert.equal(protectionOf('까막 딱따구리')?.ko, '까막딱다구리')
+  assert.equal(protectionOf('새 매')?.ko, '새매')
+  assert.ok(PROTECTED.every((p) => !/\s/.test(p.ko)))
 })
 
 test('protectionLine: 법정 이름으로 한 줄, 표에 없으면 빈 글자', () => {
