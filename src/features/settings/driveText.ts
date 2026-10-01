@@ -29,3 +29,13 @@ export function statusLine(s: StatusInput, now = new Date()): TaskMessage {
   if (s.pending) return { tone: 'warn', text: `드라이브에 아직 안 올라간 기록 ${s.pending}건` }
   return { tone: 'ok', text: last ? `모든 기록이 드라이브에 있습니다 · 마지막 동기화 ${last}` : '연결됨' }
 }
+
+/**
+ * '연결 끊기' 뒤의 결과 줄. 드라이브의 사본과 이 기기의 기록은 그대로라고 적는다.
+ * 이동 기록 올리기를 켜 두었던 기기면 그것도 꺼졌다고 더한다 — `data/sync.ts disconnect`가 끈다 (다시 연결하는 계정이 다를 수 있어서).
+ * 말하지 않으면 다시 연결한 뒤 이동 기록이 계속 오간다고 여긴다. 꺼져 있었으면 더하지 않는다 — 켠 적 없는 스위치가 꺼졌다는 말은 헷갈린다.
+ */
+export function disconnectedText(tracksWasOn: boolean): TaskMessage {
+  const tracks = tracksWasOn ? ' 이동 기록 올리기도 껐습니다 — 다시 연결한 뒤 올리려면 이동 기록 카드에서 다시 켜 주세요.' : ''
+  return { tone: 'ok', text: `연결을 끊었습니다. 드라이브의 사본과 이 기기의 기록은 그대로 있습니다.${tracks}` }
+}

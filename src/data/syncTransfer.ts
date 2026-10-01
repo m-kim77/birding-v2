@@ -12,6 +12,8 @@ import { PHOTOS_FOLDER, RECORDS_FOLDER, ROOT_FOLDER, photoFileName, recordFileNa
 
 /** 한 번의 동기화 동안 들고 있는 드라이브의 모습. 올리면 여기도 고쳐서 같은 파일을 두 번 만들지 않는다 */
 export interface Remote {
+  /** '탐조일지 동기화' 폴더 — 이동 기록 폴더(tracks)는 스위치를 켠 기기만 그 아래에 만든다 (syncTracks.ts) */
+  rootFolder: string
   recordsFolder: string
   photosFolder: string
   /** 기록 id → 기록 파일 */
@@ -32,7 +34,7 @@ export async function readRemote(): Promise<Remote> {
     // 같은 기록 파일이 둘이면(두 기기가 동시에 처음 올림) 더 새것을 본다
     if (r && (!prev || r.updatedAt > prev.updatedAt)) records.set(r.id, r)
   }
-  return { recordsFolder, photosFolder, records, photos: new Map(photoFiles.map((f) => [f.name, f.id])) }
+  return { rootFolder: root, recordsFolder, photosFolder, records, photos: new Map(photoFiles.map((f) => [f.name, f.id])) }
 }
 
 /**

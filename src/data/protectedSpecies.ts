@@ -89,13 +89,15 @@ const TABLE = buildTable()
 export const PROTECTED: readonly Protection[] = [...TABLE.values()]
 
 /**
- * 국명으로 보호 지위를 찾는다. 앞뒤 공백만 떼고 이름이 **정확히 같을 때만** 찾는다 (국가유산청 표기 두 개도 받는다).
+ * 국명으로 보호 지위를 찾는다. 공백을 모두 떼고 이름이 **정확히 같을 때만** 찾는다 (국가유산청 표기 두 개도 받는다).
+ * 안쪽 공백까지 떼는 이유: 손으로 적은 이름과 AI 국명은 '검은머리 물떼새'처럼 띄어 쓸 수 있는데(identify/koName은 안쪽 공백 하나를 받는다)
+ * 표의 이름에는 공백이 없다 — 떼어도 다른 종과 맞을 일이 없다.
  * 빈 이름·'이름 미정'·표에 없는 이름은 null.
  * 비슷한 이름은 맞추지 않는다 — 아종·갈라진 종(예: 법령의 '큰기러기'와 '큰부리큰기러기')에 틀린 표시를 붙이느니 빠지는 쪽이 낫다.
  * 학명으로도 찾지 않는다 — 법령의 학명에는 옛 분류가 섞여 있어 앱·AI가 쓰는 학명과 어긋난다.
  */
 export function protectionOf(ko: string | undefined): Protection | null {
-  const name = (ko ?? '').trim()
+  const name = (ko ?? '').replace(/\s+/g, '')
   return TABLE.get(SAME_SPECIES.get(name) ?? name) ?? null
 }
 

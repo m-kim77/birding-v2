@@ -56,6 +56,30 @@ export function deleteSightingWithPhotos(id: string, syncEntry?: QueueEntry): Pr
   })
 }
 
+/**
+ * 드라이브에서 지운 기록을 기기에서도 지운다 (sync.ts pull — planPull의 removeLocal). 기록·사진 세 판·줄의 항목을 트랜잭션 하나로 지운다.
+ * 지우기 직전에 같은 트랜잭션 안에서 기록을 다시 읽어, 드라이브의 지움(`deletedAt`)보다 늦게 고쳐졌으면 지우지 않는다 —
+ * 계획은 다른 기록을 받기 전에 읽은 기록으로 정했으니, 받는 사이 사용자가 고친 것까지 지우면 안 된다 (그 고침은 다음 판에 올라간다).
+ * 줄의 항목도 함께 지운다 — 남겨 두면 올릴 기록이 없는 멈춘 항목이 드라이브 카드의 '못 올림'에 계속 세진다.
+ * 지웠으면 true, 이미 없거나 더 늦게 고쳐졌으면 false. DB 실패는 던진다.
+ */
+export async function deletePulledSighting(id: string, deletedAt: string): Promise<boolean> {
+  let removed = false
+  await dbWriteAll(['sightings', 'photos', 'syncQueue'], (store) => {
+    const req = store('sightings').get(id)
+    // 같은 트랜잭션 안에서 읽은 뒤 지운다 (요청 콜백 안의 요청은 트랜잭션을 이어 간다)
+    req.onsuccess = () => {
+      const cur = req.result as Sighting | undefined
+      if (!cur || cur.updatedAt > deletedAt) return
+      store('sightings').delete(id)
+      for (const kind of KINDS) store('photos').delete(key(id, kind))
+      store('syncQueue').delete(id)
+      removed = true
+    }
+  })
+  return removed
+}
+
 /** 기록에 딸린 사진을 있는 것만 모은다 (백업용) */
 export async function allPhotosOf(id: string): Promise<Array<{ kind: PhotoKind; blob: Blob }>> {
   const found = await Promise.all(KINDS.map(async (kind) => ({ kind, blob: await getPhoto(id, kind) })))

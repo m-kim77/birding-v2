@@ -6,7 +6,8 @@
  * - sightings: 기록 (키 = id)
  * - photos: 사진 Blob (키 = `${기록id}:${판}`, data/photoKey.ts). **기록의 사진만 둔다** — 설정의 정리(data/photoCheck.ts)가
  *   기록이 없는 키를 지운다. 다른 사진은 새 저장소에 둔다
- * - meta: 마지막 백업 시각 같은 낱개 값
+ * - meta: 마지막 백업 시각 같은 낱개 값. 이동 기록의 드라이브 스위치·"지웠음" 표시 본 값도 여기 둔다 (data/tracks.ts·syncTracks.ts) —
+ *   새 저장소를 만들지 않아 판은 3 그대로다 (판을 올리면 다른 탭이 열려 있을 때 "다른 탭을 닫으세요"로 거절된다)
  * - tracks: 이동 기록 점 (키 = UTC 날짜 'YYYY-MM-DD', 값 = PackedPoint[]). 백업에 넣지 않는다 (data/tracks.ts)
  * - syncQueue: 드라이브에 올릴 일 (키 = 기록 id, 값 = QueueEntry). 드라이브를 연결했을 때만 쌓인다 (data/syncQueue.ts)
  */

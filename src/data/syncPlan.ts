@@ -116,7 +116,7 @@ export interface PullPlan {
  * - 지움 표시는 그 뒤에 기기에서 고친 기록을 지우지 않는다 — 고친 쪽이 더 늦으니 다시 올린다.
  * - 거꾸로 지움이 기기의 고침보다 늦으면(또는 같으면) 줄에 일이 남았어도 기기에서 지운다. 그 고침을 올리면
  *   꼬리표 deleted='0'(`recordTags`)이 드라이브의 지움을 덮어, 지운 기록이 모든 기기에 되살아난다.
- *   줄의 그 올리기는 올릴 기록이 없어 그냥 끝난다 (syncTransfer.ts `pushEntry`).
+ *   줄의 그 올리기 항목은 기록과 함께 지운다 (photos.ts `deletePulledSighting` — 지우기 직전에 더 늦은 고침이 생겼으면 둘 다 남긴다).
  */
 export function planPull(local: Sighting[], remote: RemoteRecord[], pending: Set<string>): PullPlan {
   const mine = new Map(local.map((s) => [s.id, s]))
