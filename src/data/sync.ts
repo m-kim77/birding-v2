@@ -9,7 +9,7 @@ import { NotConnectedError, connectDrive, disconnectDrive, loadDriveConfig } fro
 import { DriveError } from '../lib/google/driveApi'
 import type { Sighting } from '../types'
 import { dbGet, dbGetAll, dbPut } from './db'
-import { deleteSightingWithPhotos } from './photos'
+import { deletePulledSighting } from './photos'
 import { afterFailure, dueEntries, planPull } from './syncPlan'
 import { LAST_SYNC_KEY, finishEntry, isDriveLinked, listQueue, noteChange, saveFailure, setDriveLinked } from './syncQueue'
 import { getSyncStatus, setSyncStatus } from './syncStatus'
@@ -71,7 +71,7 @@ async function pull(remote: Remote): Promise<void> {
   const plan = planPull(local, [...remote.records.values()], pending)
   let changed = false
   for (const r of plan.download) changed = (await pullRecord(r, remote)) || changed
-  for (const id of plan.removeLocal) { await deleteSightingWithPhotos(id); changed = true }
+  for (const id of plan.removeLocal) changed = (await deletePulledSighting(id, remote.records.get(id)!.updatedAt)) || changed
   for (const id of plan.upload) await noteChange(id, 'put', true)
   if (changed) onPulled()
 }
