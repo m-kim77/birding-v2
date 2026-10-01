@@ -119,9 +119,11 @@ async function exchange(rootFolder: string): Promise<Partial<TracksSyncStatus>> 
   const rev = tracksStatusOf(getSyncStatus()).rev + (received ? 1 : 0)
   // 받는 사이 사용자가 스위치를 껐거나 이 기기를 지웠으면 올리지 않는다
   if (!(await isTracksSyncOn())) return { rev, note: null }
-  await send(folder, months, remote, keep)
-  const onDrive = months.size > 0 || remote.length > 0
+  const { done, sent } = await send(folder, months, remote, keep)
+  // 다 올렸으면 기기의 달이 모두 드라이브에 있다. 도중에 멈췄으면 그때까지 올린 달·원래 있던 파일만 — 지우기 버튼이 남아야 한다
+  const onDrive = remote.length > 0 || sent || (done && months.size > 0)
   await dbPut('meta', onDrive, ON_DRIVE_KEY)
+  if (!done) return { onDrive, rev, note: null }
   let count = 0
   for (const m of months.values()) count += m.points.length
   return { onDrive, rev, note: { kind: 'same', count } }
@@ -146,19 +148,26 @@ async function receive(remote: RemoteMonth[]): Promise<{ months: Map<string, Loc
 /**
  * 기기의 달 가운데 드라이브와 다른 달을 올리고(있던 파일은 PATCH로 덮는다 — 요청 하나라 반쪽 파일이 없다), 같은 달의 남는 파일을 지운다.
  * 꼬리표의 넣은 날은 이 기기 요약의 것이다. 실패는 던진다 — 올리다 끊겨도 다음에 지문이 달라 다시 올린다.
+ * 달마다 올리기 전에 스위치를 다시 본다 — 올리는 사이 사용자가 스위치를 끄거나 이 기기의 이동 기록을 지우면(스위치도 꺼진다) 남은 달은 보내지 않고 멈춘다.
+ * "끄면 기기 밖으로 나가지 않는다"는 약속(개인정보 안내)을 지키려는 것이다. 이미 보내는 중이던 한 달은 끝까지 간다.
+ * 끝까지 갔는지(`done`)와 하나라도 올렸는지(`sent`)를 준다.
  */
-async function send(folder: string, months: Map<string, LocalMonth>, remote: RemoteMonth[], keep: Set<string>): Promise<void> {
+async function send(folder: string, months: Map<string, LocalMonth>, remote: RemoteMonth[], keep: Set<string>): Promise<{ done: boolean; sent: boolean }> {
   const importedAt = (await readTracksMeta())?.importedAt ?? new Date().toISOString()
+  let sent = false
   for (const step of planUpload(digestsOf(months), remote, keep)) {
+    if (!(await isTracksSyncOn())) return { done: false, sent }
     const m = months.get(step.month)!
     if (step.upload) {
       await uploadFile({
         name: monthFileName(step.month), parentId: folder, existingId: step.fileId,
         blob: new Blob([encodeMonth(step.month, m.points)], { type: 'application/json' }), appProperties: monthTags(m.digest, m.points.length, importedAt),
       })
+      sent = true
     }
     for (const id of step.remove) await deleteFile(id)
   }
+  return { done: true, sent }
 }
 
 /**
