@@ -3,7 +3,7 @@
  * 진행은 세 단계(reading·parsing·saving)로 알린다. 어떤 실패도 한국어 Error로 던진다 — 화면(settings/TracksSection)이 그대로 보여 준다.
  * 파일은 브라우저 안에서만 읽는다: 서버로 보내지 않고, 원본은 남기지 않고, 좌표를 console에 찍지 않는다.
  */
-import { syncSoon } from '../../data/sync'
+import { syncAgain } from '../../data/sync'
 import { isTracksSyncOn, markTracksChanged } from '../../data/syncTracks'
 import { mergeTracks, type TracksMeta } from '../../data/tracks'
 import { unpack, type PackedPoint, type TrackPoint } from '../../lib/tracklog/points'
@@ -70,7 +70,9 @@ export async function importTimelineFile(file: File, onProgress: (p: ImportProgr
   }
   try {
     const { added, meta } = await mergeTracks(points, (done, total) => onProgress({ stage: 'saving', done, total }))
-    if (added > 0 && (await isTracksSyncOn())) { markTracksChanged(); syncSoon() }
+    // 도는 판이 있으면 끝나기를 기다렸다가 한 번 더 돈다 (syncSoon은 도는 판에 합쳐진다) — 그 판의 이동 기록 단계가 이미 점을 읽었으면
+    // 새 점은 실리지 않고, 다음 판은 기록을 고치거나 앱으로 돌아올 때에야 돈다 (기록 1분 재시도는 기록에 남은 일이 있을 때만)
+    if (added > 0 && (await isTracksSyncOn())) { markTracksChanged(); void syncAgain() }
     return { total: points.length, added, meta }
   } catch (e) {
     throw toKoreanError(e, '이동 기록을 저장하지 못했습니다 (저장 공간이 부족할 수 있습니다).')
