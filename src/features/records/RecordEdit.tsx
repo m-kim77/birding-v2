@@ -29,9 +29,12 @@ interface Props {
  * '수정'을 누를 때마다 새로 그려져 **그 순간의 기록**으로 칸을 채운다 — 화면을 열 때 한 번만 채우면 그 뒤 상세에서 AI가 붙인 이름을
  * 모른 채 옛 값으로 덮어쓴다 (작업 6). '취소'하면 고치던 값(위치 시트에서 고른 위치 포함)은 버려진다.
  * 저장은 바뀐 것만 넣는다 (editPatch · shotPatch). 촬영 시각이나 촬영 정보 칸을 읽을 수 없으면 저장을 막고, 저장·삭제가 실패하면 칸 안에 이유를 적고 머문다.
+ * '바뀐 것'은 **칸을 연 순간의 기록**(`s`)과 견준다 — 지금 기록(`sighting`)과 견주면, 열어 둔 사이 드라이브에서 받은 다른 기기의 고침이나
+ * 상세에서 끝난 AI 이름을 사람이 고친 것으로 잘못 읽어 옛 값으로 되돌린다. 저장(journal update)은 변경을 지금 기록 위에 얹으니 손대지 않은 칸은 남는다.
  */
-export default function RecordEdit({ sighting: s, onClose, onDeleted }: Props) {
+export default function RecordEdit({ sighting, onClose, onDeleted }: Props) {
   const { sightings, update } = useJournal()
+  const [s] = useState(sighting)
   const [start] = useState(() => formOf(s))
   const [name, setName] = useState(start.name)
   const [count, setCount] = useState(start.count)
