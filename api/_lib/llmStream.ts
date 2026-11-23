@@ -10,10 +10,12 @@
 /**
  * 중간에 끊었을 때 브라우저에 보내는 마지막 조각. 브라우저(`identify/llmClient.ts readStream`)가 `error`가 든 줄을
  * "잠시 뒤 다시 하면 되는 실패"로 바꿔 이 안내를 보여 준다. 오류 번호는 이미 200으로 나갔으므로 스트림 안에 적을 수밖에 없다.
+ * **앞에 빈 줄을 붙인다** — 맥 쪽 마지막 조각이 줄 중간에서 끊기면(`data: {"choices":…"새`) 이 줄이 그 반쪽에 붙어
+ * 한 줄이 되고, 받는 쪽이 읽지 못해 건너뛰어 잘린 답을 성공으로 받았다. 빈 줄은 SSE에서 해가 없다.
  */
-export const STALL_EVENT = `data: ${JSON.stringify({ error: { message: '판정 서버가 쉬는 중입니다 — 답을 보내다 멈췄습니다. 잠시 뒤 다시 물어봐 주세요.' } })}\n\n`
-/** 한 턴 마감(`endAt`)에 닿아 끊었을 때의 마지막 조각. 받는 쪽은 `STALL_EVENT`와 같다 */
-export const TOO_LONG_EVENT = `data: ${JSON.stringify({ error: { message: '판정 서버의 답이 너무 오래 걸려 끊었습니다. 잠시 뒤 다시 물어봐 주세요.' } })}\n\n`
+export const STALL_EVENT = `\n\ndata: ${JSON.stringify({ error: { message: '판정 서버가 쉬는 중입니다 — 답을 보내다 멈췄습니다. 잠시 뒤 다시 물어봐 주세요.' } })}\n\n`
+/** 한 턴 마감(`endAt`)에 닿아 끊었을 때의 마지막 조각. 받는 쪽·앞의 빈 줄은 `STALL_EVENT`와 같다 */
+export const TOO_LONG_EVENT = `\n\ndata: ${JSON.stringify({ error: { message: '판정 서버의 답이 너무 오래 걸려 끊었습니다. 잠시 뒤 다시 물어봐 주세요.' } })}\n\n`
 
 export interface RelayOptions {
   /** 첫 조각 뒤, 조각 사이에 이만큼(ms) 아무것도 오지 않으면 끊는다 */

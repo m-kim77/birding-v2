@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { chat, LlmUnavailableError } from '../src/features/identify/llmClient.ts'
 import type { OwnKey } from '../src/features/identify/connection.ts'
+import { STALL_EVENT, TOO_LONG_EVENT } from '../api/_lib/llmStream.ts'
 
 const OWN: OwnKey = { baseUrl: 'https://example.test/v1', apiKey: 'sk-test', model: 'vision-1' }
 const realFetch = globalThis.fetch
@@ -57,6 +58,16 @@ test('기본 제공 AI가 답을 보내다 멈춰 스트림에 오류 줄을 보
   const stall = `data: ${JSON.stringify({ error: { message: '판정 서버가 쉬는 중입니다 — 답을 보내다 멈췄습니다.' } })}\n\n`
   answerWith(new Response(sseBody([`data: ${JSON.stringify({ choices: [{ delta: { content: '물총' } }] })}\n\n`, stall])))
   await assert.rejects(send(null), (e: unknown) => e instanceof LlmUnavailableError && /답을 보내다 멈췄습니다/.test(e.message))
+})
+
+test('맥 쪽 마지막 조각이 줄 중간에서 끊긴 뒤 중계가 붙인 오류 줄도 읽는다 — 잘린 답을 성공으로 받지 않는다', async () => {
+  const whole = `data: ${JSON.stringify({ choices: [{ delta: { content: '물총' } }] })}\n\n`
+  const half = 'data: {"choices":[{"delta":{"content":"새'
+  for (const [event, pattern] of [[STALL_EVENT, /답을 보내다 멈췄습니다/], [TOO_LONG_EVENT, /너무 오래 걸려 끊었습니다/]] as const) {
+    // 중계(`api/_lib/llmStream.ts relayStream`)는 맥 쪽 조각을 그대로 흘린 뒤 오류 줄을 곧바로 붙인다
+    answerWith(new Response(sseBody([whole, half, event])))
+    await assert.rejects(send(null), (e: unknown) => e instanceof LlmUnavailableError && pattern.test(e.message))
+  }
 })
 
 test('답을 받다가 연결이 끊기면 영어 network error 대신 한국어 안내 — 잠시 뒤 다시 하면 되는 실패로', async () => {

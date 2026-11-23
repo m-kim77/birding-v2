@@ -61,6 +61,15 @@ test('relayStream: 첫 조각 뒤 LLM 쪽 연결이 끊기면 던지지 않고 S
   assert.equal(await new Response(out).text(), 'a' + STALL_EVENT)
 })
 
+test('relayStream: 마지막 조각이 줄 중간에서 끝난 뒤 끊겨도, 오류 줄은 그 반쪽과 붙지 않고 제 줄에서 시작한다', TIMED, async () => {
+  const up = fakeUpstream()
+  up.push('data: {"choices":[{"delta":{"content":"물총"}}]}\n\n')
+  const out = await relayStream(up.body, { idleMs: 1000, endAt: later() })
+  setTimeout(() => { up.push('data: {"choices":[{"delta":{"content":"새'); up.fail() }, 20)
+  const lines = (await new Response(out).text()).split('\n')
+  assert.ok(lines.includes(STALL_EVENT.trim()), '오류 줄이 한 줄로 따로 있다')
+})
+
 test('relayStream: 브라우저가 끊으면 LLM 쪽 스트림도 끊는다', TIMED, async () => {
   const up = fakeUpstream()
   up.push('a')
