@@ -58,18 +58,32 @@ async function readStream(body: ReadableStream<Uint8Array>, onText: (soFar: stri
   return { content, toolCalls: calls.filter(Boolean) }
 }
 
+/** 일반 모델에 주는 temperature. 같은 사진에 답이 덜 흔들리게 낮춘다 (기본 제공 AI는 서버가 정한다 — api/_lib/llmRequest.ts) */
+const OWN_TEMPERATURE = 0.2
+/** temperature를 거절한 내 키의 서비스·모델 — 이 탭이 열려 있는 동안 기억해, 판정의 턴마다 한 번씩 거절당하지 않게 한다 */
+const noTemperature = new Set<string>()
+
 /**
- * LLM에 한 턴을 보낸다. `toolChoice`가 'none'이어도 **도구 정의는 그대로 보낸다** —
- * 정의를 빼면 요청의 앞부분이 달라져 서버의 KV 캐시가 통째로 무효가 된다 (v1에서 확인한 함정).
- * 서버에 닿지 못하거나 502/503이면 LlmUnavailableError, 기본 제공 AI가 요청 제한(429)에 걸려도 LlmUnavailableError,
- * 답을 받다가 끊기거나 스트림에 오류 줄이 와도 LlmUnavailableError, 그 밖의 실패는 서버가 준 안내와 함께 Error.
+ * 거절 응답이 temperature 때문인지 본다. OpenAI의 추론 모델(o3·o4-mini·gpt-5 계열 등)은 기본값(1)이 아닌 temperature를
+ * 400으로 거절한다 ("Unsupported value: 'temperature' does not support 0.2 with this model …"). 다른 400은 false.
  */
-export async function chat(own: OwnKey | null, messages: ChatMessage[], tools: unknown[], toolChoice: 'auto' | 'none', signal: AbortSignal, onText: (soFar: string) => void): Promise<ChatReply> {
+function rejectsTemperature(status: number, message: string): boolean {
+  return status === 400 && /temperature/i.test(message)
+}
+
+/** 실패 응답 본문의 OpenAI 형식 안내(`error.message`). JSON이 아니거나 비었으면 빈 글자 */
+function errorMessage(res: Response): Promise<string> {
+  return res.json().then((j) => String(j?.error?.message ?? ''), () => '')
+}
+
+/**
+ * 요청 하나를 보낸다. 사용자가 멈췄으면 그 오류(AbortError)를 그대로, 서버에 닿지 못하면 LlmUnavailableError를 던진다.
+ * 응답 번호는 보지 않는다 (부르는 쪽이 본다).
+ */
+async function post(own: OwnKey | null, payload: Record<string, unknown>, signal: AbortSignal): Promise<Response> {
   const target = endpointFor(own)
-  const payload = { messages, tools, tool_choice: toolChoice, stream: true, ...(own ? { model: own.model, temperature: 0.2 } : {}) }
-  let res: Response
   try {
-    res = await fetch(target.url, { method: 'POST', headers: { 'content-type': 'application/json', ...target.headers }, body: JSON.stringify(payload), signal })
+    return await fetch(target.url, { method: 'POST', headers: { 'content-type': 'application/json', ...target.headers }, body: JSON.stringify(payload), signal })
   } catch (e) {
     if (signal.aborted) throw e
     // 내 키 요청은 우리 서버를 거치지 않는다 — "판정 서버"라고 하면 사용자가 엉뚱한 곳을 의심한다
@@ -77,8 +91,29 @@ export async function chat(own: OwnKey | null, messages: ChatMessage[], tools: u
       ? '내 API 키의 서비스에 닿지 못했습니다 — 설정에서 주소를 확인해 주세요. 브라우저에서 직접 부르는 것을 막는 서비스일 수도 있습니다.'
       : '판정 서버에 닿지 못했습니다.')
   }
+}
+
+/**
+ * LLM에 한 턴을 보낸다. `toolChoice`가 'none'이어도 **도구 정의는 그대로 보낸다** —
+ * 정의를 빼면 요청의 앞부분이 달라져 서버의 KV 캐시가 통째로 무효가 된다 (v1에서 확인한 함정).
+ * 내 키 요청에는 temperature 0.2를 싣되, 그 서비스가 temperature를 400으로 거절하면(추론 모델) 빼고 **한 번만** 다시 보내고
+ * 그 모델에는 이 탭이 열려 있는 동안 싣지 않는다. 기본 제공 AI 요청에는 싣지 않는다 (서버가 정한다).
+ * 서버에 닿지 못하거나 502/503이면 LlmUnavailableError, 기본 제공 AI가 요청 제한(429)에 걸려도 LlmUnavailableError,
+ * 답을 받다가 끊기거나 스트림에 오류 줄이 와도 LlmUnavailableError, 그 밖의 실패는 서버가 준 안내와 함께 Error.
+ */
+export async function chat(own: OwnKey | null, messages: ChatMessage[], tools: unknown[], toolChoice: 'auto' | 'none', signal: AbortSignal, onText: (soFar: string) => void): Promise<ChatReply> {
+  const target = endpointFor(own)
+  const base = { messages, tools, tool_choice: toolChoice, stream: true, ...(own ? { model: own.model } : {}) }
+  const modelKey = own ? `${own.baseUrl} ${own.model}` : ''
+  const withTemperature = own !== null && !noTemperature.has(modelKey)
+  let res = await post(own, withTemperature ? { ...base, temperature: OWN_TEMPERATURE } : base, signal)
+  let message = res.ok && res.body ? '' : await errorMessage(res)
+  if (withTemperature && rejectsTemperature(res.status, message)) {
+    noTemperature.add(modelKey)
+    res = await post(own, base, signal)
+    message = res.ok && res.body ? '' : await errorMessage(res)
+  }
   if (!res.ok || !res.body) {
-    const message = await res.json().then((j) => String(j?.error?.message ?? ''), () => '')
     // 기본 제공 AI의 429는 둘이다. 우리 함수의 전체 상한(`api/_lib/llmQuota.ts`)은 `x-llm-limit` 머리말과 이유를 준다 —
     // "오늘 시간을 다 씀"과 "잠깐 붐빔"은 다시 물을 때가 달라 그 안내를 쓴다. Vercel Firewall의 요청 제한은 본문이 우리 JSON이 아니어서 안내를 여기서 정한다.
     // 내 키의 429(그 서비스의 한도·요금)는 그 서비스가 준 안내를 아래에서 그대로 쓴다

@@ -82,3 +82,46 @@ test('사용자가 멈춘 판정은 안내로 바꾸지 않고 그대로 던진�
   answerWith(new Response(new ReadableStream<Uint8Array>({ start(c) { ctrl.abort(); c.error(new DOMException('중단', 'AbortError')) } })))
   await assert.rejects(chat(null, [], [], 'auto', ctrl.signal, () => {}), (e: unknown) => !(e instanceof LlmUnavailableError))
 })
+
+/**
+ * 가짜 내 키 서비스: temperature가 실린 요청은 OpenAI 추론 모델처럼 400으로 거절하고, 없으면 글자 답 하나를 흘린다.
+ * 받은 요청 본문을 `sent`에 적는다.
+ */
+function reasoningService() {
+  const sent: Array<Record<string, unknown>> = []
+  globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>
+    sent.push(body)
+    if ('temperature' in body) {
+      return Response.json({ error: { message: "Unsupported value: 'temperature' does not support 0.2 with this model. Only the default (1) value is supported." } }, { status: 400 })
+    }
+    return new Response(sseBody([`data: ${JSON.stringify({ choices: [{ delta: { content: '물총새' } }] })}\n\n`]))
+  }) as typeof fetch
+  return sent
+}
+
+test('내 키의 추론 모델이 temperature를 400으로 거절하면 빼고 한 번만 다시 보내고, 다음 턴부터는 처음부터 싣지 않는다', async () => {
+  const sent = reasoningService()
+  const reasoning: OwnKey = { ...OWN, model: 'reasoning-temp-test' }
+  const first = await chat(reasoning, [], [], 'auto', new AbortController().signal, () => {})
+  assert.equal(first.content, '물총새')
+  await chat(reasoning, [], [], 'auto', new AbortController().signal, () => {})
+  assert.deepEqual(sent.map((b) => b.temperature), [0.2, undefined, undefined])
+  assert.deepEqual(sent.map((b) => b.model), ['reasoning-temp-test', 'reasoning-temp-test', 'reasoning-temp-test'])
+})
+
+test('temperature와 상관없는 400은 다시 보내지 않고 그 서비스의 안내 그대로', async () => {
+  let asked = 0
+  globalThis.fetch = (async () => {
+    asked += 1
+    return Response.json({ error: { message: 'Invalid image_url' } }, { status: 400 })
+  }) as typeof fetch
+  await assert.rejects(send({ ...OWN, model: 'other-400-test' }), (e: unknown) => e instanceof Error && /Invalid image_url/.test(e.message))
+  assert.equal(asked, 1)
+})
+
+test('기본 제공 AI 요청에는 모델·temperature를 싣지 않는다 — 서버가 정한다 (api/_lib/llmRequest.ts)', async () => {
+  const sent = reasoningService()
+  await send(null)
+  assert.deepEqual(sent.map((b) => [b.model, b.temperature]), [[undefined, undefined]])
+})
