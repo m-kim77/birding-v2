@@ -13,8 +13,8 @@ import { editPatch, formOf, placeBefore } from './editPatch'
 import { readShotForm, shotFormOf, shotPatch } from './shotEdit'
 import ShotFields from './ShotFields'
 
-// 위치 시트는 지도(Leaflet)를 끌고 온다. 이 파일은 기록 상세와 함께 첫 화면 묶음에 들어가므로, 시트를 열 때 받는다 (LazyLocationSheet) —
-// 그냥 import하면 지도를 안 여는 사람도 첫 화면에서 지도 라이브러리까지 받는다 (App.tsx가 지도를 늦게 받는 이유와 같다)
+// 위치 시트는 지도(Leaflet)를 끌고 온다. 이 파일은 기록 상세와 함께 받으므로, 시트를 열 때 받는다 (LazyLocationSheet) —
+// 그냥 import하면 지도를 안 여는 사람도 기록 상세를 열 때마다 지도 라이브러리까지 받는다 (App.tsx가 지도를 늦게 받는 이유와 같다)
 
 interface Props {
   sighting: Sighting

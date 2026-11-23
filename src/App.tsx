@@ -8,8 +8,6 @@ import { activeTab } from './app/routes'
 import ScreenLoadFailed from './app/ScreenLoadFailed'
 import { useNavEntry } from './app/useNav'
 import { JournalProvider } from './data/journal'
-import DexScreen from './features/dex/DexScreen'
-import RecordDetail from './features/records/RecordDetail'
 import RecordsScreen from './features/records/RecordsScreen'
 import { useTheme } from './theme/useTheme'
 
@@ -23,6 +21,10 @@ const SettingsScreen = lazyScreen(() => import('./features/settings/SettingsScre
 const SoundScreen = lazyScreen(() => import('./features/sound/SoundScreen'))
 // 사진 없이 기록은 새 기록 첫 화면에서만 들어간다 — 첫 화면(기록 목록)이 받을 이유가 없어 기록하기처럼 필요할 때 받는다
 const QuickRecord = lazyScreen(() => import('./features/record/QuickRecord'))
+// 기록 상세와 도감은 판정 루프·위키 도구·카드 그리기와 내보내기(이미지·영상)·수정 칸을 끌고 온다 — 첫 화면(기록 목록)은 그것 없이 뜬다.
+// 처음 열 때 한 번 받는다 (배포가 바뀌기 전까지는 브라우저에 남은 것을 쓴다)
+const RecordDetail = lazyScreen(() => import('./features/records/RecordDetail'))
+const DexScreen = lazyScreen(() => import('./features/dex/DexScreen'))
 
 /**
  * 앱의 뿌리. 어느 화면을 보여 줄지만 정한다 — 지금 화면은 방문 기록의 지금 칸이다 (app/nav.ts). 그래서 폰의 뒤로가기가 앱 안에서 뒤로 간다.

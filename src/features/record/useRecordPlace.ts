@@ -8,8 +8,8 @@ import { useTrackMatch } from './useTrackMatch'
 /**
  * 기록 화면의 위치 배선 — 사진 규칙이 붙은 위치(usePlace)에 이동 기록 찾기(useTrackMatch)를 잇고,
  * 위치 줄의 근거·안내와 위치 시트의 '직전 기록 위치'를 만든다.
- * usePlace.ts에 넣지 않는 이유: 기록 상세의 수정 칸(RecordEdit — 첫 화면 묶음)이 usePlace.ts를 부른다. 거기 넣으면
- * 이동 기록 매칭 코드가 첫 화면에 딸려 온다 (bfbdb2d에서 막은 문제).
+ * usePlace.ts에 넣지 않는 이유: 기록 상세의 수정 칸(RecordEdit — 기록 상세 묶음)이 usePlace.ts를 부른다. 거기 넣으면
+ * 이동 기록 매칭 코드가 기록 상세에 딸려 온다 (bfbdb2d에서 막은 문제 — 그때는 상세가 첫 화면 묶음에 있었다).
  * 초안 되살리기(useRecordFields)보다 **먼저** 부른다 — 같은 커밋의 effect는 훅을 부른 순서대로 돌아서,
  * 뒤에 부르면 usePlace의 EXIF effect가 되살린 위치를 덮는다.
  */
