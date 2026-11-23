@@ -3,10 +3,11 @@ import assert from 'node:assert/strict'
 import { existsSync, readFileSync } from 'node:fs'
 import { MAX_DURATION_SECONDS, TURN_SECONDS } from '../api/llm.ts'
 
-/** vercel.json의 함수·머리(header) 설정. 코드가 기대는 값이 여기 있다 — 주석의 약속과 어긋나도 로컬 시험은 모른다 */
+/** vercel.json의 함수·머리(header)·지역 설정. 코드가 기대는 값이 여기 있다 — 주석의 약속과 어긋나도 로컬 시험은 모른다 */
 const config = JSON.parse(readFileSync(new URL('../vercel.json', import.meta.url), 'utf8')) as {
   functions: Record<string, { maxDuration?: number; supportsCancellation?: boolean }>
   headers?: { source: string; headers: { key: string; value: string }[] }[]
+  regions?: string[]
 }
 
 /** 모든 경로에 붙는 머리의 source (Vercel의 path-to-regexp 문법 — '/'도 맞는다) */
@@ -45,4 +46,8 @@ test('이름에 내용 해시가 붙은 /assets/ 파일만 1년 동안 다시 �
   for (const rule of others) assert.equal(headerOf(rule.source, 'Cache-Control'), undefined, rule.source)
   // public/assets/에 둔 파일은 해시 없이 dist/assets/로 복사되어, 바꿔도 1년 동안 옛 판이 쓰인다
   assert.equal(existsSync(new URL('../public/assets', import.meta.url)), false)
+})
+
+test('함수는 서울(icn1) 한 곳에서 돈다 — 기본값 iad1(미국 동부)이면 한국 사용자와 한국의 맥 사이를 요청마다 태평양을 두 번 건넌다, Hobby는 둘 이상이면 배포가 실패한다', () => {
+  assert.deepEqual(config.regions, ['icn1'])
 })
