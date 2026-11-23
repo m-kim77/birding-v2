@@ -121,6 +121,7 @@ ref_design/design_v01 디자인 초안과 BUTTONS.md (버튼마다 존재 이유
 
 - `api/llm.ts`의 최대 실행 시간은 180초(`vercel.json`)이고, 코드는 요청을 받은 지 170초에 스스로 끊어 "판정 서버의 답이 너무 오래 걸려 끊었습니다"를 보낸다. Vercel 요금은 요청 수가 아니라 **함수가 열려 있는 시간**이라(Hobby는 2GB 고정, 한 달 360 GB-시간 — 넘으면 모든 배포가 멈추고 저절로 풀리지 않는다) 크게 두지 않았다. 한 턴은 첫 응답 기다림(많아야 90초) + 답 만들기다 — 한 턴이 이보다 오래 걸리는 모델은 쓸 수 없다 (응답을 스트림으로 흘려보내므로 "첫 글자까지의 시간"이 아니라 "한 턴 전체 시간"이 기준이다). 숫자를 바꾸면 `vercel.json`과 `api/llm.ts`의 `MAX_DURATION_SECONDS`를 같이 바꾼다 (`test/vercelConfig.test.ts`가 본다).
 - `api/llm.ts`는 `vercel.json`에서 `supportsCancellation`을 켰다 — 판정을 취소하거나 화면을 떠나면 함수와 맥의 일이 같이 멈춘다(이 값이 없으면 배포에서는 브라우저가 떠나도 함수가 모른다). 배포한 뒤 판정 중에 취소해 맥의 LLM 서버 로그가 곧바로 멈추는지 한 번 본다.
+- 모든 주소에 보안 머리(header) 넷을 붙인다 (`vercel.json`의 `headers`, `test/vercelConfig.test.ts`가 본다). `X-Frame-Options: DENY`와 `Content-Security-Policy: frame-ancestors 'none'`은 다른 사이트가 앱을 iframe에 넣지 못하게 한다 — 남의 페이지가 앱을 투명하게 덮어 두고 '삭제'를 누르게 하는 속임수를 막는다. `X-Content-Type-Options: nosniff`는 파일 형식을 짐작하지 않게, `Referrer-Policy: strict-origin-when-cross-origin`은 다른 사이트로는 주소의 앞부분(출처)만 보내게 한다. 구글 로그인은 팝업 창이라(앱이 남의 페이지 안에 들어가지 않는다) 영향이 없다. 배포한 뒤 `curl -sI https://<사이트 주소>/`에 넷이 보이는지 본다.
 - Vercel Hobby 요금제는 비상업 용도 한정이다.
 - **배포돼 있다.** GitHub 저장소의 `main`에 올리면 Vercel이 곧바로 실제 사이트(Production)로 배포한다. 다른 브랜치를 올리면 미리보기 주소가 생기지만, 미리보기에는 기본 제공 AI 환경변수가 없어 판정은 안 된다. 올리는 법·되돌리는 법은 [`ROADMAP.md`](ROADMAP.md)의 "git에 올리는 법".
 

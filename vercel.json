@@ -7,5 +7,16 @@
     "api/llm.ts": { "maxDuration": 180, "supportsCancellation": true },
     "api/place.ts": { "maxDuration": 15 },
     "api/drive.ts": { "maxDuration": 15 }
-  }
+  },
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "Content-Security-Policy", "value": "frame-ancestors 'none'" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+      ]
+    }
+  ]
 }
