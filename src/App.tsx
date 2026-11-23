@@ -1,4 +1,4 @@
-import { Suspense, useEffect } from 'react'
+import { useEffect } from 'react'
 import AppShell from './app/AppShell'
 import { browserPrefetchEnv } from './app/chunkEnv'
 import ErrorBoundary from './app/ErrorBoundary'
@@ -57,8 +57,8 @@ export default function App() {
       <JournalProvider>
         <AppShell active={activeTab(route)} onTab={switchTab} onAdd={startRecord} hideNav={route.name === 'record' || route.name === 'sound' || route.name === 'quick'}
           screenKey={screenKey}>
-          <Suspense fallback={<div className="screen"><p className="hint">불러오는 중…</p></div>}>
-          {/* 화면마다 key를 바꿔, 받지 못한 안내가 다른 화면으로 가면 풀리게 한다 */}
+          {/* 받는 동안의 '불러오는 중…'은 AppShell이 그린다 (스크롤은 화면이 실제로 그려진 뒤 되살린다).
+              화면마다 key를 바꿔, 받지 못한 안내가 다른 화면으로 가면 풀리게 한다 */}
           <LoadBoundary key={screenKey} fallback={(e) => <ScreenLoadFailed newBuild={e.newBuild} />}>
           {route.name === 'records' && <RecordsScreen onOpen={openDetail} onBackup={openSettings} onAdd={startRecord} onSettings={openSettings} />}
           {route.name === 'detail' && <RecordDetail key={route.id} id={route.id} onBack={leaveScreen} onOpenSettings={openSettings} />}
@@ -69,7 +69,6 @@ export default function App() {
           {route.name === 'quick' && <QuickRecord onCancel={leaveScreen} onDone={showSaved} />}
           {route.name === 'sound' && <SoundScreen onBack={leaveScreen} />}
           </LoadBoundary>
-          </Suspense>
         </AppShell>
       </JournalProvider>
       </ErrorBoundary>
