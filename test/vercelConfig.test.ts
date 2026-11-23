@@ -51,3 +51,8 @@ test('이름에 내용 해시가 붙은 /assets/ 파일만 1년 동안 다시 �
 test('함수는 서울(icn1) 한 곳에서 돈다 — 기본값 iad1(미국 동부)이면 한국 사용자와 한국의 맥 사이를 요청마다 태평양을 두 번 건넌다, Hobby는 둘 이상이면 배포가 실패한다', () => {
   assert.deepEqual(config.regions, ['icn1'])
 })
+
+test('Node는 주 버전 하나로 고정한다 ("24.x" 꼴) — ">=22.18"처럼 위가 열리면 Vercel이 새 주 버전이 나온 뒤의 배포에서 말없이 올린다', () => {
+  const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { engines?: { node?: string } }
+  assert.match(pkg.engines?.node ?? '', /^\d+\.x$/)
+})
