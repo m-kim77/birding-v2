@@ -4,6 +4,9 @@
  * 브라우저에서 Nominatim을 직접 부르지 않는 이유: 이용 정책이 "신원을 밝히는 User-Agent"를 요구하는데
  * 브라우저는 User-Agent를 바꿀 수 없다. 키가 필요 없는 대신 정책을 지켜야 한다.
  */
+// 경로에 .ts를 적는다 — 확장자 없는 경로는 배포된 함수에서 못 찾는다 (CLAUDE.md)
+import { crossSiteFetch } from './_lib/origin.ts'
+
 const ENDPOINT = 'https://nominatim.openstreetmap.org/reverse'
 /**
  * 이용 정책: 앱을 알아볼 수 있는 User-Agent (라이브러리 기본값은 안 된다). 괄호 안의 저장소 주소는 연락 수단이다 —
@@ -34,12 +37,14 @@ export function formatFeature(address: Record<string, string> | null | undefined
  * GET /api/place?lat=..&lng=.. → { place: string }.
  * **어떤 실패에도 오류를 내지 않고 빈 이름을 준다** — 장소 이름이 없어도 기록은 저장돼야 하고, 좌표는 이미 있다.
  * 같은 자리는 CDN이 하루 동안 기억한다 (좌표를 소수 4자리 ≈ 11m로 뭉갠 주소를 브라우저가 부른다).
+ * 다른 사이트가 시킨 요청(`<img src>` 등)도 빈 이름 — 남의 방문자 수만큼 Nominatim을 부르게 두면 이용 정책(초당 1회)을 넘겨 막힌다.
  */
 export async function GET(request: Request): Promise<Response> {
+  const empty = Response.json({ place: '' })
+  if (crossSiteFetch(request)) return empty
   const url = new URL(request.url)
   const lat = Number(url.searchParams.get('lat'))
   const lng = Number(url.searchParams.get('lng'))
-  const empty = Response.json({ place: '' })
   if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return empty
   try {
     const res = await fetch(`${ENDPOINT}?format=jsonv2&zoom=16&accept-language=ko&lat=${lat}&lon=${lng}`, {

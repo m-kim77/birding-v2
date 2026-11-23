@@ -15,6 +15,7 @@
  */
 // 경로에 .ts를 적는다 — 확장자 없는 경로는 배포된 함수에서 못 찾는다 (_lib/llmRequest.ts 머리말)
 import { buildLlmRequest, reasoningEffortOf } from './_lib/llmRequest.ts'
+import { sameOrigin } from './_lib/origin.ts'
 
 /** 요청 본문의 상한. 1024px JPEG 한 장 + 대화 기록이면 2MB를 넘지 않는다 */
 const MAX_BODY_BYTES = 4_000_000
@@ -79,11 +80,13 @@ async function startStream(body: ReadableStream<Uint8Array>): Promise<ReadableSt
 }
 
 /**
- * POST /api/llm — 본문은 OpenAI chat.completions 형식. 검사에 걸리면 400(`_lib/llmRequest.ts`), 서버 설정이 없으면 503,
+ * POST /api/llm — 본문은 OpenAI chat.completions 형식. 다른 사이트에서 온 요청이면 403, 검사에 걸리면 400(`_lib/llmRequest.ts`), 서버 설정이 없으면 503,
  * LLM 서버가 첫 응답을 마감 안에 주지 않으면 503(= "바쁩니다"), 닿지 못하거나 502·503·504로 답하면 502(= "쉬는 중"),
  * 그 밖의 오류 번호면 502(= "처리하지 못했습니다 (번호)")를 준다.
  */
 export async function POST(request: Request): Promise<Response> {
+  // 다른 사이트가 방문자의 브라우저로 대신 부르는 길을 막는다 (`_lib/origin.ts`) — 맥과 함수 시간을 남의 방문자 수만큼 쓰게 된다
+  if (!sameOrigin(request)) return fail(403, '다른 사이트에서 온 요청입니다.')
   const base = process.env.LOCAL_LLM_URL
   const model = process.env.LOCAL_LLM_MODEL
   if (!base || !model) return fail(503, '기본 제공 AI가 아직 설정되지 않았습니다.')

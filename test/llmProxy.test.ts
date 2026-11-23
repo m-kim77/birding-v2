@@ -33,9 +33,10 @@ const TIMED = { timeout: 5_000 }
 /** 앱의 첫 판정 요청 메시지 — 판정 요청 글 + 사진 한 장 (`_lib/llmConversation.ts`가 이 모양만 받는다) */
 const ASK = { role: 'user', content: [{ type: 'text', text: '이 새의 종을 판정해 줘.' }, { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,AAAA' } }] }
 
-/** 판정 요청 하나를 통로에 보낸다 */
-function ask(body: unknown = { messages: [ASK], tool_choice: 'auto' }): Promise<Response> {
-  return POST(new Request('http://localhost/api/llm', { method: 'POST', body: JSON.stringify(body) }))
+/** 판정 요청 하나를 통로에 보낸다. 브라우저처럼 같은 사이트의 Origin을 붙인다 (`_lib/origin.ts`) */
+function ask(body: unknown = { messages: [ASK], tool_choice: 'auto' }, origin: string | null = 'http://localhost'): Promise<Response> {
+  const headers: Record<string, string> = origin ? { origin } : {}
+  return POST(new Request('http://localhost/api/llm', { method: 'POST', headers, body: JSON.stringify(body) }))
 }
 
 /** 오류 응답의 한국어 안내 */
@@ -129,5 +130,14 @@ test('검사에 걸린 요청은 LLM 서버에 가지 않고 400', async () => {
   const res = await ask({ messages: Array.from({ length: 41 }, () => ({ role: 'user', content: '새' })) })
   assert.equal(res.status, 400)
   assert.match(await messageOf(res), /대화가 너무 깁니다/)
+  assert.equal(received, null)
+})
+
+test('다른 사이트에서 온 요청·Origin이 없는 요청은 LLM 서버에 가지 않고 403', async () => {
+  for (const origin of ['https://evil.example', null]) {
+    const res = await ask(undefined, origin)
+    assert.equal(res.status, 403)
+    assert.match(await messageOf(res), /다른 사이트에서 온 요청/)
+  }
   assert.equal(received, null)
 })

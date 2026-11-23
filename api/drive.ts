@@ -12,6 +12,7 @@
 // 경로에 .ts를 적는다 — 확장자 없는 경로는 배포된 함수에서 못 찾는다 (CLAUDE.md)
 import { readCookie, seal, unseal } from './_lib/cookieSeal.ts'
 import { RevokedError, exchangeCode, refreshAccess, revoke } from './_lib/googleOAuth.ts'
+import { sameOrigin } from './_lib/origin.ts'
 
 const COOKIE = 'drive_rt'
 /** 쿠키 수명. 구글 갱신권은 6개월 안 쓰면 죽으므로 그 정도로 둔다. 쓸 때마다 다시 적어 늘린다 */
@@ -29,14 +30,6 @@ function fail(status: number, message: string): Response {
 function cookieHeader(request: Request, value: string, days: number): string {
   const secure = new URL(request.url).hostname === 'localhost' ? '' : '; Secure'
   return `${COOKIE}=${value}; Path=/api/drive; Max-Age=${days * 86400}; HttpOnly; SameSite=Strict${secure}`
-}
-
-/**
- * 같은 사이트에서 온 요청인지. POST·DELETE는 쿠키를 바꾸므로 다른 사이트의 폼·스크립트가 부르지 못하게 막는다
- * (SameSite 쿠키에 더한 두 번째 잠금). Origin이 없는 요청(오래된 브라우저 등)도 거절한다.
- */
-function sameOrigin(request: Request): boolean {
-  return request.headers.get('origin') === new URL(request.url).origin
 }
 
 /** JSON 응답 — 출입증이 들어 있으니 어디에도 캐시하지 않는다 */
@@ -71,6 +64,7 @@ export async function GET(request: Request): Promise<Response> {
  * 갱신권이 오지 않았는데 쿠키도 없으면(구글 쪽에는 허락이 남았는데 이 브라우저는 모르는 경우) 한국어로 풀어 알린다.
  */
 export async function POST(request: Request): Promise<Response> {
+  // POST·DELETE는 쿠키를 바꾼다 — 다른 사이트의 폼·스크립트가 부르지 못하게 (SameSite 쿠키에 더한 두 번째 잠금, `_lib/origin.ts`)
   if (!sameOrigin(request)) return fail(403, '다른 사이트에서 온 요청입니다.')
   let code = ''
   try { code = String(((await request.json()) as { code?: unknown }).code ?? '') } catch { /* 아래에서 거절 */ }

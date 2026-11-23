@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { formatFeature, formatPlace } from '../api/place.ts'
+import { formatFeature, formatPlace, GET } from '../api/place.ts'
 import { createPlaceLookup, type PlaceDeps } from '../src/lib/place.ts'
 
 /**
@@ -90,4 +90,21 @@ test('lookupPlace: 서버 오류·네트워크 실패에도 던지지 않고 빈
   assert.equal(await lookup(35.1, 129.1), '')
   assert.equal(await lookup(35.2, 129.2), '')
   assert.equal(await lookup(35.3, 129.3), '부산광역시 기장군')
+})
+
+test('GET /api/place: 다른 사이트가 시킨 요청(sec-fetch-site)은 Nominatim에 묻지 않고 빈 이름', async () => {
+  const realFetch = globalThis.fetch
+  let asked = 0
+  globalThis.fetch = async () => { asked++; return Response.json({ address: { city: '서울특별시' } }) }
+  try {
+    const url = 'http://localhost/api/place?lat=37.5665&lng=126.9780'
+    const cross = await GET(new Request(url, { headers: { 'sec-fetch-site': 'cross-site' } }))
+    assert.deepEqual(await cross.json(), { place: '' })
+    assert.equal(asked, 0)
+    const same = await GET(new Request(url, { headers: { 'sec-fetch-site': 'same-origin' } }))
+    assert.deepEqual(await same.json(), { place: '서울특별시' })
+    assert.equal(asked, 1)
+  } finally {
+    globalThis.fetch = realFetch
+  }
 })
