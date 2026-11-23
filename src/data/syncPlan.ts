@@ -176,6 +176,16 @@ export function shouldPushRecord(local: Pick<Sighting, 'updatedAt'>, remote: Rem
 }
 
 /**
+ * 줄의 지움 항목(지운 시각 `deletedAt`)을 드라이브에 올려도 되는지 — 드라이브의 판이 살아 있고 지운 뒤에 **더 늦게** 고쳐졌으면 올리지 않는다.
+ * 오프라인이던 폰이 10:00에 지운 것을 PC가 12:00에 고쳐 올린 판 위에 올리면, 드라이브의 사진과 PC의 고침이 지워진다 —
+ * `planPull`의 '지움 뒤에 고쳤으면 고친 쪽이 이긴다'와 반대다. 올리지 않은 항목은 끝내고, 다음 받기가 그 판을 기기로 내려받는다.
+ * 같은 시각이면 지움이 이긴다 (`planPull`과 같다). 드라이브에 없거나 이미 지움 표시면 올린다 (지움 표시를 다시 써도 같은 뜻이다).
+ */
+export function shouldPushTombstone(deletedAt: string, remote: RemoteRecord | undefined): boolean {
+  return !remote || remote.deleted || remote.updatedAt <= deletedAt
+}
+
+/**
  * 로그인한 구글 계정의 표지(`current`, 드라이브 permissionId)를 이 기기가 동기화해 온 계정의 표지(`saved`, `meta`)와 견준다.
  * - adopt: 적어 둔 표지가 없다 (처음 연결, 또는 이 확인이 생기기 전부터 연결해 둔 기기) — 지금 계정을 적고 동기화한다.
  * - same: 같은 계정 — 그대로 동기화한다.

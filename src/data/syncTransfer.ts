@@ -8,7 +8,7 @@ import { dbGet } from './db'
 import { normalizeSighting } from './normalizeSighting'
 import { PHOTO_KINDS } from './photoKey'
 import { getPhoto, hasPhoto, writeSightingIfNewer, type PhotoFile } from './photos'
-import { PHOTOS_FOLDER, RECORDS_FOLDER, ROOT_FOLDER, photoFileName, recordFileName, recordTags, remoteRecordOf, shouldPushRecord, type QueueEntry, type RemoteRecord } from './syncPlan'
+import { PHOTOS_FOLDER, RECORDS_FOLDER, ROOT_FOLDER, photoFileName, recordFileName, recordTags, remoteRecordOf, shouldPushRecord, shouldPushTombstone, type QueueEntry, type RemoteRecord } from './syncPlan'
 
 /** 한 번의 동기화 동안 들고 있는 드라이브의 모습. 올리면 여기도 고쳐서 같은 파일을 두 번 만들지 않는다 */
 export interface Remote {
@@ -68,12 +68,15 @@ export async function pullRecord(r: RemoteRecord, remote: Remote): Promise<boole
  * - put: 사진을 **먼저**, 기록 파일을 **마지막에** 올린다. 기록 파일이 드라이브에 보이면 그 사진도 이미 있다는 뜻이 된다.
  *   기록이 그새 지워졌으면 할 일이 없다 (지움 항목이 이 항목을 이미 덮었거나, 드라이브의 더 늦은 지움을 따라
  *   `planPull`이 기기에서 지웠다 — 이때 올리면 지운 기록이 되살아난다).
- *   드라이브에 더 새 판이 있으면 올리지 않는다 (syncPlan.ts shouldPushRecord) — 이때만 true를 준다: 항목은 끝내고,
+ *   드라이브에 더 새 판이 있으면 올리지 않는다 (syncPlan.ts shouldPushRecord) — 이때 true를 준다: 항목은 끝내고,
  *   부르는 쪽이 곧 다시 동기화해 그 판을 받아 온다.
  * - delete: 사진 파일을 지우고, 기록 파일을 "지웠음" 표시로 바꾼다 — 다른 기기가 보고 따라 지운다.
+ *   드라이브의 판이 지운 뒤에 더 늦게 고쳐졌으면 사진도 기록 파일도 건드리지 않고 true를 준다 (syncPlan.ts shouldPushTombstone —
+ *   고친 쪽이 이긴다). put과 같이 항목은 끝나고, 곧 도는 받기가 그 판을 기기로 내려받는다.
  */
 export async function pushEntry(e: QueueEntry, remote: Remote): Promise<boolean> {
   if (e.op === 'delete') {
+    if (!shouldPushTombstone(e.at, remote.records.get(e.id))) return true
     for (const kind of PHOTO_KINDS) {
       const name = photoFileName(e.id, kind)
       const fileId = remote.photos.get(name)

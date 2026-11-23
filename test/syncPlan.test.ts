@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { MAX_TRIES, accountDecision, afterFailure, askedAccountOf, dueEntries, isDue, keepsTombstones, nextDueAt, planPull, queueChange, recordTags, remoteRecordOf, shouldPushRecord, type QueueEntry, type RemoteRecord } from '../src/data/syncPlan.ts'
+import { MAX_TRIES, accountDecision, afterFailure, askedAccountOf, dueEntries, isDue, keepsTombstones, nextDueAt, planPull, queueChange, recordTags, remoteRecordOf, shouldPushRecord, shouldPushTombstone, type QueueEntry, type RemoteRecord } from '../src/data/syncPlan.ts'
 import type { Sighting } from '../src/types.ts'
 
 const T0 = new Date('2026-09-27T00:00:00.000Z')
@@ -129,6 +129,25 @@ test('shouldPushRecord: 지움 표시는 planPull과 같은 규칙 — 지움 �
   assert.equal(shouldPushRecord(mine, r('x', '2026-09-27T12:00:00.000Z', true)), false)
   // 올리지 않고 항목을 끝내면 다음 받기가 기기에서 지운다 (deleted='0'으로 드라이브의 지움을 덮지 않는다)
   assert.deepEqual(planPull([mine], [r('x', '2026-09-27T12:00:00.000Z', true)], new Set()).removeLocal, ['x'])
+})
+
+test('줄에 남은 옛 지움은 드라이브의 더 늦은 고침을 덮지 않는다 — 올리지 않고 항목을 끝내면 다음 받기가 고친 판을 받아 온다', () => {
+  // 폰: 오프라인일 때 10:00에 지워 줄에 지움 항목이 남았다. PC: 12:00에 고쳐 드라이브에 올렸다
+  const deletedAt = '2026-09-27T10:00:00.000Z'
+  const pc = r('x', '2026-09-27T12:00:00.000Z')
+  assert.deepEqual(planPull([], [pc], new Set(['x'])).download, [])
+  assert.equal(shouldPushTombstone(deletedAt, pc), false)
+  // 항목을 뺀 뒤의 받기 — planPull의 '지움 뒤에 고쳤으면 고친 쪽이 이긴다'와 같은 결과
+  assert.deepEqual(planPull([], [pc], new Set()).download.map((x) => x.id), ['x'])
+})
+
+test('shouldPushTombstone: 드라이브에 없거나, 이미 지움 표시거나, 드라이브의 판이 지운 시각과 같거나 앞서면 올린다', () => {
+  const deletedAt = '2026-09-27T10:00:00.000Z'
+  assert.equal(shouldPushTombstone(deletedAt, undefined), true)
+  assert.equal(shouldPushTombstone(deletedAt, r('x', '2026-09-27T09:00:00.000Z')), true)
+  // 같은 시각이면 지움이 이긴다 (planPull: 지움이 기기의 고침과 같으면 기기에서 지운다)
+  assert.equal(shouldPushTombstone(deletedAt, r('x', '2026-09-27T10:00:00.000Z')), true)
+  assert.equal(shouldPushTombstone(deletedAt, r('x', '2026-09-27T12:00:00.000Z', true)), true)
 })
 
 test('remoteRecordOf: 우리 모양의 파일만 읽는다', () => {
