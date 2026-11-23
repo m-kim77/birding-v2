@@ -47,8 +47,11 @@ function cspOf(value: string): Record<string, string[]> {
 
 const csp = cspOf(headerOf(ALL, 'Content-Security-Policy') ?? '')
 
-test('CSP: 스크립트는 우리 사이트와 구글 로그인 창에서만 받는다 — 바깥 CDN의 코드(예: jsDelivr의 새 찾기 실행 파일)는 앱과 같은 권한으로 돌아 API 키·기록·드라이브 출입증에 닿는다', () => {
-  assert.deepEqual([...(csp['script-src'] ?? [])].sort(), ["'self'", "'wasm-unsafe-eval'", 'https://accounts.google.com'])
+test('CSP: 스크립트는 우리 사이트와 구글 로그인 창 스크립트 하나에서만 받는다 — 바깥 CDN의 코드(예: jsDelivr의 새 찾기 실행 파일)는 앱과 같은 권한으로 돌아 API 키·기록·드라이브 출입증에 닿는다', () => {
+  // accounts.google.com 전체를 열면 같은 호스트의 JSONP 주소(callback=…)로 CSP를 넘을 수 있다 — 앱이 받는 주소(gis.ts SCRIPT) 하나만 연다
+  assert.deepEqual([...(csp['script-src'] ?? [])].sort(), ["'self'", "'wasm-unsafe-eval'", 'https://accounts.google.com/gsi/client'])
+  const gis = readFileSync(new URL('../src/lib/google/gis.ts', import.meta.url), 'utf8')
+  assert.equal(gis.match(/const SCRIPT = '([^']+)'/)?.[1], 'https://accounts.google.com/gsi/client')
   assert.deepEqual(csp['default-src'], ["'self'"])
   assert.deepEqual(csp['object-src'], ["'none'"])
   assert.deepEqual(csp['base-uri'], ["'self'"])
@@ -59,9 +62,10 @@ test('CSP: 앱이 실제로 쓰는 요청·그림은 열려 있다 — 막히면
   for (const source of ["'self'", 'https:', 'blob:', 'http://localhost:*', 'http://127.0.0.1:*']) assert.ok(csp['connect-src']?.includes(source), `connect-src ${source}`)
   // 위키백과 참고 사진·지도 그림(https), 기록 사진(blob), Leaflet의 작은 그림(data)
   for (const source of ["'self'", 'https:', 'blob:', 'data:']) assert.ok(csp['img-src']?.includes(source), `img-src ${source}`)
-  // 이동 기록을 읽는 작업자(parseWorker)는 우리 사이트의 파일, 구글 로그인 창은 그쪽 프레임·스타일을 쓸 수 있다
+  // 이동 기록을 읽는 작업자(parseWorker)는 우리 사이트의 파일, 구글 로그인 창은 구글 안내(GIS CSP)대로 /gsi/ 아래의 프레임·스타일만 쓸 수 있다
   assert.ok(csp['worker-src']?.includes("'self'"))
-  assert.ok(csp['frame-src']?.includes('https://accounts.google.com'))
+  assert.deepEqual(csp['frame-src'], ['https://accounts.google.com/gsi/'])
+  assert.ok(csp['style-src']?.includes('https://accounts.google.com/gsi/style'))
   // React·Leaflet의 style 속성과 구글 로그인 창이 넣는 <style>
   assert.ok(csp['style-src']?.includes("'unsafe-inline'"))
 })
