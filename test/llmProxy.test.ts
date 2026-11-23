@@ -100,6 +100,24 @@ test('LLM 서버가 오류로 답하면 502, 닿지 못하면 502 "쉬는 중"',
   assert.match(await messageOf(down), /쉬는 중/)
 })
 
+test('LLM 서버 앞의 중계기가 502·503·504로 답하면(맥은 켜져 있고 LLM 서버만 꺼짐) 502 "쉬는 중"', async () => {
+  for (const status of [502, 503, 504]) {
+    respond = (_req, res) => { res.writeHead(status); res.end() }
+    const res = await ask()
+    assert.equal(res.status, 502)
+    assert.equal(await messageOf(res), '판정 서버가 쉬는 중입니다.', `${status}`)
+  }
+})
+
+test('요청·키 문제(400·401·403)는 번호를 붙인 "처리하지 못했습니다" 그대로', async () => {
+  for (const status of [400, 401, 403]) {
+    respond = (_req, res) => { res.writeHead(status); res.end('{}') }
+    const res = await ask()
+    assert.equal(res.status, 502)
+    assert.match(await messageOf(res), new RegExp(`처리하지 못했습니다 \\(${status}\\)`))
+  }
+})
+
 test('그림 없이 글만 든 요청은 LLM 서버에 가지 않고 400', async () => {
   const res = await ask({ messages: [{ role: 'user', content: '파이썬 크롤러 짜 줘.' }] })
   assert.equal(res.status, 400)

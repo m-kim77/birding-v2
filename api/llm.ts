@@ -40,6 +40,16 @@ function fail(status: number, message: string): Response {
   return Response.json({ error: { message } }, { status })
 }
 
+/**
+ * LLM 서버가 오류 번호로 답했을 때 브라우저에 보낼 안내.
+ * 502·503·504는 LLM 서버 앞의 중계기(Tailscale Funnel 등)가 뒤의 서버에 닿지 못했을 때 주는 번호다 —
+ * 맥은 켜져 있고 Unsloth만 꺼진 경우라 "쉬는 중"으로 알린다. 그 밖(400·401·403·500 등)은 번호를 붙여 요청·키 문제를 찾게 한다.
+ */
+function upstreamFailure(status: number): string {
+  if (status === 502 || status === 503 || status === 504) return '판정 서버가 쉬는 중입니다.'
+  return `판정 서버가 요청을 처리하지 못했습니다 (${status}).`
+}
+
 /** 첫 응답을 기다리는 시간(ms). 환경변수가 없거나 0 이하·숫자가 아니면 기본값 */
 function firstResponseMs(): number {
   const seconds = Number(process.env.LOCAL_LLM_FIRST_RESPONSE_SECONDS)
@@ -70,7 +80,8 @@ async function startStream(body: ReadableStream<Uint8Array>): Promise<ReadableSt
 
 /**
  * POST /api/llm — 본문은 OpenAI chat.completions 형식. 검사에 걸리면 400(`_lib/llmRequest.ts`), 서버 설정이 없으면 503,
- * LLM 서버가 첫 응답을 마감 안에 주지 않으면 503(= "바쁩니다"), 닿지 못하거나 오류로 답하면 502(= "쉬는 중")를 준다.
+ * LLM 서버가 첫 응답을 마감 안에 주지 않으면 503(= "바쁩니다"), 닿지 못하거나 502·503·504로 답하면 502(= "쉬는 중"),
+ * 그 밖의 오류 번호면 502(= "처리하지 못했습니다 (번호)")를 준다.
  */
 export async function POST(request: Request): Promise<Response> {
   const base = process.env.LOCAL_LLM_URL
@@ -98,7 +109,7 @@ export async function POST(request: Request): Promise<Response> {
       body: JSON.stringify(built.payload),
       signal: AbortSignal.any([request.signal, deadline.signal]),
     })
-    if (!upstream.ok || !upstream.body) return fail(502, `판정 서버가 요청을 처리하지 못했습니다 (${upstream.status}).`)
+    if (!upstream.ok || !upstream.body) return fail(502, upstreamFailure(upstream.status))
     const stream = await startStream(upstream.body)
     return new Response(stream, { headers: { 'content-type': 'text/event-stream', 'cache-control': 'no-store', 'x-llm-model': model } })
   } catch {
