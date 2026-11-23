@@ -1,7 +1,8 @@
 // 이동 기록(`tracks` 저장소)은 백업에 넣지 않는다 — 다시 내보내면 되는 자료이고 기록보다 훨씬 민감하다 (data/tracks.ts)
-import { unzip, zip, type Unzipped, type Zippable } from 'fflate'
+import { unzip, type Unzipped } from 'fflate'
 import type { PhotoKind, Sighting } from '../types'
 import { JOURNAL_FILE, buildJournal, parseJournal, parsePhotoPath, photoPath, planMerge, settledPlan, shouldCopyPhoto, type MergePlan } from './backupFormat'
+import { zipToBlob, type ZipEntry } from './backupZip'
 import { dbGetAll } from './db'
 import { allPhotosOf, hasPhoto, putPhoto, writeSightingIfNewer, type PhotoFile } from './photos'
 import { noteChange } from './syncQueue'
@@ -12,22 +13,24 @@ export interface ImportResult extends MergePlan {
 }
 
 /** fflate의 콜백 API를 Promise로 */
-const zipAsync = (files: Zippable) => new Promise<Uint8Array>((resolve, reject) => zip(files, { level: 0 }, (err, out) => (err ? reject(err) : resolve(out))))
 const unzipAsync = (data: Uint8Array) => new Promise<Unzipped>((resolve, reject) => unzip(data, (err, out) => (err ? reject(err) : resolve(out))))
 
 /**
  * 모든 기록과 사진을 ZIP 하나로 묶는다.
- * 압축은 하지 않는다(level 0) — JPEG는 더 줄지 않고, 사진 수백 장을 압축하면 폰에서 몇 분이 걸린다.
- * 사진이 많으면 메모리를 많이 쓴다 (전부 한 번에 올린다). 수천 장 규모가 되면 스트리밍 방식으로 바꿔야 한다.
+ * 압축은 하지 않는다 — JPEG는 더 줄지 않고, 사진 수백 장을 압축하면 폰에서 몇 분이 걸린다.
+ * 사진은 한 장씩 읽어 곧바로 ZIP 조각으로 흘려 보낸다 (backupZip.ts) — 전부 한 번에 올리면 사진이 몇백 장일 때 폰 탭이 죽는다.
+ * 사진 읽기가 실패하면 그 오류로 거절된다 (반쪽 파일을 주지 않는다).
  */
 export async function exportBackup(): Promise<Blob> {
-  const sightings = await dbGetAll<Sighting>('sightings')
-  const files: Zippable = { [JOURNAL_FILE]: new TextEncoder().encode(JSON.stringify(buildJournal(sightings, new Date()))) }
+  return zipToBlob(backupEntries(await dbGetAll<Sighting>('sightings')))
+}
+
+/** 백업에 넣을 항목을 하나씩 내준다 — journal.json 다음에 기록마다 그 사진들. 사진은 내줄 때 읽는다 (미리 읽어 쥐고 있지 않는다) */
+async function* backupEntries(sightings: Sighting[]): AsyncGenerator<ZipEntry> {
+  yield { path: JOURNAL_FILE, bytes: new TextEncoder().encode(JSON.stringify(buildJournal(sightings, new Date()))) }
   for (const s of sightings) {
-    for (const p of await allPhotosOf(s.id)) files[photoPath(s.id, p.kind)] = new Uint8Array(await p.blob.arrayBuffer())
+    for (const p of await allPhotosOf(s.id)) yield { path: photoPath(s.id, p.kind), bytes: new Uint8Array(await p.blob.arrayBuffer()) }
   }
-  // fflate의 Uint8Array는 타입상 SharedArrayBuffer일 수도 있다고 표시돼 있어 Blob이 받지 않는다 — 복사해서 넘긴다
-  return new Blob([new Uint8Array(await zipAsync(files))], { type: 'application/zip' })
 }
 
 /**
@@ -80,7 +83,7 @@ function photosById(entries: Unzipped): Map<string, Array<{ kind: PhotoKind; byt
   return out
 }
 
-/** ZIP의 바이트를 JPEG Blob으로 (fflate 배열의 타입 문제로 복사해서 넘긴다 — exportBackup 주석) */
+/** ZIP의 바이트를 JPEG Blob으로. 배열이 타입상 SharedArrayBuffer일 수도 있다고 표시돼 Blob이 받지 않아 복사해서 넘긴다 (사진 한 장씩이라 잠깐이다) */
 function jpeg(bytes: Uint8Array): PhotoFile['blob'] {
   return new Blob([new Uint8Array(bytes)], { type: 'image/jpeg' })
 }
