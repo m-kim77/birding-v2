@@ -1,10 +1,13 @@
 import { timeoutSignal } from '../lib/timeoutSignal'
 import type { ChunkEnv } from './chunkLoad'
+import type { PrefetchEnv } from './prefetch'
 
 /** 지난번에 저절로 새로 고친 시각을 적는 곳 (탭마다 — 다른 탭의 새로 고침과 섞이지 않게) */
 const RELOAD_STAMP_KEY = 'bird-journal:new-build-reload-at'
 /** 새 판인지 물을 때 index.html을 기다리는 시간. 신호가 약하면 이 안에 안 오고, 그러면 새 판이 아닌 것으로 본다 */
 const INDEX_TIMEOUT_MS = 5_000
+/** 화면이 뜬 뒤 미리 받기(prefetch.ts)를 시작하기까지 기다리는 시간 — 첫 화면의 사진·글꼴을 받는 동안 끼어들지 않게 */
+const PREFETCH_DELAY_MS = 3_000
 
 /**
  * 사이트의 지금 index.html을 캐시 없이 받는다 — 화면 조각을 두 번 다 못 받았을 때만 한 번 (chunkLoad.ts loadChunk).
@@ -44,4 +47,16 @@ export const browserChunkEnv: ChunkEnv = {
   writeStamp,
   reload: () => window.location.reload(),
   now: () => Date.now(),
+}
+
+/**
+ * 브라우저에서 prefetchLater가 쓰는 값들 (App의 기록 상세·도감).
+ * 나중은 그냥 몇 초 뒤다 — requestIdleCallback은 아이폰 사파리에 없다. 받는 것은 이 사이트의 앱 파일뿐이라 보내는 값이 없다.
+ */
+export const browserPrefetchEnv: PrefetchEnv = {
+  online: () => navigator.onLine,
+  later: (run) => {
+    const timer = setTimeout(run, PREFETCH_DELAY_MS)
+    return () => clearTimeout(timer)
+  },
 }

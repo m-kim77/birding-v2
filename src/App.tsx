@@ -1,9 +1,11 @@
-import { Suspense } from 'react'
+import { Suspense, useEffect } from 'react'
 import AppShell from './app/AppShell'
+import { browserPrefetchEnv } from './app/chunkEnv'
 import ErrorBoundary from './app/ErrorBoundary'
 import { lazyScreen } from './app/lazyScreen'
 import LoadBoundary from './app/LoadBoundary'
 import { leaveScreen, openScreen, replaceScreen, switchTab } from './app/nav'
+import { prefetchLater } from './app/prefetch'
 import { activeTab } from './app/routes'
 import ScreenLoadFailed from './app/ScreenLoadFailed'
 import { useNavEntry } from './app/useNav'
@@ -22,9 +24,12 @@ const SoundScreen = lazyScreen(() => import('./features/sound/SoundScreen'))
 // 사진 없이 기록은 새 기록 첫 화면에서만 들어간다 — 첫 화면(기록 목록)이 받을 이유가 없어 기록하기처럼 필요할 때 받는다
 const QuickRecord = lazyScreen(() => import('./features/record/QuickRecord'))
 // 기록 상세와 도감은 판정 루프·위키 도구·카드 그리기와 내보내기(이미지·영상)·수정 칸을 끌고 온다 — 첫 화면(기록 목록)은 그것 없이 뜬다.
-// 처음 열 때 한 번 받는다 (배포가 바뀌기 전까지는 브라우저에 남은 것을 쓴다)
-const RecordDetail = lazyScreen(() => import('./features/records/RecordDetail'))
-const DexScreen = lazyScreen(() => import('./features/dex/DexScreen'))
+// 대신 첫 화면이 뜨고 조금 뒤 미리 받아 둔다 (App의 prefetchLater). 처음 열 때만 받으면, 새 판이 나온 날 일지만 보고 신호 없는 산에 가서
+// 저장 뒤 '완료'·옛 기록·도감이 모두 '화면을 받지 못했습니다'가 되고, 신호가 돌아와도 앱을 다시 열 때까지 그대로다 (React.lazy가 실패를 기억한다)
+const loadRecordDetail = () => import('./features/records/RecordDetail')
+const loadDexScreen = () => import('./features/dex/DexScreen')
+const RecordDetail = lazyScreen(loadRecordDetail)
+const DexScreen = lazyScreen(loadDexScreen)
 
 /**
  * 앱의 뿌리. 어느 화면을 보여 줄지만 정한다 — 지금 화면은 방문 기록의 지금 칸이다 (app/nav.ts). 그래서 폰의 뒤로가기가 앱 안에서 뒤로 간다.
@@ -43,6 +48,8 @@ export default function App() {
   // 사진 없이 기록: 새 기록 첫 화면 칸을 바꿔 끼운다 — 쌓으면 저장 뒤 상세에서 뒤로 갈 때 빈 '새 기록'이 나온다. 뒤로는 기록하기를 시작한 화면으로
   const openQuick = () => replaceScreen({ name: 'quick' })
   const screenKey = route.name === 'detail' ? `detail:${route.id}` : route.name
+  // 상세·도감 조각을 미리 받아 둔다 — 위의 RecordDetail·DexScreen 주석. 그때 오프라인이거나 못 받으면 그 화면을 열 때 지금처럼 받는다
+  useEffect(() => prefetchLater([loadRecordDetail, loadDexScreen], browserPrefetchEnv), [])
 
   return (
     <div className="viewport">
