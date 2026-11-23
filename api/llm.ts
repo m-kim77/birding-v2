@@ -31,11 +31,24 @@ const DEFAULT_MAX_TOKENS = 4096
 /**
  * LLM 서버가 첫 응답(스트림의 첫 조각)을 줄 때까지 기다리는 기본 시간(초). 넘으면 "판정 서버가 바쁩니다"로 끝낸다.
  * 맥의 LLM은 한 번에 몇 개만 처리해서, 앞 요청이 밀려 있으면 뒤 요청은 첫 글자도 못 받은 채 기다린다 —
- * 그동안 이 함수가 최대 실행 시간(300초, vercel.json)을 붙잡으면 Vercel Hobby의 한 달 한도를 빨리 먹고,
+ * 그동안 이 함수가 한 턴 마감까지 붙잡으면 Vercel Hobby의 한 달 한도를 빨리 먹고,
  * 한도를 넘으면 판정과 장소 이름 찾기가 모든 사용자에게서 멈춘다. 모델을 처음 올리는 수십 초보다는 길게 잡았다.
- * 첫 조각이 온 뒤로는 이 마감 대신 조각 사이 마감(`IDLE_SECONDS`)이 걸린다 — 한 턴 전체의 시간은 300초가 맡는다.
+ * 첫 조각이 온 뒤로는 이 마감 대신 조각 사이 마감(`IDLE_SECONDS`)과 한 턴 마감(`TURN_SECONDS`)이 걸린다.
  */
 const DEFAULT_FIRST_RESPONSE_SECONDS = 90
+
+/**
+ * 이 함수의 최대 실행 시간(초). **`vercel.json`의 `api/llm.ts` maxDuration과 같아야 한다** (`test/vercelConfig.test.ts`가 본다).
+ * Vercel 요금은 함수가 열려 있는 시간이라(Hobby는 2GB 고정, 한 달 360 GB-시간 — 넘으면 모든 배포가 멈춘다) 크게 두지 않는다.
+ * 한 턴 = 첫 응답 기다림(많아야 90초) + 답 만들기(실측 대개 1분 안쪽)에 여유를 더했다.
+ */
+export const MAX_DURATION_SECONDS = 180
+
+/**
+ * 한 턴 전체의 마감(초, 요청을 받은 때부터). 최대 실행 시간보다 조금 앞에 두어, Vercel이 함수를 끊기 전에
+ * 스스로 닫고 브라우저에 "너무 오래 걸려 끊었습니다"를 보낸다 (`_lib/llmStream.ts TOO_LONG_EVENT`).
+ */
+export const TURN_SECONDS = MAX_DURATION_SECONDS - 10
 
 /**
  * 첫 조각 뒤, 조각 사이에 이만큼(초) 아무것도 오지 않으면 끊고 "쉬는 중"으로 끝낸다 (`_lib/llmStream.ts`).
@@ -58,10 +71,13 @@ function upstreamFailure(status: number): string {
   return `판정 서버가 요청을 처리하지 못했습니다 (${status}).`
 }
 
-/** 첫 응답을 기다리는 시간(ms). 환경변수가 없거나 0 이하·숫자가 아니면 기본값 */
-function firstResponseMs(): number {
+/**
+ * 첫 응답을 기다리는 시간(ms). 환경변수가 없거나 0 이하·숫자가 아니면 기본값.
+ * 한 턴 마감(`endAt`)까지 남은 시간보다 길게는 기다리지 않는다 — 환경변수를 크게 적어도 최대 실행 시간을 넘지 않게.
+ */
+function firstResponseMs(endAt: number): number {
   const seconds = Number(process.env.LOCAL_LLM_FIRST_RESPONSE_SECONDS)
-  return (seconds > 0 ? seconds : DEFAULT_FIRST_RESPONSE_SECONDS) * 1000
+  return Math.min((seconds > 0 ? seconds : DEFAULT_FIRST_RESPONSE_SECONDS) * 1000, endAt - Date.now())
 }
 
 /**
@@ -70,6 +86,8 @@ function firstResponseMs(): number {
  * 그 밖의 오류 번호면 502(= "처리하지 못했습니다 (번호)")를 준다.
  */
 export async function POST(request: Request): Promise<Response> {
+  // 본문을 받는 시간도 함수가 열려 있는 시간이다 — 한 턴 마감은 요청을 받은 때부터 잰다
+  const endAt = Date.now() + TURN_SECONDS * 1000
   // 다른 사이트가 방문자의 브라우저로 대신 부르는 길을 막는다 (`_lib/origin.ts`) — 맥과 함수 시간을 남의 방문자 수만큼 쓰게 된다
   if (!sameOrigin(request)) return fail(403, '다른 사이트에서 온 요청입니다.')
   const base = process.env.LOCAL_LLM_URL
@@ -90,7 +108,7 @@ export async function POST(request: Request): Promise<Response> {
   // 첫 응답의 마감. 마감이 지나도, 브라우저가 떠나도(request.signal) LLM 서버로 가는 요청을 끊는다.
   // 배포에서 request.signal은 vercel.json의 supportsCancellation이 있어야 울린다 — 없으면 맥이 버려진 답을 끝까지 만든다
   const deadline = new AbortController()
-  const timer = setTimeout(() => deadline.abort(), firstResponseMs())
+  const timer = setTimeout(() => deadline.abort(), firstResponseMs(endAt))
   try {
     const upstream = await fetch(`${base.replace(/\/$/, '')}/chat/completions`, {
       method: 'POST',
@@ -99,7 +117,7 @@ export async function POST(request: Request): Promise<Response> {
       signal: AbortSignal.any([request.signal, deadline.signal]),
     })
     if (!upstream.ok || !upstream.body) return fail(502, upstreamFailure(upstream.status))
-    const stream = await relayStream(upstream.body, { idleMs: IDLE_SECONDS * 1000 })
+    const stream = await relayStream(upstream.body, { idleMs: IDLE_SECONDS * 1000, endAt })
     return new Response(stream, { headers: { 'content-type': 'text/event-stream', 'cache-control': 'no-store', 'x-llm-model': model } })
   } catch {
     return deadline.signal.aborted ? fail(503, '판정 서버가 바쁩니다. 잠시 뒤 다시 물어봐 주세요.') : fail(502, '판정 서버가 쉬는 중입니다.')

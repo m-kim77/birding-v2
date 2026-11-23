@@ -4,7 +4,7 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "functions": {
-    "api/llm.ts": { "maxDuration": 300, "supportsCancellation": true },
+    "api/llm.ts": { "maxDuration": 180, "supportsCancellation": true },
     "api/place.ts": { "maxDuration": 15 },
     "api/drive.ts": { "maxDuration": 15 }
   }
