@@ -7,7 +7,7 @@ import { soundEntryOn } from '../sound/soundModel'
 import CardResult from './CardResult'
 import DetectView from './DetectView'
 import IdentifyPanel from './IdentifyPanel'
-import LocationSheet from './LocationSheet'
+import LazyLocationSheet from './LazyLocationSheet'
 import { acceptsVerdict } from './nameFields'
 import PhotoStart from './PhotoStart'
 import { FactsCard, NoteCard } from './RecordFacts'
@@ -107,8 +107,9 @@ export default function RecordFlow({ onCancel, onDone, onOpenSettings, onOpenSou
       <div className="bottom-bar">
         <Button variant="primary" icon="check" block onClick={() => void save({ photo, picked, name, count, note, place: loc.place, verdict: ask.verdict }, draft.clear)} disabled={saving}>{saving ? '저장하는 중…' : name.trim() ? '저장' : '이름 없이 저장'}</Button>
       </div>
+      {/* 위치 줄을 누를 때 지도(Leaflet)를 받는다 — 사진에 위치가 있으면 열 일이 드물어 '+'마다 받지 않는다. 못 받아도 쓰던 값은 남는다 (LazyLocationSheet) */}
       {editingPlace && (
-        <LocationSheet place={loc.place} error={loc.error} last={lastPlace} onClose={() => setEditingPlace(false)}
+        <LazyLocationSheet place={loc.place} error={loc.error} last={lastPlace} onClose={() => setEditingPlace(false)}
           onPickOnMap={(lat, lng) => void loc.pickOnMap(lat, lng)} onUseCurrent={() => void loc.useCurrent()} onCopyLast={loc.copyFrom} />
       )}
     </div>
