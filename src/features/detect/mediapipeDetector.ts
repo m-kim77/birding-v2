@@ -8,6 +8,7 @@ import type { DetectBox } from '../../types'
 import type { Detector } from './detector'
 import { dropModel, dropStale, fetchModel, isModelCached, partProgress } from './modelCache'
 import { isVisionWasm, wasmFiles } from './mediapipeWasm'
+import { canCompileWasm } from './wasmCompile'
 import { fromTile, makeTiles, mergeBoxes } from './tiling'
 
 /**
@@ -32,10 +33,20 @@ const TILE_EDGE = 640
 
 let detector: ObjectDetector | null = null
 
-/** 실행 코드를 받지 못했거나 탐지기를 만들지 못했다 (오프라인·신호 약함·이 브라우저가 wasm을 못 돌림) */
+/** 실행 코드를 받지 못했거나 탐지기를 만들지 못했다 (오프라인·신호 약함 — wasm 컴파일이 막힌 브라우저는 받기 전에 UNSUPPORTED로 가른다) */
 const PREPARE_FAILED = '새 찾기 모델을 준비하지 못했습니다. 인터넷 연결을 확인해 주세요.'
+/** 이 브라우저가 wasm을 컴파일하지 못한다 (사파리 15 이하 — CSP의 'wasm-unsafe-eval'을 모른다, wasmCompile.ts). 인터넷 탓이 아니니 직접 자르기로 보낸다 */
+const UNSUPPORTED = '이 브라우저에서는 새 찾기를 쓸 수 없습니다. 새가 있는 부분을 직접 잘라 주세요.'
 /** 새로 배포되어 지금 열린 앱의 실행 코드 조각이 사이트에서 사라졌다 (404) — 인터넷은 멀쩡하니 연결을 확인하라고 하면 원인을 알 수 없다 */
 const NEW_BUILD = '새 판이 나와서 지금 열린 앱으로는 새 찾기를 준비할 수 없습니다. 앱을 다시 열면 쓸 수 있습니다.'
+
+let compiles: boolean | null = null
+
+/** wasm을 컴파일할 수 있는지를 처음 한 번만 재고 기억한다 — 막힌 브라우저는 잴 때마다 콘솔에 CSP 위반이 한 줄씩 찍힌다 */
+function supported(): boolean {
+  compiles ??= canCompileWasm()
+  return compiles
+}
 
 /**
  * 새 찾기 실행 코드(@mediapipe/tasks-vision) 조각을 받는다. 못 받으면 한 번 더 받아 보고, 그래도 안 되면 사이트에 새 판이 나왔는지 묻는다
@@ -52,10 +63,12 @@ async function loadVision(): Promise<typeof import('@mediapipe/tasks-vision')> {
 /**
  * 모델과 wasm을 받고(받아 둔 것이 있으면 기기에서 읽고) 탐지기를 만든다. 진행률은 `report`로 — 기다리는 모두에게 간다 (shareInFlight).
  * wasm은 Cache Storage에서 꺼낸 바이트를 blob 주소로 넘긴다 — 브라우저의 보통 캐시가 비어도 다시 받지 않고, '받아 둠'이면 정말 받아 둔 것이다 (점검 5-9).
+ * 이 브라우저가 wasm을 컴파일하지 못하면 아무것도 받기 전에 UNSUPPORTED — 10MB를 받고 나서 실패하지 않게.
  * 받기가 실패하면 fetchModel의 한국어 Error, 실행 코드 조각을 못 받으면 loadVision의 한국어 Error(새 판이면 '앱을 다시 열면'),
- * 탐지기를 만들지 못하면(로더 js를 못 받음, 이 브라우저가 wasm을 못 돌림 등) PREPARE_FAILED. 어느 쪽이든 직접 자르기로 계속할 수 있다.
+ * 탐지기를 만들지 못하면(로더 js를 못 받음 등) PREPARE_FAILED. 어느 쪽이든 직접 자르기로 계속할 수 있다.
  */
 async function prepare(report: (fraction: number) => void): Promise<void> {
+  if (!supported()) throw new Error(UNSUPPORTED)
   const files = wasmFiles()
   const [toModel, toWasm] = partProgress([MODEL_MB, WASM_MB], report)
   const model = await fetchModel(MODEL_URL, toModel)
@@ -97,6 +110,7 @@ export const mediapipeDetector: Detector = {
   id: 'efficientdet_lite0',
   label: '새 찾기',
   sizeMb: Math.round(MODEL_MB + WASM_MB),
+  supported,
   isCached: () => isModelCached(MODEL_URL, wasmFiles().binary),
   // wasm은 지금 판·옛 판 모두 지운다 (keep 없음)
   clearCache: async () => { detector?.close(); detector = null; await dropModel(MODEL_URL); await dropStale(isVisionWasm, []) },

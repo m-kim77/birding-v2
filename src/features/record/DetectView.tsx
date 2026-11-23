@@ -46,6 +46,7 @@ export default function DetectView({ photoUrl, ratio, detection, picked, onPick 
           새를 자동으로 찾으려면 모델을 한 번 받아야 합니다. 받은 파일은 이 기기에 남겨 둡니다 (설정에서 지울 수 있습니다).
         </Banner>
       )}
+      {model === 'unsupported' && !drawing && !picked && <Banner tone="info" icon="alert">이 브라우저에서는 새 찾기를 쓸 수 없습니다. 새가 있는 부분을 직접 잘라 주세요.</Banner>}
       {model === 'downloading' && <div className="status-line"><span>새 찾기 모델 받는 중 · {Math.round(download * 100)}%</span><Progress value={download} label="모델 다운로드" /></div>}
       {searching && <p className="status-line">사진에서 새를 찾는 중…</p>}
       {error && <Banner tone="warn" icon="alert">{error}</Banner>}

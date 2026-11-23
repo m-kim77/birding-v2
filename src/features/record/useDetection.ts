@@ -3,8 +3,11 @@ import type { DetectBox } from '../../types'
 import { mediapipeDetector as detector } from '../detect/mediapipeDetector'
 import { detectIfLatest, latestOnly } from './detectLatest'
 
-/** checking: 받아 둔 모델이 있는지 보는 중 · missing: 없음(받을지 물어야 함) · ready: 쓸 수 있음 */
-export type ModelState = 'checking' | 'missing' | 'downloading' | 'ready'
+/**
+ * checking: 받아 둔 모델이 있는지 보는 중 · missing: 없음(받을지 물어야 함) · ready: 쓸 수 있음 ·
+ * unsupported: 이 브라우저에서는 못 돌림(받기·자동 찾기 없이 직접 자르기만 — detector.supported)
+ */
+export type ModelState = 'checking' | 'missing' | 'downloading' | 'ready' | 'unsupported'
 
 /**
  * 새 찾기. 모델이 이 기기에 있으면 사진이 들어오자마자 자동으로 돈다 (기기 안에서 도는 공짜 작업이라 버튼이 없다).
@@ -21,7 +24,11 @@ export function useDetection(bitmap: ImageBitmap | null) {
   // 탐지마다 번호를 뽑는다. 가장 나중 번호가 아닌 탐지는 끝나도 결과·오류를 쓰지 않는다
   const [nextRun] = useState(latestOnly)
 
-  useEffect(() => { void detector.isCached().then((has) => setModel(has ? 'ready' : 'missing')) }, [])
+  useEffect(() => {
+    // wasm을 컴파일하지 못하는 브라우저(사파리 15 이하)는 받아 둔 파일이 있어도 쓰지 못한다 — 'ready'로 두면 사진마다 준비가 돌아 같은 실패를 띄운다
+    if (!detector.supported()) { setModel('unsupported'); return }
+    void detector.isCached().then((has) => setModel(has ? 'ready' : 'missing'))
+  }, [])
 
   /**
    * 이 사진에서 새를 찾는다 (모델 준비 포함 — detectLatest.ts detectIfLatest). 그 사이 다른 사진의 탐지가 시작됐으면 아무것도 쓰지 않는다.

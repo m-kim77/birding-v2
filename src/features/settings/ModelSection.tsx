@@ -9,6 +9,8 @@ import { notifyStorageChanged } from './useStorageStatus'
 interface Model {
   label: string
   sizeMb: number
+  /** 이 브라우저에서 돌 수 있는지 — 새 찾기만 있다(wasm 컴파일이 막힌 사파리 15 이하는 false). 없으면 돈다고 본다 */
+  supported?(): boolean
   isCached(): Promise<boolean>
   load(onProgress: (fraction: number) => void): Promise<void>
   clearCache(): Promise<void>
@@ -19,6 +21,8 @@ function ModelRow({ model, does, onError }: { model: Model; does: string; onErro
   const [cached, setCached] = useState<boolean | null>(null)
   const [progress, setProgress] = useState<number | null>(null)
   useEffect(() => { void model.isCached().then(setCached) }, [model])
+  // 못 도는 브라우저에서 받기를 누르면 늘 실패한다 — 버튼 대신 그 사실을 적는다 (받아 둔 것이 있으면 지우기는 그대로)
+  const usable = model.supported?.() ?? true
 
   async function download() {
     onError('')
@@ -37,6 +41,7 @@ function ModelRow({ model, does, onError }: { model: Model; does: string; onErro
       <div><strong>{model.label}</strong><small>{does} · {model.sizeMb}MB · 기기 안에서 실행</small></div>
       {progress !== null ? <span className="hint">{progress < 1 ? `${Math.round(progress * 100)}%` : '준비 중'}</span>
         : cached === null ? null
+        : !cached && !usable ? <span className="hint">이 브라우저에서는 쓸 수 없음</span>
         : <Button variant="quiet" icon={cached ? 'trash' : 'download'} onClick={() => void (cached ? clear() : download())}>{cached ? '지우기' : '받기'}</Button>}
     </li>
   )
