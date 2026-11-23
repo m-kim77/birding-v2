@@ -55,13 +55,15 @@ async function run(manual: boolean): Promise<void> {
     if (!(await checkAccount())) { setSyncStatus({ phase: 'account', message: '' }); return }
     const remote = await readRemote()
     await pull(remote)
-    const failed = await push(remote, manual)
+    const { failed, behind } = await push(remote, manual)
     // 이동 기록은 기록 뒤에 따로 한 단계 (syncTracks.ts — 스위치를 켠 기기만). 그 실패는 이동 기록 카드에만 적고
     // 기록 쪽 결과(마지막 동기화·오류)를 바꾸지 않는다. 로그인이 풀린 것만 아래 catch로 온다
     await syncTracksStep(remote.rootFolder, manual)
     const now = new Date().toISOString()
     if (failed === 0) await dbPut('meta', now, LAST_SYNC_KEY)
     setSyncStatus({ phase: failed ? 'error' : 'idle', lastSyncAt: failed ? getSyncStatus().lastSyncAt : now, message: failed ? `${failed}건을 올리지 못했습니다. 잠시 뒤 다시 합니다.` : '' })
+    // 드라이브에 더 새 판이 있어 올리지 않은 기록이 있다 — 곧 한 번 더 돌아 그 판을 받아 온다 (그 항목은 줄에서 빠져 이번엔 받지 못했다)
+    if (behind) syncSoon()
   } catch (e) {
     if (e instanceof NotConnectedError) setSyncStatus({ phase: 'disconnected', message: '' })
     else setSyncStatus({ phase: navigator.onLine ? 'error' : 'offline', message: e instanceof Error ? e.message : '동기화하지 못했습니다.' })
@@ -84,14 +86,15 @@ async function pull(remote: Remote): Promise<void> {
 }
 
 /**
- * 줄의 일을 차례로 올린다. 실패한 수를 준다. 연결이 풀렸으면(NotConnectedError) 거기서 멈추고 던진다 —
- * 남은 일은 모두 줄에 그대로 있다.
+ * 줄의 일을 차례로 올린다. 실패한 수와, 드라이브에 더 새 판이 있어 올리지 않고 끝낸 항목이 있었는지(`behind`)를 준다.
+ * 연결이 풀렸으면(NotConnectedError) 거기서 멈추고 던진다 — 남은 일은 모두 줄에 그대로 있다.
  */
-async function push(remote: Remote, manual: boolean): Promise<number> {
+async function push(remote: Remote, manual: boolean): Promise<{ failed: number; behind: boolean }> {
   let failed = 0
+  let behind = false
   for (const entry of dueEntries(await listQueue(), new Date(), manual)) {
     try {
-      await pushEntry(entry, remote)
+      behind = (await pushEntry(entry, remote)) || behind
       await finishEntry(entry)
     } catch (e) {
       if (e instanceof NotConnectedError) throw e
@@ -101,7 +104,7 @@ async function push(remote: Remote, manual: boolean): Promise<number> {
       if (e instanceof DriveError && e.status === 0) break
     }
   }
-  return failed
+  return { failed, behind }
 }
 
 /**

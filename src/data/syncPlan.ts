@@ -137,6 +137,18 @@ export function planPull(local: Sighting[], remote: RemoteRecord[], pending: Set
 }
 
 /**
+ * 줄의 올리기 항목을 드라이브에 올려도 되는지 — 드라이브의 판이 기기 판보다 **더 새것**이면 올리지 않는다.
+ * 줄에 남은 옛 고침(오프라인이던 폰의 10:00)이 다른 기기가 그 뒤에 올린 판(PC의 12:00)을 덮으면 '늦은 쪽이 이긴다'와 반대가 되고,
+ * 그 전에 PC의 자료가 지워지면 PC의 고침은 영영 사라진다. 올리지 않은 항목은 끝난 것으로 빼고, 다음 받기가 드라이브의 판을 따른다
+ * (줄에 없으니 `planPull`이 받거나, 지움 표시면 기기에서 지운다). 드라이브에 없으면 올린다.
+ * 같은 시각은 `planPull`과 같게 가른다: 살아 있는 기록이면 올리고(같은 판을 다시 올릴 뿐), 지움 표시면 지움이 이긴다.
+ */
+export function shouldPushRecord(local: Pick<Sighting, 'updatedAt'>, remote: RemoteRecord | undefined): boolean {
+  if (!remote) return true
+  return remote.deleted ? local.updatedAt > remote.updatedAt : local.updatedAt >= remote.updatedAt
+}
+
+/**
  * 로그인한 구글 계정의 표지(`current`, 드라이브 permissionId)를 이 기기가 동기화해 온 계정의 표지(`saved`, `meta`)와 견준다.
  * - adopt: 적어 둔 표지가 없다 (처음 연결, 또는 이 확인이 생기기 전부터 연결해 둔 기기) — 지금 계정을 적고 동기화한다.
  * - same: 같은 계정 — 그대로 동기화한다.

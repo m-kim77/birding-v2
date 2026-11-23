@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { MAX_TRIES, accountDecision, afterFailure, askedAccountOf, dueEntries, planPull, queueChange, recordTags, remoteRecordOf, type QueueEntry, type RemoteRecord } from '../src/data/syncPlan.ts'
+import { MAX_TRIES, accountDecision, afterFailure, askedAccountOf, dueEntries, planPull, queueChange, recordTags, remoteRecordOf, shouldPushRecord, type QueueEntry, type RemoteRecord } from '../src/data/syncPlan.ts'
 import type { Sighting } from '../src/types.ts'
 
 const T0 = new Date('2026-09-27T00:00:00.000Z')
@@ -82,8 +82,36 @@ test('planPull: 줄에 남은 고침도 드라이브의 지움보다 먼저면 �
 
 test('planPull: 줄에 남은 일(여기서 지웠는데 아직 못 올린 것 등)은 드라이브 쪽으로 되돌리지 않는다', () => {
   // 여기서 지운 기록: 기기에는 없고 드라이브에는 아직 살아 있다 — 받으면 지운 기록이 되살아난다
+  // 'edited'처럼 드라이브 판이 더 새것인 옛 고침은 이 받기에서는 건너뛰지만, 올리기도 건너뛰고 항목을 끝낸다 (아래 shouldPushRecord) —
+  // 받기가 건너뛴 채로 올리기가 덮으면 드라이브의 더 새 판이 사라진다
   const plan = planPull([s('edited', '2026-09-01')], [r('deleted-here', '2026-09-01'), r('edited', '2026-09-09')], new Set(['deleted-here', 'edited']))
   assert.deepEqual(plan, { download: [], removeLocal: [], upload: [] })
+})
+
+test('줄에 남은 옛 고침은 드라이브의 더 새 판을 덮지 않는다 — 올리지 않고 항목을 끝내면 다음 받기가 새 판을 받아 온다', () => {
+  // 폰: 산에서 오프라인일 때 10:00에 고쳐 줄에 남았다. PC: 12:00에 고쳐 드라이브에 올렸다
+  const phone = s('x', '2026-09-27T10:00:00.000Z')
+  const pc = r('x', '2026-09-27T12:00:00.000Z')
+  assert.deepEqual(planPull([phone], [pc], new Set(['x'])).download, [])
+  assert.equal(shouldPushRecord(phone, pc), false)
+  // 항목을 뺀 뒤의 받기
+  assert.deepEqual(planPull([phone], [pc], new Set()).download.map((x) => x.id), ['x'])
+})
+
+test('shouldPushRecord: 드라이브에 없거나 기기 판이 같거나 더 새것이면 올린다', () => {
+  const mine = s('x', '2026-09-27T10:00:00.000Z')
+  assert.equal(shouldPushRecord(mine, undefined), true)
+  assert.equal(shouldPushRecord(mine, r('x', '2026-09-27T10:00:00.000Z')), true)
+  assert.equal(shouldPushRecord(mine, r('x', '2026-09-27T09:00:00.000Z')), true)
+})
+
+test('shouldPushRecord: 지움 표시는 planPull과 같은 규칙 — 지움 뒤에 고쳤으면 올려 되살리고, 지움이 같거나 늦으면 올리지 않는다', () => {
+  const mine = s('x', '2026-09-27T10:00:00.000Z')
+  assert.equal(shouldPushRecord(mine, r('x', '2026-09-27T09:00:00.000Z', true)), true)
+  assert.equal(shouldPushRecord(mine, r('x', '2026-09-27T10:00:00.000Z', true)), false)
+  assert.equal(shouldPushRecord(mine, r('x', '2026-09-27T12:00:00.000Z', true)), false)
+  // 올리지 않고 항목을 끝내면 다음 받기가 기기에서 지운다 (deleted='0'으로 드라이브의 지움을 덮지 않는다)
+  assert.deepEqual(planPull([mine], [r('x', '2026-09-27T12:00:00.000Z', true)], new Set()).removeLocal, ['x'])
 })
 
 test('remoteRecordOf: 우리 모양의 파일만 읽는다', () => {
