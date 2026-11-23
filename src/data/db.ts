@@ -169,11 +169,19 @@ export function dbDelete(store: StoreName, key: string): Promise<void> {
 }
 
 /**
- * 쓰기 실패를 사용자에게 보일 Error로 바꾼다. 저장 공간 부족(QuotaExceededError)만 한국어로 풀어 말하고,
+ * 저장 공간이 모자라 쓰지 못했다 (storageError가 QuotaExceededError를 바꾼 것). 부르는 쪽이 `instanceof`로 알아본다 —
+ * 동기화의 받기는 이것을 보면 남은 받기를 그만둔다 (남은 기록도 사진을 다 받은 뒤 쓰기에서 똑같이 실패한다).
+ */
+export class StorageFullError extends Error {
+  constructor() { super('저장 공간이 모자라 저장하지 못했습니다 — 백업한 뒤 기기의 저장 공간을 비워 주세요.') }
+}
+
+/**
+ * 쓰기 실패를 사용자에게 보일 Error로 바꾼다. 저장 공간 부족(QuotaExceededError)만 한국어 안내의 StorageFullError로 바꾸고,
  * 나머지는 그대로 둔다 (Error가 아닌 값·빈 값이면 일반 안내). 순수 함수다 (node --test로 검사한다).
  */
 export function storageError(e: unknown): Error {
-  if ((e as { name?: unknown } | null)?.name === 'QuotaExceededError') return new Error('저장 공간이 모자라 저장하지 못했습니다 — 백업한 뒤 기기의 저장 공간을 비워 주세요.')
+  if ((e as { name?: unknown } | null)?.name === 'QuotaExceededError') return new StorageFullError()
   return e instanceof Error ? e : new Error('저장소에 쓰지 못했습니다.')
 }
 

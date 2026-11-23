@@ -9,7 +9,7 @@
 import { NotConnectedError, connectDrive, disconnectDrive, loadDriveConfig } from '../lib/google/driveAuth'
 import { DriveError } from '../lib/google/driveApi'
 import type { Sighting } from '../types'
-import { dbGet, dbGetAll, dbPut } from './db'
+import { StorageFullError, dbGet, dbGetAll, dbPut } from './db'
 import { deletePulledSighting } from './photos'
 import { afterFailure, dueEntries, nextDueAt, planPull } from './syncPlan'
 import { LAST_SYNC_KEY, finishEntry, isDriveLinked, listQueue, noteChange, saveFailure, setDriveLinked } from './syncQueue'
@@ -79,9 +79,11 @@ interface Missed { count: number; reason: string }
 
 /**
  * 드라이브 쪽이 새것인 기록을 받고, 다른 기기에서 지운 기록을 지우고, 기기 쪽이 새것인 기록을 줄에 넣는다.
- * 기록 하나를 받다 실패해도(사진 받기 시간 초과·저장 공간 부족 등) 나머지를 계속 받고 받지 못한 수를 준다 — 다음 동기화가 다시 받는다.
+ * 기록 하나를 받다 실패해도(드라이브가 파일 하나를 거절하는 등) 나머지를 계속 받고 받지 못한 수를 준다 — 다음 동기화가 다시 받는다.
  * 받지 못한 기록은 줄에 없어(받을 기록은 줄에 없는 것뿐이다) 뒤의 올리기가 건드리지 않는다.
  * 로그인이 풀렸으면(NotConnectedError) 거기서 던지고, 인터넷이 끊겼으면 남은 받기를 그만둔다 (남은 것도 다 실패한다).
+ * 저장 공간이 모자라도(StorageFullError) 남은 받기를 그만두고 남은 수까지 받지 못한 것으로 센다 — 남은 기록도 사진을 다 받은 **뒤에**
+ * 쓰기에서 똑같이 실패해, 계속 받으면 동기화가 돌 때마다 기록마다의 사진 세 판을 모바일 데이터로 받았다가 버린다 (30건이면 약 45MB).
  * 기기에서 지우기·줄에 넣기의 실패는 던진다 — 그때 올리기로 넘어가면 드라이브가 지운 기록의 옛 고침이 올라가 지운 기록이 되살아날 수 있다.
  * 하나라도 받아 썼으면 던지더라도 화면을 다시 읽게 한다.
  */
@@ -92,7 +94,7 @@ async function pull(remote: Remote): Promise<Missed> {
   const missed: Missed = { count: 0, reason: '' }
   let changed = false
   try {
-    for (const r of plan.download) {
+    for (const [i, r] of plan.download.entries()) {
       try {
         changed = (await pullRecord(r, remote)) || changed
       } catch (e) {
@@ -100,6 +102,7 @@ async function pull(remote: Remote): Promise<Missed> {
         missed.count += 1
         missed.reason = e instanceof Error ? e.message : ''
         if (e instanceof DriveError && e.status === 0) break
+        if (e instanceof StorageFullError) { missed.count += plan.download.length - i - 1; break }
       }
     }
     for (const id of plan.removeLocal) changed = (await deletePulledSighting(id, remote.records.get(id)!.updatedAt)) || changed
