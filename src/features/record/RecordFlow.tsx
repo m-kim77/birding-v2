@@ -86,8 +86,9 @@ export default function RecordFlow({ onCancel, onDone, onOpenSettings, onOpenSou
 
   return (
     <div className="screen screen-record">
-      {/* 사진 바꾸기: 잘못 고른 사진을 바꾸는 유일한 길 — 없으면 기록을 통째로 버리고 다시 시작해야 한다 */}
-      <ScreenHead title="새 기록" onBack={onCancel} right={<Button variant="quiet" icon="camera" onClick={() => fileInput.current?.click()}>사진 바꾸기</Button>} />
+      {/* 사진 바꾸기: 잘못 고른 사진을 바꾸는 유일한 길 — 없으면 기록을 통째로 버리고 다시 시작해야 한다.
+          저장하는 동안은 막는다 — 바꾸는 순간 옛 사진의 비트맵이 닫혀, 그 사진으로 JPEG를 만들던 저장이 실패한다 */}
+      <ScreenHead title="새 기록" onBack={onCancel} right={<Button variant="quiet" icon="camera" disabled={saving} onClick={() => fileInput.current?.click()}>사진 바꾸기</Button>} />
       {input}
       <div className="record-cols">
         <DetectView photoUrl={photo.url} ratio={`${photo.size.width} / ${photo.size.height}`} detection={detection} picked={picked?.box ?? null} onPick={(box, by) => setCrop({ box, by: by === 'manual' ? 'manual' : detection.detectorId })} />
