@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { MAX_TRIES, accountDecision, afterFailure, askedAccountOf, dueEntries, isDue, keepsTombstones, nextDueAt, planPull, queueChange, recordTags, remoteRecordOf, shouldPushRecord, shouldPushTombstone, type QueueEntry, type RemoteRecord } from '../src/data/syncPlan.ts'
+import { FRESH_MS, MAX_TRIES, accountDecision, afterFailure, askedAccountOf, dueEntries, isDue, keepsTombstones, listedRecently, nextDueAt, planPull, queueChange, recordTags, remoteRecordOf, shouldPushRecord, shouldPushTombstone, type QueueEntry, type RemoteRecord } from '../src/data/syncPlan.ts'
 import type { Sighting } from '../src/types.ts'
 
 const T0 = new Date('2026-09-27T00:00:00.000Z')
@@ -58,6 +58,19 @@ test('nextDueAt · isDue: 1분 타이머는 멈추지 않았고 재시도 시각
   const fresh = queueChange(undefined, 'a', 'put', true, later(5))
   assert.equal(nextDueAt([waiting, fresh, stuck]), later(5).toISOString())
   assert.deepEqual(dueEntries([waiting, fresh, stuck], later(5), false).map((e) => e.id), ['a'])
+})
+
+test('listedRecently: 목록을 받은 지 1분이 안 됐을 때만 돌아올 때·도감을 열 때의 동기화를 건너뛴다', () => {
+  const at = T0.getTime()
+  // 앱을 열며 받고 곧바로 도감을 눌렀다 — 다시 받지 않는다
+  assert.equal(listedRecently(at, at + 5_000), true)
+  assert.equal(listedRecently(at, at + FRESH_MS - 1), true)
+  // 1분이 지났으면 다시 받는다 — 다른 기기의 고침을 놓치지 않게
+  assert.equal(listedRecently(at, at + FRESH_MS), false)
+  // 아직 한 번도 받지 않았으면(받기 전에 실패 등) 늘 받는다
+  assert.equal(listedRecently(0, at), false)
+  // 시계가 뒤로 갔으면 받는다 — 건너뛰는 쪽으로 틀리면 고침을 못 받는다
+  assert.equal(listedRecently(at, at - 10_000), false)
 })
 
 test('planPull: 더 새 쪽이 이긴다 — 드라이브가 새것이면 받고, 기기가 새것이면 올린다, 같으면 그대로', () => {

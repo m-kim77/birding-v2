@@ -88,6 +88,18 @@ export function isDue(dueAt: string, now: Date): boolean {
   return dueAt !== '' && dueAt <= now.toISOString()
 }
 
+/** 드라이브 목록을 이만큼 안에 받았으면 탭으로 돌아올 때·도감을 열 때 다시 받지 않는다 (`listedRecently`) */
+export const FRESH_MS = 60_000
+
+/**
+ * 드라이브 목록을 받은 지 `FRESH_MS`가 안 지났는지 (`sync.ts syncIfStale`). 시각은 밀리초(`Date.now()`).
+ * 한 번도 받지 않았으면(0) false. 시계가 뒤로 갔으면(받은 시각이 지금보다 뒤) false — 다시 받는 쪽이 안전하다.
+ */
+export function listedRecently(listedAt: number, now: number): boolean {
+  const age = now - listedAt
+  return listedAt > 0 && age >= 0 && age < FRESH_MS
+}
+
 /** 드라이브에 있는 기록 파일 하나를 목록의 꼬리표로 읽은 것 (내용을 받지 않고도 받을지 정할 수 있다) */
 export interface RemoteRecord {
   id: string

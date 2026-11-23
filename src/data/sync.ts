@@ -5,13 +5,14 @@
  *
  * 언제 도나: 앱을 열 때, 기록을 저장·고침·지운 뒤(몇 초 모아서), 도감을 열 때, 인터넷이 다시 붙을 때, 탭으로 돌아올 때,
  * 다시 할 때가 된 올릴 일이 있으면 1분마다 (멈춘 항목·때가 안 된 항목만 남았으면 돌지 않는다). 한 번에 하나만 돈다.
+ * 도감을 열 때·탭으로 돌아올 때는 1분 안에 목록을 받았으면 건너뛴다 (`syncIfStale`).
  */
 import { NotConnectedError, connectDrive, disconnectDrive, loadDriveConfig } from '../lib/google/driveAuth'
 import { DriveError } from '../lib/google/driveApi'
 import type { Sighting } from '../types'
 import { StorageFullError, dbGet, dbGetAll, dbPut } from './db'
 import { deletePulledSighting } from './photos'
-import { afterFailure, dueEntries, nextDueAt, planPull } from './syncPlan'
+import { afterFailure, dueEntries, listedRecently, nextDueAt, planPull } from './syncPlan'
 import { LAST_SYNC_KEY, finishEntry, isDriveLinked, listQueue, noteChange, saveFailure, setDriveLinked } from './syncQueue'
 import { getSyncStatus, setSyncStatus, tracksStatusOf } from './syncStatus'
 import { clearDriveTracks, loadTracksSync, setTracksSyncOn, syncTracksStep } from './syncTracks'
@@ -19,6 +20,8 @@ import { pullRecord, pushEntry, readRemote, type Remote } from './syncTransfer'
 import { adoptAskedAccount, askedTracksWasOn, checkAccount, forgetAskedAccount, isAccountAsked } from './syncAccount'
 
 let running: Promise<void> | null = null
+/** 드라이브 목록을 마지막으로 받은 시각(밀리초, 아직 없으면 0) — `syncIfStale`이 본다 */
+let listedAt = 0
 /** 받아서 기기가 바뀌었을 때 부른다 (일지가 다시 읽는다) */
 let onPulled: () => void = () => {}
 
@@ -43,6 +46,17 @@ export function syncNow(manual = false): Promise<void> {
   return running
 }
 
+/**
+ * 드라이브 목록을 받은 지 1분이 안 됐으면 건너뛰는 자동 동기화 — 탭으로 돌아올 때와 도감을 열 때 쓴다.
+ * 앱을 열자마자 도감을 누르거나 탭을 오갈 때마다 목록 전체를 다시 받던 것을 줄인다 (2026-11-23 점검 3-6).
+ * 건너뛰면 도는 판이 있을 때 그것을 기다린다. 기록을 바꾼 뒤(`syncSoon`)·인터넷이 다시 붙을 때·1분 타이머·'지금 동기화'는
+ * 이것을 거치지 않는다 — 올릴 일은 늦추지 않는다. 다른 기기의 고침은 늦어도 1분 뒤 돌아올 때 받는다.
+ */
+export function syncIfStale(): Promise<void> {
+  if (listedRecently(listedAt, Date.now())) return running ?? Promise.resolve()
+  return syncNow()
+}
+
 /** syncNow의 본체 */
 async function run(manual: boolean): Promise<void> {
   if (!(await isDriveLinked())) return
@@ -54,6 +68,7 @@ async function run(manual: boolean): Promise<void> {
     // 기록을 주고받기 전에, 출입증의 계정이 이 기기가 동기화해 온 계정인지 본다 (다르면 묻는 중으로 적고 이동 기록 스위치를 끈다)
     if (!(await checkAccount())) { setSyncStatus({ phase: 'account', message: '' }); return }
     const remote = await readRemote()
+    listedAt = Date.now()
     // 받기에서 기록 몇 건이 실패해도 올리기는 돈다 — 저장 공간이 거의 찬 폰처럼 사본이 가장 필요한 때 올리기까지 멈추면 안 된다.
     // 인터넷이 끊겨 받기를 그만두었으면 pull이 던져 올리기를 건너뛴다 (아래 catch)
     const missed = await pull(remote)
