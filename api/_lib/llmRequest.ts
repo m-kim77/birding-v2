@@ -90,24 +90,48 @@ export function buildLlmRequest(body: unknown, settings: ServerSettings): LlmReq
 }
 
 /**
+ * 받는 그림 주소의 앞부분. 앱은 캔버스에서 다시 만든 JPEG를 data URL로만 보낸다 (`record/savePhotos.ts encodeForAI`).
+ * http(s) 주소를 넘기면 맥의 LLM 서버(Unsloth Studio·llama.cpp)가 그 주소를 **직접 내려받는다** —
+ * 남이 고른 서버에 운영자 집의 공인 IP가 남고, 맥이 남의 심부름으로 파일을 받아 온다 (2026-11-23 점검 1-2).
+ */
+const IMAGE_PREFIX = 'data:image/jpeg;base64,'
+
+/** 내용의 모양이 틀렸다는 표시 (`cleanContent`) — 내용 자리에 올 수 없는 값이라 undefined·null과 헷갈리지 않는다 */
+const INVALID = Symbol('invalid')
+
+/**
  * 메시지 하나를 넘겨도 되는 모양으로 다시 만든다 — 역할·내용과 도구 호출의 짝(`tool_calls`·`tool_call_id`)만 남긴다.
  * 모르는 역할이거나 내용의 모양이 틀리면 null.
  */
 function cleanMessage(raw: unknown): Record<string, unknown> | null {
-  if (!isRecord(raw) || typeof raw.role !== 'string' || !ROLES.has(raw.role) || !isContent(raw.content)) return null
-  const message: Record<string, unknown> = { role: raw.role, content: raw.content }
+  if (!isRecord(raw) || typeof raw.role !== 'string' || !ROLES.has(raw.role)) return null
+  const content = cleanContent(raw.content)
+  if (content === INVALID) return null
+  const message: Record<string, unknown> = { role: raw.role, content }
   if (Array.isArray(raw.tool_calls)) message.tool_calls = raw.tool_calls
   if (typeof raw.tool_call_id === 'string') message.tool_call_id = raw.tool_call_id
   return message
 }
 
 /**
- * 내용은 글자, 비어 있음(null — 도구만 부른 답), 또는 글·그림 조각의 배열이다.
- * 앱은 그 밖의 조각(소리·파일 등)을 보내지 않는다.
+ * 내용을 넘겨도 되는 모양으로 다시 만든다. 내용은 글자, 비어 있음(null — 도구만 부른 답), 또는 글·그림 조각의 배열이다.
+ * 조각은 앱이 만드는 모양(`{type:'text', text}`·`{type:'image_url', image_url:{url}}`)으로 다시 만들어 모르는 키를 떼어 낸다.
+ * 그 밖의 조각(소리·파일 등), 글자가 아닌 text, `IMAGE_PREFIX`로 시작하지 않는 그림 주소가 하나라도 있으면 INVALID.
  */
-function isContent(content: unknown): boolean {
-  if (content === undefined || content === null || typeof content === 'string') return true
-  return Array.isArray(content) && content.every((part) => isRecord(part) && (part.type === 'text' || part.type === 'image_url'))
+function cleanContent(content: unknown): unknown {
+  if (content === undefined || content === null || typeof content === 'string') return content
+  if (!Array.isArray(content)) return INVALID
+  const parts = content.map(cleanPart)
+  return parts.includes(null) ? INVALID : parts
+}
+
+/** 글·그림 조각 하나를 다시 만든다. 받을 수 없는 조각이면 null (`cleanContent`) */
+function cleanPart(part: unknown): Record<string, unknown> | null {
+  if (!isRecord(part)) return null
+  if (part.type === 'text') return typeof part.text === 'string' ? { type: 'text', text: part.text } : null
+  if (part.type !== 'image_url' || !isRecord(part.image_url)) return null
+  const url = part.image_url.url
+  return typeof url === 'string' && url.startsWith(IMAGE_PREFIX) ? { type: 'image_url', image_url: { url } } : null
 }
 
 /** 메시지 하나에 든 그림 조각 수 */

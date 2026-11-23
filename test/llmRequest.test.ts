@@ -107,3 +107,24 @@ test('메시지의 모르는 키는 떼어 낸다', () => {
   const p = payloadOf({ messages: [{ role: 'user', content: '새', name: 'admin', extra: 1 }] })
   assert.deepEqual((p.messages as unknown[])[1], { role: 'user', content: '새' })
 })
+
+test('그림 주소는 앱이 만든 JPEG data URL만 — 인터넷 주소를 넘기면 맥이 그 주소를 직접 받아 온다', () => {
+  const photo = (url: unknown) => ({ messages: [{ role: 'user', content: [{ type: 'text', text: '이 새의 종을 판정해 줘.' }, { type: 'image_url', image_url: { url } }] }] })
+  const bad = [
+    'https://attacker.example/x.jpg', 'http://192.168.0.1/x.jpg', 'file:///etc/passwd',
+    'data:video/mp4;base64,AAAA', 'data:audio/wav;base64,AAAA', 'data:image/svg+xml;base64,AAAA',
+    ' data:image/jpeg;base64,AAAA', 42, null, { url: 'data:image/jpeg;base64,AAAA' },
+  ]
+  for (const url of bad) assert.equal('error' in buildLlmRequest(photo(url), SETTINGS), true, JSON.stringify(url))
+  // 주소가 아니라 조각 자체가 글자인 모양(image_url: '...')도 막는다
+  assert.equal('error' in buildLlmRequest({ messages: [{ role: 'user', content: [{ type: 'image_url', image_url: 'data:image/jpeg;base64,AAAA' }] }] }, SETTINGS), true)
+  assert.equal('error' in buildLlmRequest({ messages: [{ role: 'user', content: [{ type: 'text', text: 42 }] }] }, SETTINGS), true)
+})
+
+test('글·그림 조각의 모르는 키는 떼어 낸다 (detail 등 LLM 서버의 그림 옵션을 바깥에서 바꾸지 못하게)', () => {
+  const p = payloadOf({ messages: [{ role: 'user', content: [
+    { type: 'text', text: '이 새의 종을 판정해 줘.', cache: true },
+    { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,AAAA', detail: 'high' }, extra: 1 },
+  ] }] })
+  assert.deepEqual((p.messages as unknown[])[1], { role: 'user', content: [{ type: 'text', text: '이 새의 종을 판정해 줘.' }, PHOTO] })
+})
