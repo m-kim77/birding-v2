@@ -1,4 +1,7 @@
 /** 위키백과 API 공통 부분. `origin=*`를 붙이면 브라우저에서 바로 부를 수 있다 (CORS 허용) */
+// node --test가 이 파일을 읽으므로(koreanName.test) 확장자 .ts를 적는다
+import { timeoutSignal } from '../../../lib/timeoutSignal.ts'
+
 export type WikiLang = 'ko' | 'en'
 
 /**
@@ -7,7 +10,7 @@ export type WikiLang = 'ko' | 'en'
 export async function wikiQuery(lang: WikiLang, params: Record<string, string>): Promise<Record<string, unknown> | null> {
   const query = new URLSearchParams({ action: 'query', format: 'json', origin: '*', ...params })
   try {
-    const res = await fetch(`https://${lang}.wikipedia.org/w/api.php?${query}`, { signal: AbortSignal.timeout(10_000) })
+    const res = await fetch(`https://${lang}.wikipedia.org/w/api.php?${query}`, { signal: timeoutSignal(10_000) })
     return res.ok ? ((await res.json()) as Record<string, unknown>) : null
   } catch {
     return null

@@ -6,6 +6,7 @@
  * 그 밖의 실패는 DriveError(status 포함) — 부르는 쪽(동기화)이 다시 시도할지 정한다.
  */
 import { accessToken, NotConnectedError } from './driveAuth'
+import { timeoutSignal } from '../timeoutSignal'
 
 const API = 'https://www.googleapis.com/drive/v3/files'
 const UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files'
@@ -35,7 +36,7 @@ async function call(url: string, init: RequestInit = {}): Promise<Response> {
     headers.set('authorization', `Bearer ${await accessToken(force)}`)
     let res: Response
     try {
-      res = await fetch(url, { ...init, headers, signal: AbortSignal.timeout(60_000) })
+      res = await fetch(url, { ...init, headers, signal: timeoutSignal(60_000) })
     } catch {
       throw new DriveError('드라이브에 닿지 못했습니다 (인터넷 연결을 확인하세요).', 0)
     }
