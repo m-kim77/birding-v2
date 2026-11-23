@@ -213,3 +213,25 @@ test('전체 상한: LLM 서버가 오류로 답해 스트림이 없어도 쓴 �
   assert.equal(up.counters.get(`llm:sec:${koreanDay(Date.now())}`), 1)
   assert.equal(up.zsets.get('llm:active')?.size, 0)
 })
+
+test('전체 상한: 브라우저가 답을 받다 끊어도 끝 적기를 실행기(waitUntil)에 맡겨, 응답이 끝난 뒤에도 쓴 시간을 적는다', TIMED, async () => {
+  const up = withQuota()
+  const kept: Promise<unknown>[] = []
+  // Vercel 함수 실행기가 두는 요청 문맥을 흉내 낸다 (`@vercel/functions`가 읽는 자리)
+  const slot = Symbol.for('@vercel/request-context')
+  const global = globalThis as unknown as Record<symbol, unknown>
+  global[slot] = { get: () => ({ waitUntil: (work: Promise<unknown>) => { kept.push(work) } }) }
+  try {
+    respond = (_req, res) => { res.writeHead(200, { 'content-type': 'text/event-stream' }); res.write(sse('물총')) }
+    const res = await ask()
+    const reader = res.body!.getReader()
+    await reader.read()
+    await reader.cancel('떠남')
+    assert.equal(kept.length, 1, '끝 적기를 실행기에 맡겼다')
+    await Promise.all(kept)
+    assert.equal(up.zsets.get('llm:active')?.size, 0)
+    assert.ok((up.counters.get(`llm:sec:${koreanDay(Date.now())}`) ?? 0) < 10, '실제로 쓴 초로 돌려줬다')
+  } finally {
+    delete global[slot]
+  }
+})

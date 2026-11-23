@@ -60,6 +60,31 @@ export const TURN_SECONDS = MAX_DURATION_SECONDS - 10
  */
 const IDLE_SECONDS = 60
 
+/** 응답이 끝난 뒤에도 마쳐야 하는 일을 함수 실행기에 맡긴다 */
+type KeepAlive = (work: Promise<unknown>) => void
+
+/** 함수 실행기가 전역에 두는 요청 문맥 (`@vercel/functions`가 읽는 것과 같은 자리) */
+type RequestContextHolder = { get?: () => { waitUntil?: (work: Promise<unknown>) => void } | undefined }
+
+/**
+ * 이 요청의 `waitUntil`을 잡아 둔다 — 응답이 끝난 뒤에 도는 일(쓴 시간 적기)을 Vercel이 끝까지 돌리게 하는 길이다.
+ * `@vercel/functions`의 `waitUntil`이 하는 일과 같다(전역 `Symbol.for('@vercel/request-context')`의 요청 문맥) — 이 몇 줄 때문에 패키지를 더하지 않았다.
+ * 왜: 브라우저가 답을 받다 끊으면 끝 적기는 응답이 끝난 뒤(스트림의 cancel)에 돈다. 맡기지 않으면 함수가 먼저 멈출 수 있고,
+ * 그러면 열림 표시가 180초 남아 다른 사람의 판정이 '요청이 많아'에 걸린다 (쓴 시간은 미리 센 최대 실행 시간으로 남는다).
+ * 요청을 받을 때 잡는다 — 스트림이 끊길 때는 이 요청의 문맥 밖일 수 있다. 문맥이 없으면(개발 서버·시험) 아무것도 하지 않고, 맡기다 실패해도 던지지 않는다.
+ */
+function keepAliveOf(): KeepAlive {
+  try {
+    const holder = (globalThis as unknown as Record<symbol, RequestContextHolder | undefined>)[Symbol.for('@vercel/request-context')]
+    const context = holder?.get?.()
+    const waitUntil = context?.waitUntil
+    if (context && typeof waitUntil === 'function') {
+      return (work) => { try { waitUntil.call(context, work) } catch { /* 맡기지 못해도 일은 돈다 */ } }
+    }
+  } catch { /* 문맥을 읽지 못했다 — 맡기지 않고 돈다 */ }
+  return () => {}
+}
+
 /**
  * 한국어 안내와 함께 JSON 오류 응답을 만든다. `limit`은 전체 상한에 걸린 이유(`x-llm-limit` 머리말) —
  * 브라우저는 이 머리말이 있는 429에서만 본문의 안내를 쓴다 (Firewall의 429는 우리 JSON이 아니다).
@@ -97,6 +122,7 @@ export async function POST(request: Request): Promise<Response> {
   // 본문을 받는 시간도 함수가 열려 있는 시간이다 — 한 턴 마감과 쓴 시간은 요청을 받은 때부터 잰다
   const startedAt = Date.now()
   const endAt = startedAt + TURN_SECONDS * 1000
+  const keepAlive = keepAliveOf()
   // 다른 사이트가 방문자의 브라우저로 대신 부르는 길을 막는다 (`_lib/origin.ts`) — 맥과 함수 시간을 남의 방문자 수만큼 쓰게 된다
   if (!sameOrigin(request)) return fail(403, '다른 사이트에서 온 요청입니다.')
   const base = process.env.LOCAL_LLM_URL
@@ -117,7 +143,9 @@ export async function POST(request: Request): Promise<Response> {
   // 모든 사용자를 합친 상한 — 넘으면 맥에 보내지 않고 곧바로 답해 함수가 몇 ms 만에 끝난다
   const admission = await admit(quotaStoreOf(process.env), quotaLimitsOf(process.env, MAX_DURATION_SECONDS * 1000), startedAt)
   if (!admission.ok) return fail(admission.status, admission.message, admission.reason)
-  return forward(request, { base, model, payload: built.payload, endAt, finish: admission.finish })
+  // 끝 적기는 어느 길에서 돌든 실행기에 맡긴다 — 브라우저가 끊은 길에서는 응답이 끝난 뒤에 돈다
+  const finish = () => { const work = admission.finish(); keepAlive(work); return work }
+  return forward(request, { base, model, payload: built.payload, endAt, finish })
 }
 
 /** 받아들인 한 턴을 LLM 서버로 넘기는 데 필요한 것 */
