@@ -20,6 +20,7 @@ export class LlmUnavailableError extends Error {}
 /**
  * 스트림(SSE)으로 오는 조각을 모아 하나의 답으로 만든다. 도구 호출은 index별로 이름·인자가 조각조각 온다.
  * `onText`는 글자가 늘 때마다 지금까지의 글 전체를 받는다 (진행 상황 표시용).
+ * `error`가 든 줄이 오면 LlmUnavailableError — 기본 제공 AI는 답을 보내다 멈추면 이 줄로 알린다 (`api/_lib/llmStream.ts STALL_EVENT`).
  */
 async function readStream(body: ReadableStream<Uint8Array>, onText: (soFar: string) => void): Promise<{ content: string; toolCalls: ToolCall[] }> {
   // 타입 정의가 TextDecoderStream의 입력을 BufferSource로 넓게 잡아 pipeThrough와 어긋난다 — 실제 동작은 맞다
@@ -37,8 +38,14 @@ async function readStream(body: ReadableStream<Uint8Array>, onText: (soFar: stri
       if (!line.startsWith('data:')) continue
       const data = line.slice(5).trim()
       if (!data || data === '[DONE]') continue
-      let delta: { content?: string; tool_calls?: Array<{ index: number; id?: string; function?: { name?: string; arguments?: string } }> } | undefined
-      try { delta = JSON.parse(data).choices?.[0]?.delta } catch { continue }
+      let event: { error?: { message?: unknown } | string; choices?: Array<{ delta?: { content?: string; tool_calls?: Array<{ index: number; id?: string; function?: { name?: string; arguments?: string } }> } }> } | null
+      try { event = JSON.parse(data) } catch { continue }
+      // 오류 번호는 이미 200으로 나간 뒤라 스트림 안에 적혀 온다. 서비스에 따라 글자 하나로 오기도 한다
+      if (event?.error) {
+        const reason = typeof event.error === 'string' ? event.error : event.error.message
+        throw new LlmUnavailableError(String(reason ?? '') || '답을 받다가 멈췄습니다. 잠시 뒤 다시 시도해 주세요.')
+      }
+      const delta = event?.choices?.[0]?.delta
       if (delta?.content) { content += delta.content; onText(content) }
       for (const part of delta?.tool_calls ?? []) {
         const call = (calls[part.index] ??= { id: '', type: 'function', function: { name: '', arguments: '' } })
@@ -55,7 +62,7 @@ async function readStream(body: ReadableStream<Uint8Array>, onText: (soFar: stri
  * LLM에 한 턴을 보낸다. `toolChoice`가 'none'이어도 **도구 정의는 그대로 보낸다** —
  * 정의를 빼면 요청의 앞부분이 달라져 서버의 KV 캐시가 통째로 무효가 된다 (v1에서 확인한 함정).
  * 서버에 닿지 못하거나 502/503이면 LlmUnavailableError, 기본 제공 AI가 요청 제한(429)에 걸려도 LlmUnavailableError,
- * 그 밖의 실패는 서버가 준 안내와 함께 Error.
+ * 답을 받다가 끊기거나 스트림에 오류 줄이 와도 LlmUnavailableError, 그 밖의 실패는 서버가 준 안내와 함께 Error.
  */
 export async function chat(own: OwnKey | null, messages: ChatMessage[], tools: unknown[], toolChoice: 'auto' | 'none', signal: AbortSignal, onText: (soFar: string) => void): Promise<ChatReply> {
   const target = endpointFor(own)
@@ -78,6 +85,10 @@ export async function chat(own: OwnKey | null, messages: ChatMessage[], tools: u
     if (res.status === 502 || res.status === 503) throw new LlmUnavailableError(message || '판정 서버가 쉬는 중입니다.')
     throw new Error(message || `판정 요청이 실패했습니다 (${res.status}).`)
   }
-  const reply = await readStream(res.body, onText)
+  const reply = await readStream(res.body, onText).catch((e: unknown) => {
+    if (signal.aborted || e instanceof LlmUnavailableError) throw e
+    // 답을 받다가 연결이 끊겼다 (함수 시간 초과·네트워크) — 브라우저의 영어 'network error' 대신 다시 하면 되는 실패로
+    throw new LlmUnavailableError(own ? '내 API 키의 서비스와 연결이 끊겼습니다. 잠시 뒤 다시 시도해 주세요.' : '판정 서버와 연결이 끊겼습니다. 잠시 뒤 다시 물어봐 주세요.')
+  })
   return { ...reply, model: res.headers.get('x-llm-model') ?? target.model }
 }

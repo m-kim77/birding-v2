@@ -15,6 +15,7 @@
  */
 // 경로에 .ts를 적는다 — 확장자 없는 경로는 배포된 함수에서 못 찾는다 (_lib/llmRequest.ts 머리말)
 import { buildLlmRequest, reasoningEffortOf } from './_lib/llmRequest.ts'
+import { relayStream } from './_lib/llmStream.ts'
 import { sameOrigin } from './_lib/origin.ts'
 
 /** 요청 본문의 상한. 1024px JPEG 한 장 + 대화 기록이면 2MB를 넘지 않는다 */
@@ -32,9 +33,15 @@ const DEFAULT_MAX_TOKENS = 4096
  * 맥의 LLM은 한 번에 몇 개만 처리해서, 앞 요청이 밀려 있으면 뒤 요청은 첫 글자도 못 받은 채 기다린다 —
  * 그동안 이 함수가 최대 실행 시간(300초, vercel.json)을 붙잡으면 Vercel Hobby의 한 달 한도를 빨리 먹고,
  * 한도를 넘으면 판정과 장소 이름 찾기가 모든 사용자에게서 멈춘다. 모델을 처음 올리는 수십 초보다는 길게 잡았다.
- * 첫 조각이 온 뒤로는 끊지 않는다 — 한 턴 전체의 시간은 300초가 맡는다.
+ * 첫 조각이 온 뒤로는 이 마감 대신 조각 사이 마감(`IDLE_SECONDS`)이 걸린다 — 한 턴 전체의 시간은 300초가 맡는다.
  */
 const DEFAULT_FIRST_RESPONSE_SECONDS = 90
+
+/**
+ * 첫 조각 뒤, 조각 사이에 이만큼(초) 아무것도 오지 않으면 끊고 "쉬는 중"으로 끝낸다 (`_lib/llmStream.ts`).
+ * 생각하는 모델도 생각을 조각으로 바로 흘려보내 정상인 답은 몇 초 넘게 멈추지 않는다 — 1분이면 맥이 잠들었거나 연결이 끊긴 것이다.
+ */
+const IDLE_SECONDS = 60
 
 /** 한국어 안내와 함께 JSON 오류 응답을 만든다 */
 function fail(status: number, message: string): Response {
@@ -55,28 +62,6 @@ function upstreamFailure(status: number): string {
 function firstResponseMs(): number {
   const seconds = Number(process.env.LOCAL_LLM_FIRST_RESPONSE_SECONDS)
   return (seconds > 0 ? seconds : DEFAULT_FIRST_RESPONSE_SECONDS) * 1000
-}
-
-/**
- * 스트림의 첫 조각을 받은 뒤, 그 조각부터 끝까지 흘려보내는 새 스트림을 준다.
- * 첫 조각을 기다리는 동안 요청이 끊기면(마감·브라우저가 떠남) 던진다. 첫 조각 전에 끝나면 빈 스트림.
- * 받는 쪽(브라우저)이 끊으면 LLM 서버 쪽 스트림도 끊는다 — 그래야 맥이 그 일을 버린다.
- */
-async function startStream(body: ReadableStream<Uint8Array>): Promise<ReadableStream<Uint8Array>> {
-  const reader = body.getReader()
-  const first = await reader.read()
-  return new ReadableStream<Uint8Array>({
-    start(controller) {
-      if (first.done) controller.close(); else controller.enqueue(first.value)
-    },
-    async pull(controller) {
-      const { done, value } = await reader.read()
-      if (done) controller.close(); else controller.enqueue(value)
-    },
-    cancel(reason) {
-      return reader.cancel(reason)
-    },
-  })
 }
 
 /**
@@ -114,7 +99,7 @@ export async function POST(request: Request): Promise<Response> {
       signal: AbortSignal.any([request.signal, deadline.signal]),
     })
     if (!upstream.ok || !upstream.body) return fail(502, upstreamFailure(upstream.status))
-    const stream = await startStream(upstream.body)
+    const stream = await relayStream(upstream.body, { idleMs: IDLE_SECONDS * 1000 })
     return new Response(stream, { headers: { 'content-type': 'text/event-stream', 'cache-control': 'no-store', 'x-llm-model': model } })
   } catch {
     return deadline.signal.aborted ? fail(503, '판정 서버가 바쁩니다. 잠시 뒤 다시 물어봐 주세요.') : fail(502, '판정 서버가 쉬는 중입니다.')

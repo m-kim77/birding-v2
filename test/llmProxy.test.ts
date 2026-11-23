@@ -20,6 +20,7 @@ process.env.LOCAL_LLM_MODEL = 'test-model'
 // 첫 응답 마감을 0.3초로 — 실제로 90초를 기다리지 않는다
 process.env.LOCAL_LLM_FIRST_RESPONSE_SECONDS = '0.3'
 const { POST } = await import('../api/llm.ts')
+const { STALL_EVENT } = await import('../api/_lib/llmStream.ts')
 const { SYSTEM_PROMPT } = await import('../src/features/identify/prompts.ts')
 
 test.after(() => { upstream.closeAllConnections(); upstream.close() })
@@ -73,7 +74,7 @@ test('머리글만 오고 첫 조각이 마감 안에 없어도 503', TIMED, asy
   assert.equal(res.status, 503)
 })
 
-test('첫 조각이 온 뒤로는 마감이 없다 — 느린 답도 끝까지 온다', TIMED, async () => {
+test('첫 조각이 온 뒤로는 첫 응답 마감이 없다 — 조각 사이가 첫 응답 마감보다 길어도 끝까지 온다', TIMED, async () => {
   respond = (_req, res) => {
     res.writeHead(200, { 'content-type': 'text/event-stream' })
     res.write(sse('생각 중'))
@@ -82,6 +83,17 @@ test('첫 조각이 온 뒤로는 마감이 없다 — 느린 답도 끝까지 �
   const res = await ask()
   assert.equal(res.status, 200)
   assert.equal(await res.text(), sse('생각 중') + sse('답'))
+})
+
+test('답을 보내던 LLM 서버 쪽 연결이 끊기면 오류 줄(STALL_EVENT)로 스트림을 닫는다 — 브라우저가 "쉬는 중"을 보여 준다', TIMED, async () => {
+  respond = (_req, res) => {
+    res.writeHead(200, { 'content-type': 'text/event-stream' })
+    res.write(sse('물총'))
+    setTimeout(() => res.destroy(), 50)
+  }
+  const res = await ask()
+  assert.equal(res.status, 200)
+  assert.equal(await res.text(), sse('물총') + STALL_EVENT)
 })
 
 test('LLM 서버가 오류로 답하면 502, 닿지 못하면 502 "쉬는 중"', async () => {
