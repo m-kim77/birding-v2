@@ -28,6 +28,15 @@ export function fakeUpstash() {
       }
       case 'ZADD': zset(key).set(args[1], Number(args[0])); return { result: 1 }
       case 'ZCARD': return { result: zset(key).size }
+      case 'ZCOUNT': {
+        // '(값'은 그 값을 빼는 범위 (Redis와 같다). 이 가짜는 '+inf' 위쪽만 안다
+        const exclusive = args[0].startsWith('(')
+        const min = Number(exclusive ? args[0].slice(1) : args[0])
+        if (args[1] !== '+inf') return { error: 'ERR 가짜는 +inf 위쪽만 안다' }
+        return { result: [...zset(key).values()].filter((score) => (exclusive ? score > min : score >= min)).length }
+      }
+      // 실제 Upstash처럼 글자로 준다 (없으면 null)
+      case 'GET': return { result: counters.has(key) ? String(counters.get(key)) : null }
       case 'ZREM': return { result: zset(key).delete(args[0]) ? 1 : 0 }
       case 'INCRBY': counters.set(key, (counters.get(key) ?? 0) + Number(args[0])); return { result: counters.get(key) }
       case 'DECRBY': counters.set(key, (counters.get(key) ?? 0) - Number(args[0])); return { result: counters.get(key) }

@@ -25,7 +25,7 @@ function world() {
   const up = fakeUpstash()
   let clock = T0
   let n = 0
-  const deps: QuotaDeps = { fetch: up.fetch, now: () => clock, newId: () => `id-${++n}`, timeoutMs: 50 }
+  const deps: QuotaDeps = { fetch: up.fetch, now: () => clock, newId: () => `id-${++n}`, timeoutMs: 50, memory: { fullDay: null, usedSeconds: 0 } }
   return { up, deps, pass: (ms: number) => { clock += ms } }
 }
 
@@ -102,18 +102,31 @@ test('Upstash에는 토큰과 숫자만 간다 — /multi-exec, Bearer 토큰, �
   await admit(STORE, LIMITS, T0, w.deps)
   assert.equal(w.up.calls[0].url, 'https://upstash.test/multi-exec')
   assert.equal(w.up.calls[0].auth, 'Bearer test-token')
-  assert.deepEqual(w.up.calls[0].commands.map((c) => c[0]), ['ZREMRANGEBYSCORE', 'ZADD', 'ZCARD', 'INCRBY', 'EXPIRE', 'PEXPIRE'])
-  assert.deepEqual(w.up.calls[0].commands[1], ['ZADD', 'llm:active', String(T0), 'id-1'])
+  assert.deepEqual(w.up.calls[0].commands, [['GET', DAY_KEY], ['ZCOUNT', 'llm:active', `(${T0 - LIMITS.staleMs}`, '+inf']])
+  assert.deepEqual(w.up.calls[1].commands.map((c) => c[0]), ['ZREMRANGEBYSCORE', 'ZADD', 'ZCARD', 'INCRBY', 'EXPIRE', 'PEXPIRE'])
+  assert.deepEqual(w.up.calls[1].commands[1], ['ZADD', 'llm:active', String(T0), 'id-1'])
 })
 
-test('동시에 열린 요청이 상한을 넘으면 429 busy — 올린 표시와 미리 적은 초는 되돌린다', async () => {
+test('동시에 열린 요청이 상한을 넘으면 429 busy — 읽기만 하는 명령 둘로 막고, 올리거나 더하지 않는다', async () => {
   const w = world()
   assert.equal((await admit(STORE, LIMITS, T0, w.deps)).ok, true)
   assert.equal((await admit(STORE, LIMITS, T0, w.deps)).ok, true)
+  const before = w.up.calls.length
   const third = await admit(STORE, LIMITS, T0, w.deps)
   assert.deepEqual(third, { ok: false, status: 429, reason: 'busy', message: BUSY_MESSAGE })
+  assert.deepEqual(w.up.calls.slice(before).map((c) => c.commands.map((x) => x[0])), [['GET', 'ZCOUNT']])
   assert.equal(w.up.zsets.get('llm:active')?.size, 2)
   assert.equal(w.up.counters.get(DAY_KEY), 2 * RESERVE)
+})
+
+test('같은 때 들어온 두 요청이 둘 다 미리 보기를 지나도 상한을 넘지 않는다 — 늦은 쪽은 올린 표시와 미리 적은 초를 되돌린다', async () => {
+  const w = world()
+  const one = { ...LIMITS, maxConcurrent: 1 }
+  const results = await Promise.all([admit(STORE, one, T0, w.deps), admit(STORE, one, T0, w.deps)])
+  assert.deepEqual(results.map((r) => r.ok).sort(), [false, true])
+  assert.deepEqual(results.find((r) => !r.ok), { ok: false, status: 429, reason: 'busy', message: BUSY_MESSAGE })
+  assert.equal(w.up.zsets.get('llm:active')?.size, 1)
+  assert.equal(w.up.counters.get(DAY_KEY), RESERVE)
 })
 
 test('끝을 적지 못하고 죽은 요청의 열림 표시는 최대 실행 시간이 지나면 버려져 자리를 막지 않는다', async () => {
@@ -132,6 +145,28 @@ test('오늘 쓴 시간이 상한에 닿았으면 429 day — 미리 적은 초�
   assert.deepEqual(a, { ok: false, status: 429, reason: 'day', message: DAY_MESSAGE })
   assert.equal(w.up.counters.get(DAY_KEY), LIMITS.dailySeconds)
   assert.equal(w.up.zsets.get('llm:active')?.size, 0)
+})
+
+test('오늘 시간을 다 쓴 것을 기억해, 같은 날 다시 오는 요청은 Upstash에 묻지 않고 막는다 — 다음 날은 다시 묻는다', async () => {
+  const w = world()
+  w.up.counters.set(DAY_KEY, LIMITS.dailySeconds)
+  assert.deepEqual(await admit(STORE, LIMITS, T0, w.deps), { ok: false, status: 429, reason: 'day', message: DAY_MESSAGE })
+  const asked = w.up.calls.length
+  for (let i = 0; i < 5; i++) assert.equal((await admit(STORE, LIMITS, T0, w.deps)).ok, false)
+  assert.equal(w.up.calls.length, asked, '같은 날은 묻지 않는다')
+  w.pass(24 * 3_600_000)
+  assert.equal((await admit(STORE, LIMITS, T0, w.deps)).ok, true)
+})
+
+test('열린 요청이 미리 센 몫 때문에 다 쓴 것처럼 보일 때는 기억하지 않는다 — 그 요청이 끝나 돌려받으면 다시 받아들인다', async () => {
+  const w = world()
+  w.up.counters.set(DAY_KEY, LIMITS.dailySeconds - 100)
+  const open = await admit(STORE, LIMITS, T0, w.deps)
+  assert.equal(open.ok, true)
+  assert.equal((await admit(STORE, LIMITS, T0, w.deps)).ok, false, '미리 센 180초 때문에 지금은 상한 이상')
+  w.pass(2_000)
+  if (open.ok) await open.finish()
+  assert.equal((await admit(STORE, LIMITS, T0, w.deps)).ok, true)
 })
 
 test('상한 바로 아래면 받아들인다 — 미리 적은 초 때문에 막지 않는다', async () => {

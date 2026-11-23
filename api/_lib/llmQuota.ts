@@ -36,6 +36,17 @@ export type Admission =
   | { ok: true; finish: () => Promise<void> }
   | { ok: false; status: 429 | 503; reason: 'day' | 'busy' | 'store'; message: string }
 
+/**
+ * 함수 인스턴스 하나가 기억하는 것 — 오늘 시간을 다 쓴 것이 확실해진 날. 같은 날 다시 오는 요청은 Upstash에 묻지 않고 막는다.
+ * 인스턴스가 새로 뜨면 비어 있다 (그때 한 번 다시 묻는다).
+ */
+export interface QuotaMemory {
+  /** 다 썼다고 본 하루 키 (`llm:sec:날짜`). 날이 바뀌면 맞지 않아 저절로 잊는다 */
+  fullDay: string | null
+  /** 그때 확실히 쓴 초 — 상한(`dailySeconds`)이 이보다 크면 기억을 쓰지 않는다 */
+  usedSeconds: number
+}
+
 /** 바깥과 닿는 것. 시험에서 가짜로 바꾼다 */
 export interface QuotaDeps {
   fetch: typeof fetch
@@ -43,6 +54,7 @@ export interface QuotaDeps {
   newId: () => string
   /** Upstash 한 번에 기다리는 시간(ms) */
   timeoutMs: number
+  memory: QuotaMemory
 }
 
 /** 하루 5시간 = 2GB × 5시간 = 10 GB-시간. 30일이면 300으로, 장소 이름·드라이브 몫을 남기고 한 달 360 안에 든다 */
@@ -65,12 +77,18 @@ export const BUSY_MESSAGE = '요청이 많아 잠시 쉬어 갑니다. 몇 분 �
 export const DAY_MESSAGE = '오늘 기본 제공 AI가 쓸 수 있는 시간을 다 썼습니다. 내일 다시 물어봐 주세요.'
 export const STORE_MESSAGE = '판정 서버가 잠시 쉬어 갑니다. 조금 뒤 다시 물어봐 주세요.'
 
+/** 막는 답 셋 — 브라우저에 줄 번호·이유(`x-llm-limit`)·안내 */
+const DAY_FULL: Admission = { ok: false, status: 429, reason: 'day', message: DAY_MESSAGE }
+const BUSY: Admission = { ok: false, status: 429, reason: 'busy', message: BUSY_MESSAGE }
+const STORE_DOWN: Admission = { ok: false, status: 503, reason: 'store', message: STORE_MESSAGE }
+
 const defaultDeps: QuotaDeps = {
   // 부를 때마다 지금의 fetch를 쓴다 — 시험이 바꿔 끼운 fetch도 받게
   fetch: (input, init) => fetch(input, init),
   now: () => Date.now(),
   newId: () => crypto.randomUUID(),
   timeoutMs: 2000,
+  memory: { fullDay: null, usedSeconds: 0 },
 }
 
 /**
@@ -144,14 +162,56 @@ async function exec(store: QuotaStore, commands: Array<Array<string | number>>, 
 /**
  * 요청 하나를 받아들일지 정한다. 받아들이면 열린 요청 목록에 올리고 하루 키에 `reserveSeconds`(최대 실행 시간)를 미리 더한다.
  * 막는 경우: 오늘 쓴 시간이 이미 상한 이상(429 day), 열린 요청이 상한을 넘음(429 busy), Upstash 실패·늦음(503 store).
- * 막으면 올린 것과 미리 더한 것을 되돌린다 (되돌리기가 실패해도 열림 표시는 `staleMs` 뒤에 버려진다).
+ * **막을 때는 Upstash 명령을 적게 쓴다** — 막힌 요청은 IP 수만큼 끝없이 올 수 있고, Upstash 무료 등급의 한 달 명령 수를 다 쓰면
+ * 저장소에 닿지 못해 막는 규칙 때문에 모두의 기본 제공 AI가 다음 달까지 503이 된다. 그래서 먼저 읽기만 하는 명령 둘(`precheck`)로 거르고,
+ * 오늘 시간을 다 쓴 것이 확실하면 인스턴스가 기억해(`QuotaMemory`) 같은 날은 아예 묻지 않는다. 받아들일 요청만 올리고 더한다(`claim`).
  * `store`가 null이면 늘 받아들이고 아무것도 세지 않는다. `startedAt`은 요청을 받은 시각 — 끝날 때 이것부터 잰다.
  */
 export async function admit(store: QuotaStore | null, limits: QuotaLimits, startedAt: number, deps: QuotaDeps = defaultDeps): Promise<Admission> {
   if (!store) return { ok: true, finish: async () => {} }
   const now = deps.now()
-  const id = deps.newId()
   const dayKey = `llm:sec:${koreanDay(now)}`
+  if (deps.memory.fullDay === dayKey && deps.memory.usedSeconds >= limits.dailySeconds) return DAY_FULL
+  const blocked = await precheck(store, limits, dayKey, now, deps)
+  if (blocked) return blocked
+  return claim(store, limits, dayKey, startedAt, deps)
+}
+
+/**
+ * 읽기만 하는 명령 둘(오늘 쓴 초, 아직 살아 있는 열림 표시 수)로 막을 요청을 먼저 거른다. 막으면 그 답, 지나가면 null.
+ * 오늘 쓴 초에는 열린 요청이 미리 센 몫도 들어 있다 — 그 몫을 다 돌려받아도 상한 이상일 때만 기억한다
+ * (그 전에 기억하면 열린 요청이 끝나 돌려받은 시간을 그날 다시 쓰지 못한다).
+ */
+async function precheck(store: QuotaStore, limits: QuotaLimits, dayKey: string, now: number, deps: QuotaDeps): Promise<Admission | null> {
+  let used: number
+  let open: number
+  try {
+    // '(' 는 그 값을 빼는 범위 — 버리는 쪽(`claim`의 ZREMRANGEBYSCORE)은 그 값까지 버린다
+    const r = await exec(store, [['GET', dayKey], ['ZCOUNT', ACTIVE_KEY, `(${now - limits.staleMs}`, '+inf']], deps)
+    used = r[0] === null ? 0 : Number(r[0])
+    open = Number(r[1])
+    if (!Number.isFinite(used) || !Number.isFinite(open)) throw new Error('Upstash 결과가 숫자가 아닙니다')
+  } catch (e) {
+    warn('미리 보기', e)
+    return STORE_DOWN
+  }
+  if (used >= limits.dailySeconds) {
+    // 열린 요청은 끝날 때 많아야 (미리 센 초 - 1)을 돌려준다
+    const surely = used - open * (reserveSeconds(limits) - 1)
+    if (surely >= limits.dailySeconds) Object.assign(deps.memory, { fullDay: dayKey, usedSeconds: surely })
+    return DAY_FULL
+  }
+  return open + 1 > limits.maxConcurrent ? BUSY : null
+}
+
+/**
+ * 열린 요청 목록에 올리고 하루 키에 미리 센 초를 더한다 — 한 트랜잭션이라 같은 때 들어온 요청끼리도 상한을 넘지 않는다.
+ * 미리 보기와 이 사이에 다른 요청이 자리를 차지했으면 올린 것과 더한 것을 되돌리고 막는다 (되돌리기가 실패해도 열림 표시는 `staleMs` 뒤에 버려진다).
+ * Upstash 실패·늦음은 503 store.
+ */
+async function claim(store: QuotaStore, limits: QuotaLimits, dayKey: string, startedAt: number, deps: QuotaDeps): Promise<Admission> {
+  const now = deps.now()
+  const id = deps.newId()
   const reserve = reserveSeconds(limits)
   let open: number
   let usedBefore: number
@@ -170,13 +230,11 @@ export async function admit(store: QuotaStore | null, limits: QuotaLimits, start
     if (!Number.isFinite(open) || !Number.isFinite(usedBefore)) throw new Error('Upstash 결과가 숫자가 아닙니다')
   } catch (e) {
     warn('받아들이기', e)
-    return { ok: false, status: 503, reason: 'store', message: STORE_MESSAGE }
+    return STORE_DOWN
   }
   if (usedBefore >= limits.dailySeconds || open > limits.maxConcurrent) {
     await exec(store, [['ZREM', ACTIVE_KEY, id], ['DECRBY', dayKey, reserve]], deps).catch((e) => warn('되돌리기', e))
-    return usedBefore >= limits.dailySeconds
-      ? { ok: false, status: 429, reason: 'day', message: DAY_MESSAGE }
-      : { ok: false, status: 429, reason: 'busy', message: BUSY_MESSAGE }
+    return usedBefore >= limits.dailySeconds ? DAY_FULL : BUSY
   }
   let finished = false
   return {
