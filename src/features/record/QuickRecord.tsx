@@ -7,7 +7,7 @@ import Button from '../../ui/Button'
 import { styleFromAccent } from '../dex/cardStyle'
 import { buildSighting } from './buildSighting'
 import { lastPlaceOf } from './lastPlace'
-import LazyLocationSheet from './LazyLocationSheet'
+import LazyLocationSheet, { usePrefetchLocationSheet } from './LazyLocationSheet'
 import { CountField, PlaceRow } from './RecordFacts'
 import SpeciesInput from './SpeciesInput'
 import { usePlaceValue, type PlaceValue } from './usePlace'
@@ -37,6 +37,8 @@ export default function QuickRecord({ onCancel, onDone }: Props) {
   const [note, setNote] = useState('')
   const loc = usePlaceValue()
   const [pickingPlace, setPickingPlace] = useState(false)
+  // 위치는 그 시트로만 넣는다 — 신호 없는 곳에서도 '현재 위치로'를 쓸 수 있게 미리 받아 둔다
+  usePrefetchLocationSheet()
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const known = useMemo(() => [...new Set(existing.map((s) => s.speciesKo).filter(Boolean))], [existing])

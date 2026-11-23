@@ -1,11 +1,23 @@
-import { Suspense, type ComponentProps } from 'react'
+import { Suspense, useEffect, type ComponentProps } from 'react'
+import { browserPrefetchEnv } from '../../app/chunkEnv'
 import LoadBoundary from '../../app/LoadBoundary'
 import { lazyPart } from '../../app/lazyScreen'
+import { prefetchLater } from '../../app/prefetch'
 import Sheet from '../../ui/Sheet'
 
-// 위치 시트는 지도(Leaflet)를 끌고 온다 — 위치 줄을 누를 때 받는다 (위치를 안 고르는 사람까지 지도를 받지 않게).
+// 위치 시트는 지도(Leaflet)를 끌고 온다 — 첫 화면이 지도를 기다리지 않게 따로 받는다 (기록하기는 화면이 뜬 뒤 미리 받는다 — usePrefetchLocationSheet).
 // lazyPart: 새 판이어도 저절로 새로 고치지 않는다 — 이 시트를 여는 곳 중 사진 없이 기록·수정 칸은 초안이 없어 쓰던 값이 사라지고, 기록하기도 '이어 쓰기'를 눌러야 돌아온다
-const LocationSheet = lazyPart(() => import('./LocationSheet'))
+const loadLocationSheet = () => import('./LocationSheet')
+const LocationSheet = lazyPart(loadLocationSheet)
+
+/**
+ * 현장에서 기록하는 화면(기록하기·사진 없이 기록)이 뜨고 조금 뒤, 온라인이면 위치 시트를 미리 받아 둔다 (app/prefetch.ts).
+ * 시트를 열 때만 받으면, 신호 있는 곳에서 GPS가 든 사진으로만 기록해 본 뒤 신호 없는 산에서 위치 없는 사진을 고르면
+ * 지도가 필요 없는 '현재 위치로'·'직전 기록 위치로'까지 함께 못 쓴다. 그때 오프라인이거나 못 받으면 시트를 열 때 지금처럼 받는다.
+ */
+export function usePrefetchLocationSheet(): void {
+  useEffect(() => prefetchLater([loadLocationSheet], browserPrefetchEnv), [])
+}
 
 /**
  * 위치 시트를 필요할 때 받아 연다. 기록하기(RecordFlow)·사진 없이 기록(QuickRecord)·기록 수정 칸(RecordEdit)이 쓴다.

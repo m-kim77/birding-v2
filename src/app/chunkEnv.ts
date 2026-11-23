@@ -50,7 +50,7 @@ export const browserChunkEnv: ChunkEnv = {
 }
 
 /**
- * 브라우저에서 prefetchLater가 쓰는 값들 (App의 기록 상세·도감).
+ * 브라우저에서 prefetchLater가 쓰는 값들 (App의 기록 상세·도감, 기록하기·사진 없이 기록의 위치 시트).
  * 나중은 그냥 몇 초 뒤다 — requestIdleCallback은 아이폰 사파리에 없다. 받는 것은 이 사이트의 앱 파일뿐이라 보내는 값이 없다.
  */
 export const browserPrefetchEnv: PrefetchEnv = {
