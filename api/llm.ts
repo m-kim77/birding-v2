@@ -140,8 +140,11 @@ export async function POST(request: Request): Promise<Response> {
   })
   if ('error' in built) return fail(400, built.error)
 
-  // 모든 사용자를 합친 상한 — 넘으면 맥에 보내지 않고 곧바로 답해 함수가 몇 ms 만에 끝난다
-  const admission = await admit(quotaStoreOf(process.env), quotaLimitsOf(process.env, MAX_DURATION_SECONDS * 1000), startedAt)
+  // 모든 사용자를 합친 상한 — 넘으면 맥에 보내지 않고 곧바로 답해 함수가 몇 ms 만에 끝난다.
+  // 지시문·첫 판정 요청 뒤에 글이 더 있으면 이미 시작한 판정의 다음 턴이다 — 동시 요청 상한을 넉넉히 받는다 (`_lib/llmQuota.ts CONTINUING_FACTOR`)
+  const continuing = (built.payload.messages as unknown[]).length > 2
+  const limits = quotaLimitsOf(process.env, MAX_DURATION_SECONDS * 1000, continuing)
+  const admission = await admit(quotaStoreOf(process.env), limits, startedAt)
   if (!admission.ok) return fail(admission.status, admission.message, admission.reason)
   // 끝 적기는 어느 길에서 돌든 실행기에 맡긴다 — 브라우저가 끊은 길에서는 응답이 끝난 뒤에 돈다
   const finish = () => { const work = admission.finish(); keepAlive(work); return work }

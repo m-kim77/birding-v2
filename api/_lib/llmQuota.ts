@@ -49,6 +49,14 @@ export interface QuotaDeps {
 export const DEFAULT_DAILY_SECONDS = 18_000
 /** 맥의 LLM은 한 번에 한둘만 처리한다 — 셋을 넘는 요청은 어차피 첫 응답을 기다리며 함수 시간만 쓴다 */
 export const DEFAULT_MAX_CONCURRENT = 3
+/**
+ * 판정 도중의 턴(첫 판정 요청 뒤에 조수·도구 글이 이어진 대화)이 받는 동시 요청 상한의 배수.
+ * 판정 한 건은 `/api/llm`을 많게는 10번 부르고, 턴 사이(브라우저가 도구를 돌리는 몇 초)에는 자리를 비운다 —
+ * 그 틈에 새 판정이 자리를 차지하면 이어지는 턴이 429로 깨져, 앞 턴에 쓴 함수 시간과 맥의 일이 버려지고 처음부터 다시 했다.
+ * 그래서 새 판정만 상한에서 막고, 이미 시작한 판정의 턴은 두 배까지 받는다. 이 모양은 꾸밀 수 있어 끝없이 열지는 않는다 —
+ * 하루 시간 상한은 턴의 모양과 상관없이 그대로 센다.
+ */
+export const CONTINUING_FACTOR = 2
 /** 하루 키를 남겨 두는 시간(초). 날이 바뀐 뒤 끝난 요청이 어제 키를 고칠 수 있게 하루를 더 둔다 */
 const DAY_TTL_SECONDS = 2 * 86_400
 const ACTIVE_KEY = 'llm:active'
@@ -97,11 +105,13 @@ function positive(value: string | undefined, fallback: number): number {
 /**
  * 환경변수(`LLM_DAILY_SECONDS`·`LLM_MAX_CONCURRENT`)에서 상한을 읽는다. 잘못 적은 값은 기본값으로 — 상한이 조용히 풀리지 않게.
  * `staleMs`는 함수의 최대 실행 시간이다 (`api/llm.ts MAX_DURATION_SECONDS`).
+ * `continuing`이면(판정 도중의 턴) 동시 요청 상한을 `CONTINUING_FACTOR`배로 준다.
  */
-export function quotaLimitsOf(env: Record<string, string | undefined>, staleMs: number): QuotaLimits {
+export function quotaLimitsOf(env: Record<string, string | undefined>, staleMs: number, continuing = false): QuotaLimits {
+  const maxConcurrent = Math.floor(positive(env.LLM_MAX_CONCURRENT, DEFAULT_MAX_CONCURRENT)) || DEFAULT_MAX_CONCURRENT
   return {
     dailySeconds: positive(env.LLM_DAILY_SECONDS, DEFAULT_DAILY_SECONDS),
-    maxConcurrent: Math.floor(positive(env.LLM_MAX_CONCURRENT, DEFAULT_MAX_CONCURRENT)) || DEFAULT_MAX_CONCURRENT,
+    maxConcurrent: continuing ? maxConcurrent * CONTINUING_FACTOR : maxConcurrent,
     staleMs,
   }
 }

@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  admit, koreanDay, quotaLimitsOf, quotaStoreOf, BUSY_MESSAGE, DAY_MESSAGE, DEFAULT_DAILY_SECONDS, DEFAULT_MAX_CONCURRENT,
+  admit, koreanDay, quotaLimitsOf, quotaStoreOf, BUSY_MESSAGE, CONTINUING_FACTOR, DAY_MESSAGE, DEFAULT_DAILY_SECONDS, DEFAULT_MAX_CONCURRENT,
   reserveSeconds, STORE_MESSAGE, type QuotaDeps, type QuotaLimits,
 } from '../api/_lib/llmQuota.ts'
 import { fakeUpstash } from './fakeUpstash.ts'
@@ -46,6 +46,13 @@ test('quotaLimitsOf: 환경변수의 값, 비었거나 잘못 적었으면 기�
   assert.deepEqual(quotaLimitsOf({}, 1000), { dailySeconds: DEFAULT_DAILY_SECONDS, maxConcurrent: DEFAULT_MAX_CONCURRENT, staleMs: 1000 })
   assert.deepEqual(quotaLimitsOf({ LLM_DAILY_SECONDS: '3600', LLM_MAX_CONCURRENT: '1' }, 1000), { dailySeconds: 3600, maxConcurrent: 1, staleMs: 1000 })
   assert.deepEqual(quotaLimitsOf({ LLM_DAILY_SECONDS: '0', LLM_MAX_CONCURRENT: '많이' }, 1000), { dailySeconds: DEFAULT_DAILY_SECONDS, maxConcurrent: DEFAULT_MAX_CONCURRENT, staleMs: 1000 })
+})
+
+test('quotaLimitsOf: 판정 도중의 턴은 동시 요청 상한을 몇 배로 받는다 — 하루 시간 상한은 그대로', () => {
+  assert.equal(CONTINUING_FACTOR, 2)
+  assert.deepEqual(quotaLimitsOf({}, 1000, true), { dailySeconds: DEFAULT_DAILY_SECONDS, maxConcurrent: DEFAULT_MAX_CONCURRENT * 2, staleMs: 1000 })
+  assert.equal(quotaLimitsOf({ LLM_MAX_CONCURRENT: '1' }, 1000, true).maxConcurrent, 2)
+  assert.equal(quotaLimitsOf({ LLM_MAX_CONCURRENT: '1' }, 1000, false).maxConcurrent, 1)
 })
 
 test('저장소가 없으면 늘 받아들이고 아무 데도 묻지 않는다', async () => {

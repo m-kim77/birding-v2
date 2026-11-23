@@ -188,6 +188,20 @@ test('전체 상한: 동시 요청이 상한을 넘으면 LLM 서버에 가지 �
   assert.equal(received, null)
 })
 
+test('전체 상한: 판정 도중의 턴은 새 판정이 자리를 다 채워도 받는다 — 도구를 돌리는 사이에 끼어든 판정 때문에 진행 중인 판정이 깨지지 않게', async () => {
+  const up = withQuota({ LLM_MAX_CONCURRENT: '1' })
+  up.zsets.set('llm:active', new Map([['끼어든-새-판정', Date.now()]]))
+  respond = (_req, res) => { res.writeHead(200, { 'content-type': 'text/event-stream' }); res.end(sse('물총새')) }
+  const call = { id: 'c1', type: 'function', function: { name: 'search_wikipedia', arguments: '{"query":"물총새"}' } }
+  const res = await ask({ messages: [ASK, { role: 'assistant', content: null, tool_calls: [call] }, { role: 'tool', tool_call_id: 'c1', content: '{}' }] })
+  assert.equal(res.status, 200)
+  assert.equal(await res.text(), sse('물총새'))
+  // 새 판정은 그대로 막는다
+  const fresh = await ask()
+  assert.equal(fresh.status, 429)
+  assert.equal(fresh.headers.get('x-llm-limit'), 'busy')
+})
+
 test('전체 상한: 오늘 쓸 시간을 다 썼으면 429 (x-llm-limit: day)', async () => {
   const up = withQuota({ LLM_DAILY_SECONDS: '60' })
   up.counters.set(`llm:sec:${koreanDay(Date.now())}`, 60)
