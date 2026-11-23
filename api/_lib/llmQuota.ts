@@ -24,7 +24,10 @@ export interface QuotaLimits {
   dailySeconds: number
   /** 동시에 열려 있을 수 있는 요청 수 */
   maxConcurrent: number
-  /** 이보다 오래된 '열림' 표시(ms)는 죽은 함수가 남긴 것으로 보고 버린다 — 함수의 최대 실행 시간 */
+  /**
+   * 함수의 최대 실행 시간(ms). 이보다 오래된 '열림' 표시는 죽은 함수가 남긴 것으로 보고 버리고,
+   * 받아들일 때 이만큼을 미리 센다 (`reserveSeconds`)
+   */
   staleMs: number
 }
 
@@ -46,11 +49,6 @@ export interface QuotaDeps {
 export const DEFAULT_DAILY_SECONDS = 18_000
 /** 맥의 LLM은 한 번에 한둘만 처리한다 — 셋을 넘는 요청은 어차피 첫 응답을 기다리며 함수 시간만 쓴다 */
 export const DEFAULT_MAX_CONCURRENT = 3
-/**
- * 받아들일 때 미리 적어 두는 초. 끝날 때 실제 시간으로 고친다 — 함수가 끝을 적지 못하고 죽어도 이만큼은 세어 둔다.
- * 판정 한 턴은 대개 이보다 짧다 (작업 21 실측: 판정 한 건 평균 53초, 여러 턴의 합).
- */
-export const RESERVE_SECONDS = 30
 /** 하루 키를 남겨 두는 시간(초). 날이 바뀐 뒤 끝난 요청이 어제 키를 고칠 수 있게 하루를 더 둔다 */
 const DAY_TTL_SECONDS = 2 * 86_400
 const ACTIVE_KEY = 'llm:active'
@@ -78,6 +76,16 @@ export function quotaStoreOf(env: Record<string, string | undefined>): QuotaStor
   const pick = upstash.url || upstash.token ? upstash : kv
   if (!pick.url && !pick.token) return null
   return { url: (pick.url ?? '').trim().replace(/\/+$/, ''), token: (pick.token ?? '').trim() }
+}
+
+/**
+ * 받아들일 때 미리 적어 두는 초 — 한 턴이 열려 있을 수 있는 가장 긴 시간(최대 실행 시간, 올림). 끝날 때 실제 시간으로 돌려준다.
+ * 끝을 적지 못하면(브라우저가 끊은 뒤 함수가 먼저 멈춤·끝 적기에서 Upstash 실패) 이만큼 센 채로 남는다 —
+ * 실제보다 적게 세면 상한이 지키려던 바로 그 경우(받다가 끊기를 되풀이)에 새므로, 많이 세는 쪽으로 틀리게 한다.
+ * 대가: 다른 요청이 열려 있는 동안 그 몫까지 세어, 하루 상한 바로 앞에서는 조금 일찍(많아야 동시 요청 수 × 이 초) 닫힌다.
+ */
+export function reserveSeconds(limits: QuotaLimits): number {
+  return Math.ceil(limits.staleMs / 1000)
 }
 
 /** 양수면 그 값, 비었거나 0 이하·숫자가 아니면 기본값 */
@@ -124,7 +132,7 @@ async function exec(store: QuotaStore, commands: Array<Array<string | number>>, 
 }
 
 /**
- * 요청 하나를 받아들일지 정한다. 받아들이면 열린 요청 목록에 올리고 하루 키에 `RESERVE_SECONDS`를 미리 더한다.
+ * 요청 하나를 받아들일지 정한다. 받아들이면 열린 요청 목록에 올리고 하루 키에 `reserveSeconds`(최대 실행 시간)를 미리 더한다.
  * 막는 경우: 오늘 쓴 시간이 이미 상한 이상(429 day), 열린 요청이 상한을 넘음(429 busy), Upstash 실패·늦음(503 store).
  * 막으면 올린 것과 미리 더한 것을 되돌린다 (되돌리기가 실패해도 열림 표시는 `staleMs` 뒤에 버려진다).
  * `store`가 null이면 늘 받아들이고 아무것도 세지 않는다. `startedAt`은 요청을 받은 시각 — 끝날 때 이것부터 잰다.
@@ -134,6 +142,7 @@ export async function admit(store: QuotaStore | null, limits: QuotaLimits, start
   const now = deps.now()
   const id = deps.newId()
   const dayKey = `llm:sec:${koreanDay(now)}`
+  const reserve = reserveSeconds(limits)
   let open: number
   let usedBefore: number
   try {
@@ -141,20 +150,20 @@ export async function admit(store: QuotaStore | null, limits: QuotaLimits, start
       ['ZREMRANGEBYSCORE', ACTIVE_KEY, '-inf', now - limits.staleMs],
       ['ZADD', ACTIVE_KEY, now, id],
       ['ZCARD', ACTIVE_KEY],
-      ['INCRBY', dayKey, RESERVE_SECONDS],
+      ['INCRBY', dayKey, reserve],
       ['EXPIRE', dayKey, DAY_TTL_SECONDS],
       // 마지막 요청이 끝나고 한참 지나면 목록 자체가 사라지게
       ['PEXPIRE', ACTIVE_KEY, limits.staleMs],
     ], deps)
     open = Number(r[2])
-    usedBefore = Number(r[3]) - RESERVE_SECONDS
+    usedBefore = Number(r[3]) - reserve
     if (!Number.isFinite(open) || !Number.isFinite(usedBefore)) throw new Error('Upstash 결과가 숫자가 아닙니다')
   } catch (e) {
     warn('받아들이기', e)
     return { ok: false, status: 503, reason: 'store', message: STORE_MESSAGE }
   }
   if (usedBefore >= limits.dailySeconds || open > limits.maxConcurrent) {
-    await exec(store, [['ZREM', ACTIVE_KEY, id], ['DECRBY', dayKey, RESERVE_SECONDS]], deps).catch((e) => warn('되돌리기', e))
+    await exec(store, [['ZREM', ACTIVE_KEY, id], ['DECRBY', dayKey, reserve]], deps).catch((e) => warn('되돌리기', e))
     return usedBefore >= limits.dailySeconds
       ? { ok: false, status: 429, reason: 'day', message: DAY_MESSAGE }
       : { ok: false, status: 429, reason: 'busy', message: BUSY_MESSAGE }
@@ -162,12 +171,12 @@ export async function admit(store: QuotaStore | null, limits: QuotaLimits, start
   let finished = false
   return {
     ok: true,
-    /** 열림 표시를 지우고 미리 더한 초를 실제로 쓴 초(올림)로 고친다. 두 번 불러도 한 번만 센다. 실패해도 던지지 않는다 */
+    /** 열림 표시를 지우고 미리 더한 초를 실제로 쓴 초(올림)로 돌려준다. 두 번 불러도 한 번만 센다. 실패해도 던지지 않는다(미리 센 초가 남는다) */
     finish: async () => {
       if (finished) return
       finished = true
       const spent = Math.max(1, Math.ceil((deps.now() - startedAt) / 1000))
-      await exec(store, [['ZREM', ACTIVE_KEY, id], ['INCRBY', dayKey, spent - RESERVE_SECONDS]], deps).catch((e) => warn('끝 적기', e))
+      await exec(store, [['ZREM', ACTIVE_KEY, id], ['INCRBY', dayKey, spent - reserve]], deps).catch((e) => warn('끝 적기', e))
     },
   }
 }

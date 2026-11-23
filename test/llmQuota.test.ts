@@ -2,12 +2,15 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   admit, koreanDay, quotaLimitsOf, quotaStoreOf, BUSY_MESSAGE, DAY_MESSAGE, DEFAULT_DAILY_SECONDS, DEFAULT_MAX_CONCURRENT,
-  RESERVE_SECONDS, STORE_MESSAGE, type QuotaDeps, type QuotaLimits,
+  reserveSeconds, STORE_MESSAGE, type QuotaDeps, type QuotaLimits,
 } from '../api/_lib/llmQuota.ts'
 import { fakeUpstash } from './fakeUpstash.ts'
 
 const STORE = { url: 'https://upstash.test', token: 'test-token' }
-const LIMITS: QuotaLimits = { dailySeconds: 100, maxConcurrent: 2, staleMs: 180_000 }
+// 하루 상한은 미리 적는 몫 몇 개(180초씩)보다 크게 — 동시·열림 시험이 하루 상한에 먼저 걸리지 않게
+const LIMITS: QuotaLimits = { dailySeconds: 1000, maxConcurrent: 2, staleMs: 180_000 }
+/** 받아들일 때 미리 적는 초 — 최대 실행 시간 */
+const RESERVE = reserveSeconds(LIMITS)
 /** 한국 시각 2026-11-23 오전 0시 30분 (UTC로는 전날 15시 30분) */
 const T0 = Date.UTC(2026, 10, 22, 15, 30)
 const DAY_KEY = 'llm:sec:2026-11-23'
@@ -57,13 +60,34 @@ test('받아들이면 미리 초를 적고, 끝나면 실제로 쓴 초(올림)�
   const w = world()
   const a = await admit(STORE, LIMITS, T0, w.deps)
   assert.equal(a.ok, true)
-  assert.equal(w.up.counters.get(DAY_KEY), RESERVE_SECONDS)
+  assert.equal(w.up.counters.get(DAY_KEY), RESERVE)
   assert.equal(w.up.zsets.get('llm:active')?.size, 1)
   assert.equal(w.up.ttl.get(DAY_KEY), 2 * 86_400_000, '하루 키는 이틀 뒤 사라진다')
   w.pass(4_200)
   if (a.ok) { await a.finish(); await a.finish() }
   assert.equal(w.up.counters.get(DAY_KEY), 5, '두 번 불러도 한 번만 센다')
   assert.equal(w.up.zsets.get('llm:active')?.size, 0)
+})
+
+test('미리 적는 초는 최대 실행 시간(올림)이다', () => {
+  assert.equal(RESERVE, 180)
+  assert.equal(reserveSeconds({ ...LIMITS, staleMs: 170_500 }), 171)
+})
+
+test('끝을 적지 못한 요청(브라우저가 끊은 뒤 함수가 멈춤)은 최대 실행 시간만큼 세어진 채 남는다 — 적게 세는 쪽으로 새지 않는다', async () => {
+  const w = world()
+  assert.equal((await admit(STORE, LIMITS, T0, w.deps)).ok, true)
+  w.pass(169_000)
+  assert.equal(w.up.counters.get(DAY_KEY), 180)
+})
+
+test('끝을 적다 Upstash가 실패하면 최대 실행 시간만큼 센 채로 남는다', async () => {
+  const w = world()
+  const a = await admit(STORE, LIMITS, T0, w.deps)
+  w.pass(2_000)
+  w.up.state.mode = 'down'
+  if (a.ok) await a.finish()
+  assert.equal(w.up.counters.get(DAY_KEY), 180)
 })
 
 test('Upstash에는 토큰과 숫자만 간다 — /multi-exec, Bearer 토큰, 명령 이름·키·숫자·무작위 id', async () => {
@@ -82,7 +106,7 @@ test('동시에 열린 요청이 상한을 넘으면 429 busy — 올린 표시�
   const third = await admit(STORE, LIMITS, T0, w.deps)
   assert.deepEqual(third, { ok: false, status: 429, reason: 'busy', message: BUSY_MESSAGE })
   assert.equal(w.up.zsets.get('llm:active')?.size, 2)
-  assert.equal(w.up.counters.get(DAY_KEY), 2 * RESERVE_SECONDS)
+  assert.equal(w.up.counters.get(DAY_KEY), 2 * RESERVE)
 })
 
 test('끝을 적지 못하고 죽은 요청의 열림 표시는 최대 실행 시간이 지나면 버려져 자리를 막지 않는다', async () => {
@@ -114,7 +138,7 @@ test('날이 바뀌면 새 하루 키로 센다 (한국 자정)', async () => {
   w.up.counters.set(DAY_KEY, LIMITS.dailySeconds)
   w.pass(24 * 3_600_000)
   assert.equal((await admit(STORE, LIMITS, T0, w.deps)).ok, true)
-  assert.equal(w.up.counters.get('llm:sec:2026-11-24'), RESERVE_SECONDS)
+  assert.equal(w.up.counters.get('llm:sec:2026-11-24'), RESERVE)
 })
 
 test('Upstash가 오류로 답하거나·닿지 않거나·늦거나·명령이 실패하면 503으로 막는다 (상한을 끄지 않는다)', async () => {
