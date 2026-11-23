@@ -1,7 +1,9 @@
 import type { PhotoKind, Sighting } from '../types'
-import { dbCount, dbGet, dbPut, dbWriteAll } from './db'
+// 확장자를 적는 이유: node --test가 이 파일을 직접 읽는다 (가짜 IndexedDB로 트랜잭션 안의 읽고 쓰기를 시험한다)
+import { dbCount, dbGet, dbPut, dbWriteAll } from './db.ts'
+import { normalizeStored } from './normalizeSighting.ts'
 // 키 모양은 점검·정리(photoCheck.ts)와 함께 쓴다 — 여기서 따로 만들면 둘이 어긋날 수 있다
-import { PHOTO_KINDS as KINDS, photoKey as key } from './photoKey'
+import { PHOTO_KINDS as KINDS, photoKey as key } from './photoKey.ts'
 import type { QueueEntry } from './syncPlan'
 
 /** 저장할 사진 한 판. 만드는 쪽(record/savePhotos.ts)과 쓰는 쪽(여기)을 잇는다 */
@@ -41,6 +43,27 @@ export function writeSightingWithPhotos(s: Sighting, photos: PhotoFile[]): Promi
     store('sightings').put(s)
     for (const p of photos) store('photos').put(p.blob, key(s.id, p.kind))
   })
+}
+
+/**
+ * 기록의 몇 칸을 고친다 — 같은 트랜잭션 안에서 DB의 기록을 읽어 그 위에 고친 칸과 새 updatedAt(`now`)만 얹어 쓴다.
+ * 화면이 들고 있던 판 위에 얹으면, 그사이 동기화가 받아 쓴 더 새 판(다른 기기의 고침)이 사라지고 그 결과가 '가장 새 판'으로 드라이브에 퍼진다.
+ * 읽은 기록은 빈 칸을 채워(normalizeStored) 쓴다 — 화면이 보던 모양과 같게. 사진은 건드리지 않는다.
+ * 고친 기록을 돌려준다. 기록이 없으면(그새 지워졌다) 아무것도 쓰지 않고 null. DB 실패는 던진다.
+ */
+export async function patchSighting(id: string, patch: Partial<Sighting>, now: Date): Promise<Sighting | null> {
+  let next: Sighting | null = null
+  await dbWriteAll(['sightings'], (store) => {
+    const req = store('sightings').get(id)
+    // 같은 트랜잭션 안에서 읽은 뒤 쓴다 (요청 콜백 안의 요청은 트랜잭션을 이어 간다)
+    req.onsuccess = () => {
+      const cur = normalizeStored(req.result)
+      if (!cur) return
+      next = { ...cur, ...patch, updatedAt: now.toISOString() }
+      store('sightings').put(next)
+    }
+  })
+  return next
 }
 
 /**

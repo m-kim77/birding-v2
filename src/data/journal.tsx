@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { Sighting } from '../types'
 import { dbGet, dbGetAll, dbPut } from './db'
 import { normalizeStored } from './normalizeSighting'
-import { deleteSightingWithPhotos, writeSightingWithPhotos, type PhotoFile } from './photos'
+import { deleteSightingWithPhotos, patchSighting, writeSightingWithPhotos, type PhotoFile } from './photos'
 import { useAutoSync } from './useAutoSync'
 import { queueChange } from './syncPlan'
 import { isDriveLinked, noteChange } from './syncQueue'
@@ -106,10 +106,9 @@ export function JournalProvider({ children }: { children: ReactNode }) {
       if (persisted !== true && !askedPersist.current) { askedPersist.current = true; void requestPersist().then((ok) => { if (ok !== null) setPersisted(ok) }) }
     },
     update: async (id, patch) => {
-      const cur = (sightings ?? []).find((s) => s.id === id)
-      if (!cur) return
-      const next = { ...cur, ...patch, updatedAt: new Date().toISOString() }
-      await dbPut('sightings', next)
+      // DB의 판 위에 고친 칸만 얹는다 — 화면의 판은 동기화가 막 받아 쓴 더 새 판보다 낡았을 수 있다 (photos.ts patchSighting)
+      const next = await patchSighting(id, patch, new Date())
+      if (!next) return
       setSightings((list) => (list ?? []).map((s) => (s.id === id ? next : s)))
       // 기록만 고쳤다 — 사진은 다시 올리지 않는다 (사진을 바꾸는 고침은 없다. 드라이브에 없는 판은 어차피 올라간다)
       void noteChange(id, 'put', false).then(syncSoon)
