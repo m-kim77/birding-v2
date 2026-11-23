@@ -1,5 +1,6 @@
 /**
- * 드라이브 동기화를 돌린다: 드라이브의 모습을 읽고 → 받을 것을 받고 → 줄의 일을 올린다 → (스위치를 켠 기기만) 이동 기록을 맞춘다.
+ * 드라이브 동기화를 돌린다: 로그인한 계정이 이 기기의 계정인지 보고 → 드라이브의 모습을 읽고 → 받을 것을 받고 → 줄의 일을 올린다 →
+ * (스위치를 켠 기기만) 이동 기록을 맞춘다. 다른 계정이면 아무것도 주고받지 않고 멈춰 사용자에게 묻는다 (syncAccount.ts).
  * 원본은 기기다. 여기서 무엇이 실패해도 기기의 기록은 그대로다 — 드라이브 쪽 일만 줄에 남아 다음에 다시 한다.
  *
  * 언제 도나: 앱을 열 때, 기록을 저장·고침·지운 뒤(몇 초 모아서), 도감을 열 때, 인터넷이 다시 붙을 때, 탭으로 돌아올 때,
@@ -15,6 +16,7 @@ import { LAST_SYNC_KEY, finishEntry, isDriveLinked, listQueue, noteChange, saveF
 import { getSyncStatus, setSyncStatus } from './syncStatus'
 import { clearDriveTracks, loadTracksSync, setTracksSyncOn, syncTracksStep } from './syncTracks'
 import { pullRecord, pushEntry, readRemote, type Remote } from './syncTransfer'
+import { adoptAskedAccount, checkAccount, forgetAskedAccount, isAccountAsked } from './syncAccount'
 
 let running: Promise<void> | null = null
 /** 받아서 기기가 바뀌었을 때 부른다 (일지가 다시 읽는다) */
@@ -44,9 +46,13 @@ export function syncNow(manual = false): Promise<void> {
 /** syncNow의 본체 */
 async function run(manual: boolean): Promise<void> {
   if (!(await isDriveLinked())) return
-  if (!navigator.onLine) { setSyncStatus({ phase: 'offline', message: '' }); return }
-  setSyncStatus({ phase: 'syncing', message: '' })
   try {
+    // 다른 구글 계정이라 묻는 중이면 드라이브에 아무것도 묻지 않고 멈춘다 — 인터넷이 끊겨 있어도 그 물음이 먼저 보이게 앞에 둔다
+    if (await isAccountAsked()) { setSyncStatus({ phase: 'account', message: '' }); return }
+    if (!navigator.onLine) { setSyncStatus({ phase: 'offline', message: '' }); return }
+    setSyncStatus({ phase: 'syncing', message: '' })
+    // 기록을 주고받기 전에, 출입증의 계정이 이 기기가 동기화해 온 계정인지 본다 (다르면 묻는 중으로 적고 이동 기록 스위치를 끈다)
+    if (!(await checkAccount())) { setSyncStatus({ phase: 'account', message: '' }); return }
     const remote = await readRemote()
     await pull(remote)
     const failed = await push(remote, manual)
@@ -116,16 +122,20 @@ export async function loadConfig(): Promise<void> {
     const c = await loadDriveConfig()
     setSyncStatus({ configured: c.configured, clientId: c.clientId, ...(getSyncStatus().linked && !c.connected ? { phase: 'disconnected' } : {}) })
   } catch {
-    setSyncStatus({ phase: 'offline' })
+    // 다른 계정이라 묻는 중이면 그 물음을 가리지 않는다 — '합치지 않고 연결 끊기'는 인터넷이 돌아오면 다시 누르면 된다
+    if (getSyncStatus().phase !== 'account') setSyncStatus({ phase: 'offline' })
   }
 }
 
 /**
  * 구글로 로그인해 드라이브를 연결하고 곧바로 동기화한다 (처음이면 기기의 기록이 전부 올라가고, 다른 기기의 기록이 내려온다).
+ * 전에 이 기기와 동기화하던 계정과 다른 계정이면 동기화가 주고받기 전에 멈추고 묻는다 (run → checkAccount).
  * 사용자가 누른 순간에 불러야 한다 (로그인 창). 취소·실패는 한국어 Error로 던진다.
  */
 export async function connect(): Promise<void> {
   await connectDrive(getSyncStatus().clientId)
+  // 새로 로그인했다 — 전에 묻던 것은 거두고 이번 계정을 처음부터 다시 견준다 (전 계정으로 돌아왔으면 묻지 않고 이어 간다)
+  await forgetAskedAccount()
   await setDriveLinked(true)
   setSyncStatus({ linked: true, phase: 'idle', message: '' })
   await loadTracksSync()
@@ -135,13 +145,33 @@ export async function connect(): Promise<void> {
 /**
  * 연결을 끊는다. 줄은 지우지 않는다 — 다시 연결하면 못 올린 일(특히 지운 기록)부터 이어서 한다.
  * 이동 기록 스위치는 끈다 — 다시 연결하는 계정이 다를 수 있어, 이동 기록은 다시 켜야 올린다 (드라이브의 사본은 그대로).
- * 로그인이 저절로 풀린 것(disconnected)은 끊은 것이 아니라 이 함수를 지나지 않는다 — 그때 스위치는 그대로다.
+ * 로그인이 저절로 풀린 것(disconnected)은 끊은 것이 아니라 이 함수를 지나지 않는다 — 그때 스위치는 그대로다
+ * (다른 계정으로 다시 로그인하면 동기화가 멈추고 물을 때 끈다, syncAccount.ts). 이 기기의 계정 표지도 지우지 않는다.
  */
 export async function disconnect(): Promise<void> {
   await disconnectDrive()
   await setDriveLinked(false)
   await setTracksSyncOn(false)
   setSyncStatus({ linked: false, phase: 'idle', message: '' })
+}
+
+/**
+ * '이 계정에 합치기': 다른 계정으로 로그인해 묻던 것을 받아들이고 곧 동기화한다 — 이 기기의 기록·사진이 그 계정의 드라이브에 올라가고
+ * 그 계정의 기록이 이 기기로 내려와 섞인다. 이동 기록 스위치는 꺼진 채다 (다시 켜야 올린다). 저장소 오류는 던진다 (묻는 중 그대로).
+ */
+export async function joinAccount(): Promise<void> {
+  await adoptAskedAccount()
+  setSyncStatus({ phase: 'idle', message: '' })
+  await syncNow(true)
+}
+
+/**
+ * '합치지 않고 연결 끊기': 새 계정의 연결을 끊고(이동 기록 스위치도 꺼진다) 묻기를 거둔다. 이 기기의 계정 표지는 그대로라,
+ * 전에 쓰던 계정으로 다시 로그인하면 묻지 않고 이어서 동기화한다. 끊기가 실패하면 한국어 Error로 던진다 — 묻는 중 그대로라 동기화는 돌지 않는다.
+ */
+export async function refuseAccount(): Promise<void> {
+  await disconnect()
+  await forgetAskedAccount()
 }
 
 /**

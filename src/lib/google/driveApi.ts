@@ -9,6 +9,7 @@ import { accessToken, NotConnectedError } from './driveAuth'
 
 const API = 'https://www.googleapis.com/drive/v3/files'
 const UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files'
+const ABOUT = 'https://www.googleapis.com/drive/v3/about'
 const FOLDER = 'application/vnd.google-apps.folder'
 
 /** 드라이브가 거절한 요청. status 0은 네트워크가 끊긴 것 */
@@ -122,4 +123,17 @@ export async function deleteFile(id: string): Promise<void> {
   } catch (e) {
     if (!(e instanceof DriveError && e.status === 404)) throw e
   }
+}
+
+/**
+ * 지금 출입증의 구글 계정 표지 — 드라이브 about.get의 user.permissionId (drive.file 권한으로 부를 수 있다).
+ * 이름·이메일은 묻지 않는다 (fields로 번호 하나만). 번호가 비어 오면 DriveError — 견줄 수 없는 계정으로 동기화하지 않게.
+ * 그 밖의 실패 규칙은 다른 요청과 같다 (401은 한 번 다시, 그래도 401이면 NotConnectedError).
+ */
+export async function accountId(): Promise<string> {
+  const res = await call(`${ABOUT}?${new URLSearchParams({ fields: 'user(permissionId)' })}`)
+  const data = (await res.json().catch(() => ({}))) as { user?: { permissionId?: unknown } }
+  const id = data.user?.permissionId
+  if (typeof id !== 'string' || id === '') throw new DriveError('드라이브가 로그인한 계정을 확인해 주지 않았습니다.', res.status)
+  return id
 }

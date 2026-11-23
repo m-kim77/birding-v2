@@ -14,7 +14,7 @@ export type StatusInput = Pick<SyncStatus, 'phase' | 'pending' | 'stuck' | 'mess
 
 /**
  * 지금 상태를 한 줄로. 위에서부터 먼저 맞는 것 하나만 적는다 (우선순위가 곧 이 순서다):
- * 동기화 중 → 로그인 풀림 → 인터넷 끊김 → 여러 번 못 올려 멈춘 기록 → 그 밖의 실패 → 아직 안 올린 기록 → 다 올라감.
+ * 동기화 중 → 로그인 풀림 → 다른 계정이라 멈춤 → 인터넷 끊김 → 여러 번 못 올려 멈춘 기록 → 그 밖의 실패 → 아직 안 올린 기록 → 다 올라감.
  * 멈춘 기록(`stuck`)은 phase가 error여도 앞서고, 안 올린 기록(`pending`)은 그 밖의 실패 뒤다.
  * 실패인데 이유(`message`)가 비면 일반 문구를 쓴다. 마지막 동기화 시각이 없거나 못 읽으면 "연결됨"만 적는다.
  * `now`는 검사를 위해 받는다 (마지막 동기화의 "오늘·어제" 경계는 브라우저 시간대).
@@ -22,7 +22,9 @@ export type StatusInput = Pick<SyncStatus, 'phase' | 'pending' | 'stuck' | 'mess
 export function statusLine(s: StatusInput, now = new Date()): TaskMessage {
   const last = recentTimeOf(s.lastSyncAt, now)
   if (s.phase === 'syncing') return { tone: 'ok', text: '동기화하는 중…' }
-  if (s.phase === 'disconnected') return { tone: 'warn', text: '구글 로그인이 풀렸습니다. 다시 로그인하면 못 올린 기록부터 이어서 올립니다.' }
+  // '같은 계정으로' — 다른 계정을 고르면 이어 올리지 않고 합칠지 묻는다 (data/syncAccount.ts)
+  if (s.phase === 'disconnected') return { tone: 'warn', text: '구글 로그인이 풀렸습니다. 같은 계정으로 다시 로그인하면 못 올린 기록부터 이어서 올립니다.' }
+  if (s.phase === 'account') return { tone: 'warn', text: '전에 이 기기와 동기화하던 구글 계정과 다른 계정으로 로그인해, 기록을 주고받기 전에 멈췄습니다.' }
   if (s.phase === 'offline') return { tone: 'warn', text: `인터넷이 끊겨 있습니다${s.pending ? ` — 올릴 기록 ${s.pending}건은 연결되면 올립니다` : ''}.` }
   if (s.stuck) return { tone: 'warn', text: `${s.stuck}건을 여러 번 올리지 못해 멈췄습니다. "지금 동기화"를 눌러 다시 해 보세요.${s.message ? ` (${s.message})` : ''}` }
   if (s.phase === 'error') return { tone: 'warn', text: s.message || '동기화하지 못했습니다. 잠시 뒤 다시 합니다.' }

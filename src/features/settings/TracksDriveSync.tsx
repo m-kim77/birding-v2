@@ -15,6 +15,7 @@ interface Props {
 /**
  * 이동 기록 카드 안의 '이동 기록도 구글 드라이브에 올리기' 스위치(기본 끔), 그 상태 줄, '드라이브의 이동 기록 지우기'.
  * 드라이브를 연결했을 때만 그린다 — 연결 전에는 켜도 할 일이 없는 스위치다 (동작하지 않는 버튼을 만들지 않는다).
+ * 다른 구글 계정이라 합칠지 묻는 동안(phase 'account')에도 그리지 않는다 — 그 사이 지우기를 누르면 묻는 새 계정의 드라이브에 닿는다.
  * 스위치는 기기마다다. 켜면 곧 동기화해 이 기기의 점을 올리고 같은 계정의 다른 기기가 올린 점을 받아 합친다 (data/syncTracks.ts).
  * 끄면 올리기·받기만 멈추고 드라이브의 사본은 그대로 둔다 — 그 자리에서 알리고, 지우는 버튼을 곁에 둔다.
  * 모양은 AI 카드의 고르기 줄(.radio-rows — 22px 체크·작은 설명)을 그대로 쓴다 (새 CSS 없음).
@@ -34,7 +35,7 @@ export default function TracksDriveSync({ onReceived }: Props) {
     onReceived()
   }, [t.rev, onReceived])
 
-  if (!s.configured || !s.linked) return null
+  if (!s.configured || !s.linked || s.phase === 'account') return null
 
   /** 켜면 곧 동기화한다 (결과는 상태 줄에). 드라이브에 닿지 못해 이번에 못 맞췄으면 그렇게 알린다 */
   const toggle = (on: boolean) => run(async () => {

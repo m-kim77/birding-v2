@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { MAX_TRIES, afterFailure, dueEntries, planPull, queueChange, recordTags, remoteRecordOf, type QueueEntry, type RemoteRecord } from '../src/data/syncPlan.ts'
+import { MAX_TRIES, accountDecision, afterFailure, dueEntries, planPull, queueChange, recordTags, remoteRecordOf, type QueueEntry, type RemoteRecord } from '../src/data/syncPlan.ts'
 import type { Sighting } from '../src/types.ts'
 
 const T0 = new Date('2026-09-27T00:00:00.000Z')
@@ -120,4 +120,18 @@ test('여기서 고친 것을 못 올린 사이 다른 기기에서 지우면, �
   // 기기에서 지우면 줄의 올리기는 올릴 기록이 없어 그냥 끝난다 (syncTransfer pushEntry) — 드라이브의 지움은 그대로
   assert.deepEqual(here, { download: [], removeLocal: ['x'], upload: [] })
   assert.deepEqual(planPull([], [deletedThere], new Set()), { download: [], removeLocal: [], upload: [] }) // 지운 기기는 받지 않는다
+})
+
+test('accountDecision: 적어 둔 계정이 없으면 지금 계정을 적고 이어 간다 (처음 연결 · 이 확인 전부터 연결해 둔 기기)', () => {
+  assert.equal(accountDecision(undefined, 'perm-A'), 'adopt')
+  assert.equal(accountDecision('', 'perm-A'), 'adopt')
+  // 저장소에 엉뚱한 값이 들어 있어도 없는 것으로 본다 (글자만 계정 표지다)
+  assert.equal(accountDecision(42, 'perm-A'), 'adopt')
+})
+
+test('accountDecision: 같은 계정이면 그대로, 다른 계정이면 주고받기 전에 묻는다', () => {
+  assert.equal(accountDecision('perm-A', 'perm-A'), 'same')
+  assert.equal(accountDecision('perm-A', 'perm-B'), 'ask')
+  // 대소문자만 달라도 다른 계정이다 — 표지는 구글이 준 그대로 견준다
+  assert.equal(accountDecision('perm-a', 'perm-A'), 'ask')
 })

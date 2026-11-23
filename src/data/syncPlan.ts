@@ -1,5 +1,5 @@
 /**
- * 드라이브 동기화의 규칙 — 올릴 일 줄의 항목을 어떻게 바꾸고, 드라이브와 기기 중 무엇을 받고 무엇을 올릴지 정한다.
+ * 드라이브 동기화의 규칙 — 올릴 일 줄의 항목을 어떻게 바꾸고, 드라이브와 기기 중 무엇을 받고 무엇을 올릴지, 로그인한 계정으로 이어 가도 되는지 정한다.
  * 순수 함수다 (DOM·IndexedDB·네트워크 없음, node --test가 직접 읽는다). 실제로 올리고 받는 일은 sync.ts가 한다.
  *
  * 드라이브의 모양 (보이는 폴더 — 숨김 폴더는 사용자가 "앱 데이터 삭제"로 통째로 날릴 수 있다):
@@ -134,4 +134,17 @@ export function planPull(local: Sighting[], remote: RemoteRecord[], pending: Set
   }
   for (const s of local) if (!seen.has(s.id) && !pending.has(s.id)) plan.upload.push(s.id)
   return plan
+}
+
+/**
+ * 로그인한 구글 계정의 표지(`current`, 드라이브 permissionId)를 이 기기가 동기화해 온 계정의 표지(`saved`, `meta`)와 견준다.
+ * - adopt: 적어 둔 표지가 없다 (처음 연결, 또는 이 확인이 생기기 전부터 연결해 둔 기기) — 지금 계정을 적고 동기화한다.
+ * - same: 같은 계정 — 그대로 동기화한다.
+ * - ask: 다른 계정 — 기록을 주고받기 **전에** 멈추고 사용자에게 묻는다. 묻지 않고 돌면 이 기기의 기록·사진이 그 계정의 드라이브에 사본으로 남고
+ *   그 계정의 기록은 이 기기 일지에 섞인다.
+ * 적어 둔 값이 글자가 아니거나 비었으면 없는 것으로 본다. `current`는 비지 않은 글자여야 한다 (driveApi.ts accountId가 빈 번호를 거른다).
+ */
+export function accountDecision(saved: unknown, current: string): 'adopt' | 'same' | 'ask' {
+  if (typeof saved !== 'string' || saved === '') return 'adopt'
+  return saved === current ? 'same' : 'ask'
 }

@@ -18,7 +18,12 @@ test('동기화하는 중이면 다른 칸이 무엇이든 그 말만 (가장 �
 test('로그인이 풀렸으면 멈춘 기록·올릴 기록보다 앞선다 — 다시 로그인하라고만', () => {
   const line = statusLine(status({ phase: 'disconnected', pending: 3, stuck: 1, message: '401' }), NOW)
   assert.equal(line.tone, 'warn')
-  assert.equal(line.text, '구글 로그인이 풀렸습니다. 다시 로그인하면 못 올린 기록부터 이어서 올립니다.')
+  assert.equal(line.text, '구글 로그인이 풀렸습니다. 같은 계정으로 다시 로그인하면 못 올린 기록부터 이어서 올립니다.')
+})
+
+test('다른 구글 계정이라 멈췄으면 멈춘 기록·올릴 기록보다 앞선다 — 멈췄다고만 (무엇을 할지는 카드의 물음이 말한다)', () => {
+  const line = statusLine(status({ phase: 'account', pending: 3, stuck: 1, message: '지난 실패' }), NOW)
+  assert.deepEqual(line, { tone: 'warn', text: '전에 이 기기와 동기화하던 구글 계정과 다른 계정으로 로그인해, 기록을 주고받기 전에 멈췄습니다.' })
 })
 
 test('인터넷이 끊겼으면 멈춘 기록보다 앞선다 — 올릴 기록이 있을 때만 그 수를 적는다', () => {

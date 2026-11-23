@@ -37,9 +37,10 @@ export interface SyncStatus {
   linked: boolean
   /**
    * idle = 쉬는 중 · syncing = 하는 중 · disconnected = 연결이 풀려 "다시 연결"이 필요 · offline = 인터넷 없음 ·
-   * error = 그 밖의 실패 (message에 이유)
+   * error = 그 밖의 실패 (message에 이유) · account = 전에 동기화하던 것과 다른 구글 계정으로 로그인해 멈춤 —
+   * 사용자가 합칠지 정할 때까지 돌지 않는다 (data/syncAccount.ts)
    */
-  phase: 'idle' | 'syncing' | 'disconnected' | 'offline' | 'error'
+  phase: 'idle' | 'syncing' | 'disconnected' | 'offline' | 'error' | 'account'
   /** 아직 드라이브에 닿지 않은 기록 수 (줄의 항목 수) */
   pending: number
   /** 그중 자동 재시도를 멈춘 수 — "지금 올리기"를 눌러야 다시 한다 */
