@@ -2,7 +2,7 @@ import { dotDateOf } from '../../ui/when'
 import type { Sighting } from '../../types'
 import { CARD_BASE, CARD_FONTS, CARD_MARK } from './cardLook'
 import { styleOf } from './cardStyle'
-import { cardName, cardPlace, dexLabel, shotLine } from './cardText'
+import { CARD_BACK_TITLE, cardName, cardPlace, dexLabel, shotLine, type CardFontText } from './cardText'
 
 /** 내보내는 카드의 크기. 인스타그램 세로(4:5) 기준 */
 export const CARD_W = 1080
@@ -52,6 +52,7 @@ export function drawPlate(ctx: CanvasRenderingContext2D, img: ImageBitmap | null
  * 카드 앞면을 그린다. 화면의 BirdCard와 같은 배치·같은 값(cardLook.ts · cardStyle.ts)이다.
  * `dexNo`는 화면의 카드와 같은 계산값(dex/useDexNo.ts)을 부르는 쪽이 넘긴다 — 기록에 저장된 옛 번호를 쓰지 않는다.
  * `shine`은 빛 줄기의 위치(0~1), null이면 그리지 않는다 ("빛나게"를 고른 카드만 그린다). 글꼴은 부르는 쪽이 미리 불러 둔다 (loadCardFonts).
+ * 그리는 글을 더하거나 바꾸면 cardText.ts cardFontText도 바꾼다 — 안 바꾸면 그 글은 대체 글꼴로 그려질 수 있다.
  */
 export function drawCardFront(ctx: CanvasRenderingContext2D, s: Sighting, dexNo: number | undefined, img: ImageBitmap | null, shine: number | null): void {
   const { accent, glow } = styleOf(s)
@@ -145,16 +146,20 @@ export function drawCardBack(ctx: CanvasRenderingContext2D, accent: string): voi
   ctx.fillStyle = CARD_BASE.ink
   ctx.textAlign = 'center'
   ctx.font = `600 92px ${CARD_FONTS.name}`
-  ctx.fillText('탐조일지', CARD_W / 2, CARD_H / 2 + 20)
+  ctx.fillText(CARD_BACK_TITLE, CARD_W / 2, CARD_H / 2 + 20)
   ctx.textAlign = 'left'
   mono(ctx, CARD_MARK, CARD_W / 2, CARD_H / 2 + 92, 28, CARD_BASE.sub, 'center', '0.32em')
 }
 
 /**
  * 카드에 쓰는 글꼴이 준비될 때까지 기다린다. 캔버스는 아직 안 불러온 웹 글꼴을 기다려 주지 않고 대체 글꼴로 그려 버린다.
- * 글꼴을 끝내 못 불러와도(오프라인) 그대로 진행한다 — 대체 글꼴로라도 저장되는 편이 낫다.
+ * 글꼴마다 그 글꼴로 그리는 글(`text` — cardText.ts cardFontText)을 넘긴다: 한글 글꼴은 글자 묶음마다 파일이 따로라 넘긴 글자의 묶음만 기다린다.
+ * 그 글꼴로 그리는 글이 없으면 기다리지 않는다. 글꼴을 끝내 못 불러와도(오프라인) 그대로 진행한다 — 대체 글꼴로라도 저장되는 편이 낫다.
  */
-export async function loadCardFonts(sample: string): Promise<void> {
-  const wanted = [`600 82px ${CARD_FONTS.name}`, `italic 400 50px ${CARD_FONTS.latin}`, `500 34px ${CARD_FONTS.mono}`, `700 34px ${CARD_FONTS.mono}`, `400 34px ${CARD_FONTS.body}`]
-  try { await Promise.all(wanted.map((font) => document.fonts.load(font, `${sample} No. ${CARD_MARK}`))) } catch { /* 대체 글꼴로 진행 */ }
+export async function loadCardFonts(text: CardFontText): Promise<void> {
+  const wanted: Array<[font: string, sample: string]> = [
+    [`600 82px ${CARD_FONTS.name}`, text.name], [`italic 400 50px ${CARD_FONTS.latin}`, text.latin],
+    [`500 34px ${CARD_FONTS.mono}`, text.mono], [`700 34px ${CARD_FONTS.mono}`, text.mono], [`400 34px ${CARD_FONTS.body}`, text.body],
+  ]
+  try { await Promise.all(wanted.filter(([, sample]) => sample).map(([font, sample]) => document.fonts.load(font, sample))) } catch { /* 대체 글꼴로 진행 */ }
 }

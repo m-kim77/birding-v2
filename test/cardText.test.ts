@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { cardName, cardPlace, dexLabel, shotLine } from '../src/features/dex/cardText.ts'
+import { CARD_BACK_TITLE, cardFontText, cardName, cardPlace, dexLabel, shotLine } from '../src/features/dex/cardText.ts'
 import type { Sighting } from '../src/types.ts'
 
 /** 글자 계산에 쓰는 칸만 든 기록. 장소 이름은 지어낸 것 */
@@ -34,4 +34,22 @@ test('shotLine: 촬영 정보를 한 줄 대문자로, 없으면 빈 글자', ()
   assert.equal(shotLine(rec({ shot: { focalLength: 400, fNumber: 6.3, exposureTime: 0.005, iso: 1000 } })), '400MM · F/6.3 · 1/200S · ISO 1000')
   assert.equal(shotLine(rec({ shot: { focalLength: 400, iso: 1000 } })), '400MM · ISO 1000')
   assert.equal(shotLine(rec({ shot: {} })), '')
+})
+
+test('cardFontText: 장소 줄은 본문 글꼴(Pretendard)의 글에 든다 — 빠지면 한글 조각을 기다리지 않아 장소가 대체 글꼴로 그려진다', () => {
+  const s = rec({ speciesKo: '딱새', place: '가상 갯벌 공원', latin: 'Phoenicurus auroreus', capturedAt: '2026-05-03T06:30:00+09:00', capturedAtOffset: '+09:00', stamps: [], shot: { focalLength: 400, iso: 1000 } })
+  const t = cardFontText(s, 3)
+  assert.equal(t.body, '가상 갯벌 공원')
+  // 이름 글꼴에는 앞면의 이름과 영상 뒷면의 글이 함께 든다
+  assert.ok(t.name.includes('딱새') && t.name.includes(CARD_BACK_TITLE))
+  assert.equal(t.latin, 'Phoenicurus auroreus')
+  for (const part of ['NO. 003', 'FIELD CARD', '05 · 03 · 2026', '400MM · ISO 1000']) assert.ok(t.mono.includes(part), part)
+})
+
+test('cardFontText: 위치를 숨긴 기록은 "위치 비공개"를, 그리지 않는 글꼴은 빈 글자를 준다 (그 글꼴은 기다리지 않는다)', () => {
+  const t = cardFontText(rec({ speciesKo: '', place: '가상 둥지', sensitive: true, latin: '', capturedAt: '2026-05-03T06:30:00+09:00', capturedAtOffset: '+09:00', stamps: [] }), undefined)
+  assert.equal(t.body, '위치 비공개')
+  assert.equal(t.latin, '')
+  assert.ok(t.name.includes('이름 미정'))
+  assert.equal(cardFontText(rec({ place: '', capturedAt: '2026-05-03T06:30:00+09:00', capturedAtOffset: null, stamps: [] }), 1).body, '')
 })

@@ -3,6 +3,7 @@ import type { Sighting } from '../../types'
 import { CARD_H, CARD_W, PLATE, drawCardBack, drawCardFront, drawPlate, loadCardFonts } from './cardCanvas'
 import { CARD_BASE } from './cardLook'
 import { styleOf } from './cardStyle'
+import { cardFontText } from './cardText'
 
 /**
  * 영상의 시간표(초). Card Reveal 디자인의 네 박자 — 스캔 → 생성 → 플립 → 공개 — 에 마지막 멈춘 장면을 더했다.
@@ -29,7 +30,7 @@ function makeCanvas(): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2
 
 /** 카드를 PNG로 만든다 (`dexNo`는 화면에 보이는 도감 번호). 모서리 바깥은 투명하다. 인코딩에 실패하면 한국어 Error */
 export async function cardImage(s: Sighting, dexNo: number | undefined): Promise<Blob> {
-  const [img] = await Promise.all([loadPhoto(s.id), loadCardFonts(s.speciesKo)])
+  const [img] = await Promise.all([loadPhoto(s.id), loadCardFonts(cardFontText(s, dexNo))])
   const { canvas, ctx } = makeCanvas()
   drawCardFront(ctx, s, dexNo, img, 0.62)
   return new Promise((resolve, reject) => {
@@ -108,7 +109,7 @@ function drawFrame(ctx: CanvasRenderingContext2D, s: Sighting, dexNo: number | u
 export async function cardVideo(s: Sighting, dexNo: number | undefined): Promise<{ blob: Blob; ext: string }> {
   const type = pickVideoType()
   if (!type) throw new Error('이 브라우저는 영상 저장을 지원하지 않습니다')
-  const [img] = await Promise.all([loadPhoto(s.id), loadCardFonts(s.speciesKo)])
+  const [img] = await Promise.all([loadPhoto(s.id), loadCardFonts(cardFontText(s, dexNo))])
   const { canvas, ctx } = makeCanvas()
   drawFrame(ctx, s, dexNo, img, 0)
 
