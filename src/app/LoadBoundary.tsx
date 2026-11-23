@@ -3,8 +3,8 @@ import { ChunkLoadError } from './chunkLoad'
 
 interface Props {
   children: ReactNode
-  /** 조각을 받지 못했을 때 그 자리에 그릴 것 */
-  fallback: ReactNode
+  /** 조각을 받지 못했을 때 그 자리에 그릴 것. 받은 오류로 문구를 고른다 (새 판인지 — ChunkLoadError.newBuild) */
+  fallback: (error: ChunkLoadError) => ReactNode
 }
 
 interface State {
@@ -12,7 +12,7 @@ interface State {
 }
 
 /**
- * 화면 조각을 받지 못한 오류(ChunkLoadError — lazyScreen·lazyPart)만 받아, 앱 전체 대신 그 자리에 `fallback`을 그린다.
+ * 화면 조각을 받지 못한 오류(ChunkLoadError — lazyScreen·lazyPart)만 받아, 앱 전체 대신 그 자리에 `fallback(오류)`을 그린다.
  * 다른 오류는 받지 않고 위로 다시 던진다 — 맨 위 ErrorBoundary가 지금처럼 '문제가 생겼습니다'를 띄운다.
  * 다른 화면으로 가면 풀려야 하므로 부르는 쪽이 화면마다 key를 바꿔 준다 (App.tsx).
  */
@@ -33,6 +33,6 @@ export default class LoadBoundary extends Component<Props, State> {
     if (!error) return this.props.children
     // 받지 못한 것이 아닌 오류는 여기서 그리지 않는다 — 그리다 던지면 위의 오류 경계로 간다
     if (!(error instanceof ChunkLoadError)) throw error
-    return this.props.fallback
+    return this.props.fallback(error)
   }
 }

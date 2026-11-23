@@ -14,7 +14,7 @@ import RecordsScreen from './features/records/RecordsScreen'
 import { useTheme } from './theme/useTheme'
 
 // 지도(Leaflet)와 기록하기(탐지 모델·EXIF)는 무겁다. 첫 화면(기록 목록)을 폰에서 빨리 띄우려고 필요할 때 받는다.
-// 못 받으면(새 배포 뒤 옛 파일 404·신호 없음) 한 번 다시 받고, 그래도 안 되면 그 화면 자리에만 안내가 뜬다 (lazyScreen · LoadBoundary)
+// 못 받으면(새 배포 뒤 옛 파일 404·신호 없음) 한 번 다시 받고, 그래도 안 되면 새 판일 때만 한 번 새로 고치며, 그 화면 자리에만 안내가 뜬다 (lazyScreen · LoadBoundary)
 const MapScreen = lazyScreen(() => import('./features/map/MapScreen'))
 const RecordFlow = lazyScreen(() => import('./features/record/RecordFlow'))
 // 설정은 백업(ZIP)과 모델 관리(탐지 모델)를 끌고 온다
@@ -50,7 +50,7 @@ export default function App() {
           screenKey={screenKey}>
           <Suspense fallback={<div className="screen"><p className="hint">불러오는 중…</p></div>}>
           {/* 화면마다 key를 바꿔, 받지 못한 안내가 다른 화면으로 가면 풀리게 한다 */}
-          <LoadBoundary key={screenKey} fallback={<ScreenLoadFailed />}>
+          <LoadBoundary key={screenKey} fallback={(e) => <ScreenLoadFailed newBuild={e.newBuild} />}>
           {route.name === 'records' && <RecordsScreen onOpen={openDetail} onBackup={openSettings} onAdd={startRecord} onSettings={openSettings} />}
           {route.name === 'detail' && <RecordDetail key={route.id} id={route.id} onBack={leaveScreen} onOpenSettings={openSettings} />}
           {route.name === 'dex' && <DexScreen onOpenRecord={openDetail} />}
