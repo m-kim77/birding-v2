@@ -1,8 +1,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import exifr from 'exifr'
-import { buildCapturedAt, browserOffsetFor, normalizeOffset, recomputeCapturedAt } from '../src/lib/exif.ts'
+// 픽스처는 JPEG라 parseExif가 가벼운 판(lite)으로 읽는다 (lib/exif.ts loadExifr) — 같은 판·같은 옵션으로 본다
+import exifr from 'exifr/dist/lite.esm.mjs'
+import { buildCapturedAt, browserOffsetFor, liteReads, normalizeOffset, recomputeCapturedAt } from '../src/lib/exif.ts'
 import { fixture } from './helpers.ts'
 import { formatMeta } from '../src/lib/format.ts'
 
@@ -10,7 +11,7 @@ import { formatMeta } from '../src/lib/format.ts'
 async function sampleTags(): Promise<Record<string, unknown>> {
   const buf = readFileSync(fixture('exif-sample.jpg'))
   const d = await exifr.parse(buf, {
-    tiff: true, exif: true, xmp: true, iptc: true,
+    tiff: true, exif: true, xmp: true, iptc: false,
     mergeOutput: true, reviveValues: false,
   })
   assert.ok(d, '픽스처에서 EXIF를 읽지 못했습니다')
@@ -239,34 +240,99 @@ test('AC4 — EXIF가 없는 이미지에도 예외 없이 {}에 가까운 결�
   assert.equal(info.lng, undefined)
 })
 
-test('좌표는 exifr.gps 별도 호출에서 온다 (parse 결과가 아니다)', async (t) => {
-  // 커밋된 픽스처에는 GPS가 없어(실측: exifr.gps → undefined) lat/lng 매핑을 실사진으로 덮을 수 없다.
-  // gps 호출을 가로채 좌표를 주고, 그 값이 그대로 info에 실리는지 본다 —
-  // parse 옵션으로 gps를 끌어오는 구현으로 바뀌면 이 스텁이 호출되지 않아 깨진다.
+/**
+ * GPS 좌표(도·분·초)만 든 최소 JPEG — APP1 Exif 안의 TIFF(리틀 엔디언)에 GPS IFD 하나.
+ * 좌표는 아무 값이다 (실제 촬영지를 적지 않는다 — 픽스처 사진의 촬영 시각과 짝지으면 이동 기록 픽스처를 되돌릴 수 있다).
+ */
+function jpegWithGps(): Uint8Array<ArrayBuffer> {
+  const b = new DataView(new ArrayBuffer(128))
+  let p = 0
+  const u16 = (v: number) => { b.setUint16(p, v, true); p += 2 }
+  const u32 = (v: number) => { b.setUint32(p, v, true); p += 4 }
+  b.setUint8(0, 0x49); b.setUint8(1, 0x49); p = 2; u16(42); u32(8)
+  u16(1); u16(0x8825); u16(4); u32(1); u32(26); u32(0) // IFD0 → GPS IFD(26)
+  p = 26; u16(4)
+  u16(1); u16(2); u32(2); b.setUint8(p, 0x4e); p += 4 // GPSLatitudeRef 'N'
+  u16(2); u16(5); u32(3); u32(80) // GPSLatitude → 80
+  u16(3); u16(2); u32(2); b.setUint8(p, 0x57); p += 4 // GPSLongitudeRef 'W'
+  u16(4); u16(5); u32(3); u32(104) // GPSLongitude → 104
+  u32(0)
+  // 12° 20′ 44.4408″ = 12.345678, 45° 40′ 44.0436″ = 45.678901
+  p = 80; for (const [n, d] of [[12, 1], [20, 1], [444408, 10000]]) { u32(n); u32(d) }
+  p = 104; for (const [n, d] of [[45, 1], [40, 1], [440436, 10000]]) { u32(n); u32(d) }
+  const app1 = [0x45, 0x78, 0x69, 0x66, 0, 0, ...new Uint8Array(b.buffer)]
+  const len = app1.length + 2
+  return new Uint8Array([0xff, 0xd8, 0xff, 0xe1, len >> 8, len & 255, ...app1, 0xff, 0xd9])
+}
+
+test('사진의 GPS 좌표가 lat/lng에 실린다 (가벼운 판의 exifr.gps)', async (t) => {
+  // 커밋된 픽스처에는 GPS가 없어(아래 시험) 좌표만 든 JPEG를 만들어 parseExif의 실제 경로를 태운다.
+  // 전에는 exifr.gps를 바꿔 끼웠지만, 가벼운 판의 기본 내보내기는 바꿀 수 없는 객체다
   const g = globalThis as Record<string, unknown>
   const had = 'FileReader' in g
   if (!had) g.FileReader = FileReaderShim
-
-  const exifr = (await import('exifr')).default as { gps: (f: unknown) => Promise<unknown> }
-  const realGps = exifr.gps
-  let calledWith: unknown = null
-  // 좌표는 아무 값이다 (실제 촬영지를 적지 않는다 — 픽스처 사진의 촬영 시각과 짝지으면 이동 기록 픽스처를 되돌릴 수 있다)
-  exifr.gps = async (f: unknown) => { calledWith = f; return { latitude: 12.345678, longitude: -45.678901 } }
-  t.after(() => { exifr.gps = realGps; if (!had) delete g.FileReader })
+  t.after(() => { if (!had) delete g.FileReader })
 
   const { parseExif } = await import('../src/lib/exif.ts')
-  const file = new File([readFileSync(fixture('exif-sample.jpg'))], 'exif-sample.jpg', { type: 'image/jpeg' })
-  const info = await parseExif(file)
+  const info = await parseExif(new File([jpegWithGps()], 'gps.jpg', { type: 'image/jpeg' }))
 
-  assert.equal(calledWith, file, 'gps에 File이 그대로 넘어가야 한다')
-  assert.equal(info.lat, 12.345678)
-  assert.equal(info.lng, -45.678901)
-  // 같은 호출에서 EXIF 매핑도 정상이어야 한다 — gps 스텁이 나머지를 가리지 않는다
-  assert.equal(info.cameraModel, 'ILCE-7CR')
+  assert.ok(Math.abs((info.lat ?? NaN) - 12.345678) < 1e-9, `lat ${info.lat}`)
+  assert.ok(Math.abs((info.lng ?? NaN) + 45.678901) < 1e-9, `lng ${info.lng}`)
 })
 
 test('픽스처에는 GPS가 없다 — location_source=\'exif\' 경로는 커밋된 픽스처로 덮을 수 없다', async () => {
   // 사실 고정: 나중에 GPS 있는 픽스처가 추가되면 이 테스트가 깨지면서 알려준다
-  const exifr = (await import('exifr')).default
+  const exifr = (await import('exifr/dist/lite.esm.mjs')).default
   assert.equal(await exifr.gps(readFileSync(fixture('exif-sample.jpg'))), undefined)
+})
+
+test('liteReads — JPEG·HEIC만 가벼운 판으로, PNG·TIFF·짧은 파일은 전체판으로', () => {
+  assert.equal(liteReads(new Uint8Array([0xff, 0xd8, 0xff, 0xe1])), true)
+  // HEIC: 앞 4바이트가 ftyp 상자 길이(작은 수), 그다음 'ftyp'
+  assert.equal(liteReads(new Uint8Array([0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70])), true)
+  assert.equal(liteReads(new Uint8Array([0x89, 0x50, 0x4e, 0x47])), false)
+  assert.equal(liteReads(new Uint8Array([0x49, 0x49, 0x2a, 0])), false)
+  assert.equal(liteReads(new Uint8Array([0x4d, 0x4d, 0, 0x2a])), false)
+  assert.equal(liteReads(new Uint8Array([0xff])), false)
+  assert.equal(liteReads(new Uint8Array([])), false)
+})
+
+/** 촬영 시각(DateTimeOriginal) 하나만 든 TIFF(리틀 엔디언)를 eXIf 상자에 넣은 1×1 PNG. CRC는 0 — exifr는 보지 않는다 */
+function pngWithDate(wall: string): Uint8Array<ArrayBuffer> {
+  const tiff = new DataView(new ArrayBuffer(64))
+  let p = 0
+  const u16 = (v: number) => { tiff.setUint16(p, v, true); p += 2 }
+  const u32 = (v: number) => { tiff.setUint32(p, v, true); p += 4 }
+  tiff.setUint8(0, 0x49); tiff.setUint8(1, 0x49); p = 2; u16(42); u32(8)
+  u16(1); u16(0x8769); u16(4); u32(1); u32(26); u32(0) // IFD0 → Exif IFD(26)
+  p = 26; u16(1); u16(0x9003); u16(2); u32(20); u32(44); u32(0) // DateTimeOriginal → 44
+  for (let i = 0; i < wall.length; i++) tiff.setUint8(44 + i, wall.charCodeAt(i))
+  const chunk = (type: string, data: Uint8Array) => {
+    const out = new Uint8Array(12 + data.length)
+    new DataView(out.buffer).setUint32(0, data.length)
+    for (let i = 0; i < 4; i++) out[4 + i] = type.charCodeAt(i)
+    out.set(data, 8)
+    return out
+  }
+  const parts = [
+    new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', new Uint8Array([0, 0, 0, 1, 0, 0, 0, 1, 8, 2, 0, 0, 0])),
+    chunk('eXIf', new Uint8Array(tiff.buffer)),
+    chunk('IEND', new Uint8Array()),
+  ]
+  const png = new Uint8Array(parts.reduce((n, x) => n + x.length, 0))
+  let at = 0
+  for (const x of parts) { png.set(x, at); at += x.length }
+  return png
+}
+
+test('PNG에 든 EXIF도 읽는다 — 가벼운 판에는 PNG 해석기가 없어, PNG까지 가벼운 판으로 읽으면 촬영 시각이 빈 값이 된다', async (t) => {
+  const g = globalThis as Record<string, unknown>
+  const had = 'FileReader' in g
+  if (!had) g.FileReader = FileReaderShim
+  t.after(() => { if (!had) delete g.FileReader })
+
+  const { parseExif } = await import('../src/lib/exif.ts')
+  const info = await parseExif(new File([pngWithDate('2026:01:02 03:04:05')], 'shot.png', { type: 'image/png' }))
+  assert.equal(info.capturedWall, '2026:01:02 03:04:05')
 })

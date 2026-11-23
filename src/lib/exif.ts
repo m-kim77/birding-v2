@@ -120,15 +120,35 @@ const str = (v: unknown): string | undefined => {
 }
 
 /**
+ * 파일의 앞 두 바이트로 exifr의 가벼운 판(lite)이 읽는 형식인지 본다 — JPEG(FF D8)와 HEIC·AVIF(앞 두 바이트가 0, ftyp 상자)만 그렇다.
+ * 두 형식이 아니면 false — PNG·TIFF는 lite에 해석기가 없어 촬영 시각·위치가 빈 값이 되므로 전체판이 읽는다.
+ * 앞 두 바이트가 0인 파일은 전체판도 HEIC 해석기만 맞춰 보므로(PNG·TIFF는 앞 두 바이트가 다르다) 어느 판이 읽어도 결과가 같다.
+ * 두 바이트가 안 되는 파일도 false (전체판이 형식을 모른다고 던지고, parseExif가 {}로 받는다).
+ */
+export function liteReads(head: Uint8Array): boolean {
+  if (head.length < 2) return false
+  return (head[0] === 0xff && head[1] === 0xd8) || (head[0] === 0 && head[1] === 0)
+}
+
+/**
+ * 이 파일을 읽을 exifr를 받는다 — 사진기·폰 사진(JPEG·HEIC)은 가벼운 판(gzip 약 15kB), 나머지는 전체판(약 26kB).
+ * 쓰는 값(TIFF/EXIF·GPS·XMP의 RawFileName·Rating)은 둘 다 읽고, lite에 없는 IPTC는 쓰지 않는다 (parse의 iptc: false).
+ * 사진을 읽을 때 받는다 — 맨 위에서 import하면 이 파일의 작은 시간대 함수만 쓰는 곳(저장한 기록 고치기 → captureTime.ts)을 따라
+ * 기록 상세 묶음에 들어간다. 받지 못하면(오프라인) 던진다 — parseExif가 {}로 받는다.
+ */
+async function loadExifr(file: Blob) {
+  const head = new Uint8Array(await file.slice(0, 2).arrayBuffer())
+  return (await (liteReads(head) ? import('exifr/dist/lite.esm.mjs') : import('exifr'))).default
+}
+
+/**
  * 이미지 File에서 GPS · 촬영 시각 · 카메라/렌즈/촬영설정을 파싱한다.
  * EXIF가 없거나 파싱이 실패하면 {} 를 반환 (에러 전파하지 않음).
  */
 export async function parseExif(file: File): Promise<ExifInfo> {
   const info: ExifInfo = {}
   try {
-    // exifr(약 75KB)는 사진을 읽을 때 받는다. 맨 위에서 import하면 이 파일의 작은 시간대 함수만 쓰는 곳
-    // (저장한 기록 고치기 → captureTime.ts)을 따라 기록 상세 묶음에 들어간다. 받지 못하면(오프라인) 아래 catch로 {}
-    const { default: exifr } = await import('exifr')
+    const exifr = await loadExifr(file)
     // exifr.gps()는 highlevel/gps의 독립 옵션 경로라 아래 parse()의 reviveValues:false에
     // 영향받지 않는다 — 그래서 parse 옵션에 gps:true를 넣지 않고 별도 호출을 유지한다.
     const [gps, d] = await Promise.all([
@@ -142,7 +162,8 @@ export async function parseExif(file: File): Promise<ExifInfo> {
         tiff: true,
         exif: true,
         xmp: true,
-        iptc: true,
+        // IPTC 값은 쓰지 않는다. lite에는 그 해석기가 없어 켜 두면 'segment parser iptc was not loaded'로 던진다
+        iptc: false,
         mergeOutput: true,
         reviveValues: false,
       }),
