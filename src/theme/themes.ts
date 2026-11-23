@@ -82,7 +82,8 @@ export interface ThemeDef {
   bar: string
 }
 
-const SANS = "'Pretendard', -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif"
+// index.html이 받는 Pretendard 가변 글꼴의 이름은 'Pretendard Variable'이다 — 'Pretendard'는 기기에 깔린 정적 글꼴이 있을 때만 맞는다
+const SANS = "'Pretendard Variable', 'Pretendard', -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif"
 const SERIF = "'Noto Serif KR', 'AppleMyungjo', 'Nanum Myeongjo', Georgia, serif"
 
 export const THEMES: ThemeDef[] = [

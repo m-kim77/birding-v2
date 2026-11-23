@@ -16,12 +16,15 @@ export const CARD_BASE = {
   stageIn: '#1F2A24', stageMid: '#0A0E0C', stageOut: '#050605',
 }
 
-/** 글꼴. index.html이 받는 것만 쓴다 (Noto Serif KR · Instrument Serif · JetBrains Mono · Pretendard) */
+/**
+ * 글꼴. index.html이 받는 것만 쓴다 (Noto Serif KR · Instrument Serif · JetBrains Mono · Pretendard Variable).
+ * Pretendard는 가변 글꼴판이라 이름이 'Pretendard Variable'이다 — 내보내기(cardCanvas.ts loadCardFonts)도 이 이름으로 불러야 캔버스가 대체 글꼴로 그리지 않는다.
+ */
 export const CARD_FONTS = {
   name: "'Noto Serif KR', 'AppleMyungjo', serif",
   latin: "'Instrument Serif', 'Noto Serif KR', Georgia, serif",
   mono: "'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace",
-  body: "'Pretendard', -apple-system, 'Apple SD Gothic Neo', sans-serif",
+  body: "'Pretendard Variable', 'Pretendard', -apple-system, 'Apple SD Gothic Neo', sans-serif",
 }
 
 /** 카드 오른쪽 위의 라벨. 등급 이름이 있던 자리 — 카드의 종류를 적는다 (뒷면의 글자와 같다) */

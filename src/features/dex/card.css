@@ -1,7 +1,7 @@
 /*
  * 새 카드 — 사용자의 Card Reveal 디자인("CreatureDex")의 분위기: 어두운 숲 바탕, 크림색 글자, 강조색 하나, 고정폭 소문자 라벨.
  * 앱 테마 토큰을 쓰지 않는다. 색은 BirdCard가 cardLook.ts·cardStyle.ts의 값으로 넣어 준다 (내보내는 이미지·영상과 같은 값).
- * 글꼴은 index.html이 받는 것만 쓴다 (Noto Serif KR · Instrument Serif · JetBrains Mono · Pretendard).
+ * 글꼴은 index.html이 받는 것만 쓴다 (Noto Serif KR · Instrument Serif · JetBrains Mono · Pretendard Variable — 가변 글꼴판의 이름, cardLook.ts CARD_FONTS.body와 같게).
  */
 .bird-card {
   position: relative; width: 100%; max-width: 340px; aspect-ratio: 4 / 5; margin: 0 auto; padding: 14px 14px 12px;
@@ -11,7 +11,7 @@
   border-radius: 18px; border: 1.5px solid color-mix(in srgb, var(--accent) 70%, transparent);
   background: linear-gradient(180deg, var(--c-top), var(--c-bottom));
   box-shadow: 0 14px 34px rgba(0, 0, 0, 0.45);
-  font-family: 'Pretendard', -apple-system, 'Apple SD Gothic Neo', sans-serif;
+  font-family: 'Pretendard Variable', 'Pretendard', -apple-system, 'Apple SD Gothic Neo', sans-serif;
   /* 기울기 — useCardTilt가 --rx/--ry를 넣는다 */
   transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)); transition: transform 0.18s ease-out; touch-action: pan-y;
 }
@@ -32,7 +32,7 @@
 .bc-latin { margin: -4px 0 0; font-family: 'Instrument Serif', 'Noto Serif KR', Georgia, serif; font-style: italic; font-size: 16px; color: var(--c-sub); }
 .bc-meta { margin-top: 2px; padding-top: 8px; border-top: 1px solid var(--c-hair); display: grid; gap: 3px; font-size: 10.5px; letter-spacing: 0.12em; color: var(--c-sub); }
 .bc-meta p { margin: 0; display: flex; justify-content: space-between; gap: 10px; }
-.bc-meta span:last-child { text-transform: none; letter-spacing: 0.02em; font-family: 'Pretendard', sans-serif; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bc-meta span:last-child { text-transform: none; letter-spacing: 0.02em; font-family: 'Pretendard Variable', 'Pretendard', sans-serif; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bc-shot { opacity: 0.75; }
 
 /* 빛 줄기 — "빛나게"를 고른 카드만. 위치는 --shine(0~100%)을 따른다 */
