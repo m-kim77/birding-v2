@@ -9,7 +9,8 @@ import type { ModelState } from './useDetection'
 interface Props {
   photoUrl: string
   ratio: string
-  detection: { model: ModelState; download: number; boxes: DetectBox[] | null; error: string; downloadModel: () => void; sizeMb: number }
+  /** sizeMb는 처음 받을 때의 양, missingMb는 아직 받지 않은 양 — 일부만 받아 둔 기기에서 둘이 다르다 */
+  detection: { model: ModelState; download: number; boxes: DetectBox[] | null; error: string; downloadModel: () => void; sizeMb: number; missingMb: number }
   /** 지금 고른 영역. 탐지 상자일 수도, 손으로 그린 것일 수도 있다 */
   picked: NormalizedBox | null
   onPick: (box: NormalizedBox, by: 'detector' | 'manual') => void
@@ -25,7 +26,7 @@ function boxStyle(b: NormalizedBox) {
  * "새 찾기" 버튼은 없다 — 모델이 있으면 자동으로 돈다. "직접 자르기"는 자동 찾기가 도움이 안 될 때만 비중 있게 나타난다.
  */
 export default function DetectView({ photoUrl, ratio, detection, picked, onPick }: Props) {
-  const { model, download, boxes, error, downloadModel, sizeMb } = detection
+  const { model, download, boxes, error, downloadModel, sizeMb, missingMb } = detection
   const [drawing, setDrawing] = useState(false)
   const searching = model === 'ready' && boxes === null
 
@@ -41,9 +42,11 @@ export default function DetectView({ photoUrl, ratio, detection, picked, onPick 
       </PhotoBox>
 
       {model === 'missing' && !drawing && (
-        // 받기: 수 MB를 쓰는 일이라 사용자가 눌러야 한다 (자동으로 받지 않는다)
-        <Banner tone="info" icon="download" action={<Button onClick={downloadModel}>받기 ({sizeMb}MB)</Button>}>
-          새를 자동으로 찾으려면 모델을 한 번 받아야 합니다. 받은 파일은 이 기기에 남겨 둡니다 (설정에서 지울 수 있습니다).
+        // 받기: 수 MB를 쓰는 일이라 사용자가 눌러야 한다 (자동으로 받지 않는다 — 일부를 받아 둔 기기도 나머지를 말없이 받지 않는다)
+        <Banner tone="info" icon="download" action={<Button onClick={downloadModel}>받기 ({missingMb}MB)</Button>}>
+          {missingMb < sizeMb
+            ? `받아 둔 파일이 일부 있어, 나머지 약 ${missingMb}MB만 더 받으면 새를 자동으로 찾습니다. 받은 파일은 이 기기에 남겨 둡니다 (설정에서 지울 수 있습니다).`
+            : '새를 자동으로 찾으려면 모델을 한 번 받아야 합니다. 받은 파일은 이 기기에 남겨 둡니다 (설정에서 지울 수 있습니다).'}
         </Banner>
       )}
       {model === 'unsupported' && !drawing && !picked && <Banner tone="info" icon="alert">이 브라우저에서는 새 찾기를 쓸 수 없습니다. 새가 있는 부분을 직접 잘라 주세요.</Banner>}

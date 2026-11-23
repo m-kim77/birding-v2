@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { partProgress, progressTotal, staleUrls } from '../src/features/detect/modelCache.ts'
+import { partProgress, progressTotal, staleUrls, sumMissingMb } from '../src/features/detect/modelCache.ts'
 
 test('partProgress: 모델 7.3 · wasm 2.3으로 나누면 모델을 다 받을 때 약 76%, wasm 절반이면 약 88%, 끝은 정확히 1', () => {
   const seen: number[] = []
@@ -50,4 +50,14 @@ test('staleUrls: 이 모델의 파일 가운데 지금 쓰는 것만 남긴다 �
   const isWasm = (url: string) => url.includes('/vision_wasm')
   assert.deepEqual(staleUrls(cached, isWasm, [`${site}vision_wasm_internal-NEW.wasm`]), [`${site}vision_wasm_internal-OLD.wasm`])
   assert.deepEqual(staleUrls(cached, isWasm, []), [`${site}vision_wasm_internal-OLD.wasm`, `${site}vision_wasm_internal-NEW.wasm`])
+})
+
+test('sumMissingMb: 모델(7.3)만 받아 둔 기기는 wasm 몫(2.3 → 2)만, 다 있으면 0, 하나도 없으면 둘을 더한 10', () => {
+  assert.equal(sumMissingMb([[7.3, true], [2.3, false]]), 2)
+  assert.equal(sumMissingMb([[7.3, true], [2.3, true]]), 0)
+  assert.equal(sumMissingMb([[7.3, false], [2.3, false]]), 10)
+})
+
+test('sumMissingMb: 남은 것이 있는데 반올림이 0이면 1 — 0MB면 다 받아 둔 것으로 읽힌다', () => {
+  assert.equal(sumMissingMb([[7.3, true], [0.3, false]]), 1)
 })

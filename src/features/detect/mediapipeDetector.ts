@@ -6,7 +6,7 @@ import { ChunkLoadError, loadChunk } from '../../app/chunkLoad'
 import { shareInFlight } from '../../lib/sharedTask'
 import type { DetectBox } from '../../types'
 import type { Detector } from './detector'
-import { dropModel, dropStale, fetchModel, isModelCached, partProgress } from './modelCache'
+import { dropModel, dropStale, fetchModel, isModelCached, partProgress, sumMissingMb } from './modelCache'
 import { isVisionWasm, wasmFiles } from './mediapipeWasm'
 import { canCompileWasm } from './wasmCompile'
 import { fromTile, makeTiles, mergeBoxes } from './tiling'
@@ -23,7 +23,10 @@ const MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/object_detect
  */
 const MODEL_MB = 7.3
 const WASM_MB = 2.3
-/** wasm의 풀린 크기(대략, 판마다 10.5~11.2MB) — 압축해 보내면 content-length로 진행률을 셀 수 없어 이 값으로 센다 (modelCache.ts progressTotal) */
+/**
+ * wasm의 풀린 크기(대략, 판마다 10.5~11.2MB) — 압축해 보내면 content-length로 진행률을 셀 수 없어 이 값으로 센다 (modelCache.ts progressTotal).
+ * Cache Storage에도 풀린 채로 들어가, 기기에 차지하는 양은 모델과 합쳐 약 18MB다 (storedMb).
+ */
 const WASM_BYTES = 11_000_000
 const SCORE_MIN = 0.3
 /** 가로로 긴 망원 사진 기준 3×2 조각, 20% 겹침 */
@@ -110,8 +113,11 @@ export const mediapipeDetector: Detector = {
   id: 'efficientdet_lite0',
   label: '새 찾기',
   sizeMb: Math.round(MODEL_MB + WASM_MB),
+  storedMb: Math.round(MODEL_MB + WASM_BYTES / 1_000_000),
   supported,
   isCached: () => isModelCached(MODEL_URL, wasmFiles().binary),
+  // 파일마다 따로 본다 — 모델만 받아 둔 기기(점검 5-9 전 판)는 wasm 몫(약 2MB)만 받으면 된다
+  missingMb: async () => sumMissingMb([[MODEL_MB, await isModelCached(MODEL_URL)], [WASM_MB, await isModelCached(wasmFiles().binary)]]),
   // wasm은 지금 판·옛 판 모두 지운다 (keep 없음)
   clearCache: async () => { detector?.close(); detector = null; await dropModel(MODEL_URL); await dropStale(isVisionWasm, []) },
 

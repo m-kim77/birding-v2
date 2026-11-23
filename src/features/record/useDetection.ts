@@ -21,13 +21,15 @@ export function useDetection(bitmap: ImageBitmap | null) {
   /** null이면 아직 찾는 중(또는 시작 전), 빈 배열이면 못 찾음 */
   const [boxes, setBoxes] = useState<DetectBox[] | null>(null)
   const [error, setError] = useState('')
+  /** 받기 단추의 크기 — 아직 받지 않은 양(MB). 일부만 받아 둔 기기는 나머지 몫만 */
+  const [missingMb, setMissingMb] = useState(detector.sizeMb)
   // 탐지마다 번호를 뽑는다. 가장 나중 번호가 아닌 탐지는 끝나도 결과·오류를 쓰지 않는다
   const [nextRun] = useState(latestOnly)
 
   useEffect(() => {
     // wasm을 컴파일하지 못하는 브라우저(사파리 15 이하)는 받아 둔 파일이 있어도 쓰지 못한다 — 'ready'로 두면 사진마다 준비가 돌아 같은 실패를 띄운다
     if (!detector.supported()) { setModel('unsupported'); return }
-    void detector.isCached().then((has) => setModel(has ? 'ready' : 'missing'))
+    void detector.missingMb().then((left) => { setMissingMb(left); setModel(left === 0 ? 'ready' : 'missing') })
   }, [])
 
   /**
@@ -51,7 +53,7 @@ export function useDetection(bitmap: ImageBitmap | null) {
 
   /**
    * 사용자가 "받기"를 눌렀다 — 모델만 받는다. 다 받으면 'ready'가 되어 위의 effect가 지금 사진에서 찾는다.
-   * 실패하면 안내를 담고 다시 받을 수 있게 'missing'으로 돌린다. 이미 받는 중이면 아무것도 하지 않는다.
+   * 실패하면 안내를 담고 다시 받을 수 있게 'missing'으로 돌리고, 남은 양을 다시 잰다 (모델은 받고 wasm에서 끊겼으면 그 몫만). 이미 받는 중이면 아무것도 하지 않는다.
    */
   async function downloadModel() {
     if (model === 'downloading') return
@@ -63,8 +65,9 @@ export function useDetection(bitmap: ImageBitmap | null) {
     } catch (e) {
       setError(e instanceof Error ? e.message : '새 찾기 모델을 받지 못했습니다.')
       setModel('missing')
+      void detector.missingMb().then(setMissingMb)
     }
   }
 
-  return { model, download, boxes, error, downloadModel: () => void downloadModel(), detectorId: detector.id, sizeMb: detector.sizeMb }
+  return { model, download, boxes, error, downloadModel: () => void downloadModel(), detectorId: detector.id, sizeMb: detector.sizeMb, missingMb }
 }

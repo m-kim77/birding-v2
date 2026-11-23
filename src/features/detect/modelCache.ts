@@ -77,6 +77,16 @@ export function partProgress(weights: number[], report: (fraction: number) => vo
   })
 }
 
+/**
+ * 아직 받지 않은 양(MB) — `parts`는 파일마다 [받을 때 오가는 크기(MB), 이 기기에 있는지]. 다 있으면 0.
+ * 화면에 정수로 보이므로 반올림하되, 남은 것이 있는데 0이 되면 1로 올린다 (0MB면 '다 받아 둠'으로 읽힌다).
+ * 모델만 받아 둔 기기(wasm을 따로 받아 두기 전 판, 점검 5-9)에 '받기 (10MB)'를 보이면 받은 것을 또 받으라는 말이 된다.
+ */
+export function sumMissingMb(parts: Array<[mb: number, cached: boolean]>): number {
+  const left = parts.reduce((sum, [mb, cached]) => sum + (cached ? 0 : mb), 0)
+  return left > 0 ? Math.max(1, Math.round(left)) : 0
+}
+
 /** 받아 둔 주소 가운데 `belongs`(이 모델의 파일인지)에 들고 `keep`에 없는 것 — 판이 바뀌어 이름(해시)이 달라진 옛 파일 */
 export function staleUrls(cached: string[], belongs: (url: string) => boolean, keep: string[]): string[] {
   return cached.filter((url) => belongs(url) && !keep.includes(url))

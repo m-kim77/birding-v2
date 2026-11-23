@@ -3,12 +3,18 @@ import { Card } from '../../ui/bits'
 import Button from '../../ui/Button'
 import { mediapipeDetector as detector } from '../detect/mediapipeDetector'
 import { soundClassifier, soundEntryOn } from '../sound/soundModel'
+import { modelSizeText } from './modelText'
 import { notifyStorageChanged } from './useStorageStatus'
 
 /** 받아 두는 모델의 공통 모양 — 새 찾기(detect/detector.ts)와 새소리(sound/classifier.ts) 어댑터가 둘 다 이 모양이다 */
 interface Model {
   label: string
+  /** 처음 받을 때 오가는 양(MB) */
   sizeMb: number
+  /** 다 받아 두었을 때 기기에 차지하는 양(MB) — 새 찾기만 있다(wasm이 풀린 채로 들어간다). 없으면 sizeMb */
+  storedMb?: number
+  /** 아직 받지 않은 양(MB), 0이면 다 받아 둠 — 새 찾기만 있다(일부만 받아 둔 기기가 있다). 없으면 isCached로 0 또는 sizeMb */
+  missingMb?(): Promise<number>
   /** 이 브라우저에서 돌 수 있는지 — 새 찾기만 있다(wasm 컴파일이 막힌 사파리 15 이하는 false). 없으면 돈다고 본다 */
   supported?(): boolean
   isCached(): Promise<boolean>
@@ -18,27 +24,34 @@ interface Model {
 
 /** 모델 한 줄 — 이름·하는 일·크기와 받기/지우기. 받지 못하면 이유를 `onError`로 알린다 (카드 아래에 한 번 보여 준다) */
 function ModelRow({ model, does, onError }: { model: Model; does: string; onError: (message: string) => void }) {
-  const [cached, setCached] = useState<boolean | null>(null)
+  /** 아직 받지 않은 양(MB). null이면 재는 중 */
+  const [missing, setMissing] = useState<number | null>(null)
   const [progress, setProgress] = useState<number | null>(null)
-  useEffect(() => { void model.isCached().then(setCached) }, [model])
+  const cached = missing === null ? null : missing === 0
+  useEffect(() => { void measure() }, [model]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** 남은 양을 다시 잰다 — 받다가 끊기면 일부만 남을 수 있다 */
+  async function measure() {
+    setMissing(model.missingMb ? await model.missingMb() : (await model.isCached()) ? 0 : model.sizeMb)
+  }
   // 못 도는 브라우저에서 받기를 누르면 늘 실패한다 — 버튼 대신 그 사실을 적는다 (받아 둔 것이 있으면 지우기는 그대로)
   const usable = model.supported?.() ?? true
 
   async function download() {
     onError('')
     setProgress(0)
-    try { await model.load(setProgress); setCached(true); notifyStorageChanged() } catch (e) { onError(e instanceof Error ? e.message : '받지 못했습니다.') } finally { setProgress(null) }
+    try { await model.load(setProgress); setMissing(0); notifyStorageChanged() } catch (e) { onError(e instanceof Error ? e.message : '받지 못했습니다.'); void measure() } finally { setProgress(null) }
   }
   async function clear() {
     await model.clearCache()
-    setCached(false)
+    setMissing(model.sizeMb)
     // 저장 공간 카드의 쓰는 양을 다시 재게 한다 — 지우는 것이 폰 공간을 돌려받는 수단이라 숫자가 따라 바뀌어야 한다
     notifyStorageChanged()
   }
 
   return (
     <li>
-      <div><strong>{model.label}</strong><small>{does} · {model.sizeMb}MB · 기기 안에서 실행</small></div>
+      <div><strong>{model.label}</strong><small>{[does, modelSizeText(missing, model.sizeMb, model.storedMb), '기기 안에서 실행'].filter(Boolean).join(' · ')}</small></div>
       {progress !== null ? <span className="hint">{progress < 1 ? `${Math.round(progress * 100)}%` : '준비 중'}</span>
         : cached === null ? null
         : !cached && !usable ? <span className="hint">이 브라우저에서는 쓸 수 없음</span>
