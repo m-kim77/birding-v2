@@ -45,6 +45,17 @@ export function queueChange(prev: QueueEntry | undefined, id: string, op: QueueE
   return { id, op, photos: keepPhotos, at: now.toISOString(), tries: 0, nextAt: now.toISOString(), stuck: false }
 }
 
+/**
+ * 기록을 지울 때 드라이브에서도 지우라는 항목(지움 표시)을 줄에 넣을지 — 이 기기가 드라이브와 **한 번이라도** 연결했으면 넣는다.
+ * 지금 연결돼 있지 않아도 넣는다: 끊긴 동안 지운 기록에 지움 표시가 없으면, 다시 연결할 때 드라이브의 그 기록이
+ * '드라이브에만 있는 기록'으로 사진까지 내려와 되살아나고 다른 기기에도 그대로 남는다. 줄은 연결됐을 때만 처리되니 끊긴 동안에는 쌓이기만 한다.
+ * 값은 `meta`에서 읽은 그대로 받는다: 지금 연결(`linked`), 연결한 적 있음 표시(`everLinked`), 마지막 동기화 시각(`lastSyncAt` —
+ * 표시가 생기기 전에 연결했다 끊은 기기도 알아보려고). 셋 다 아니면(드라이브를 쓴 적이 없는 기기) 넣지 않는다 — 줄이 끝없이 쌓이지 않게.
+ */
+export function keepsTombstones(linked: unknown, everLinked: unknown, lastSyncAt: unknown): boolean {
+  return linked === true || everLinked === true || (typeof lastSyncAt === 'string' && lastSyncAt !== '')
+}
+
 /** 한 번 실패한 뒤의 항목. 횟수를 올리고 다음 시각을 뒤로 민다. 상한에 닿으면 멈춤 표시 */
 export function afterFailure(entry: QueueEntry, message: string, now: Date): QueueEntry {
   const tries = entry.tries + 1

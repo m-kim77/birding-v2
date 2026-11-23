@@ -4,8 +4,7 @@ import { dbGet, dbGetAll, dbPut } from './db'
 import { normalizeStored } from './normalizeSighting'
 import { deleteSightingWithPhotos, patchSighting, writeSightingWithPhotos, type PhotoFile } from './photos'
 import { useAutoSync } from './useAutoSync'
-import { queueChange } from './syncPlan'
-import { isDriveLinked, noteChange } from './syncQueue'
+import { noteChange } from './syncQueue'
 import { syncSoon } from './sync'
 
 /**
@@ -114,8 +113,8 @@ export function JournalProvider({ children }: { children: ReactNode }) {
       void noteChange(id, 'put', false).then(syncSoon)
     },
     remove: async (id) => {
-      // 드라이브에서도 지우라는 일은 기록을 지우는 트랜잭션에 함께 넣는다 (photos.ts deleteSightingWithPhotos)
-      await deleteSightingWithPhotos(id, (await isDriveLinked()) ? queueChange(undefined, id, 'delete', false, new Date()) : undefined)
+      // 드라이브에서도 지우라는 일은 기록을 지우는 트랜잭션에 함께 넣는다 — 한 번이라도 연결한 기기면 끊긴 동안에도 (photos.ts deleteSightingWithPhotos)
+      await deleteSightingWithPhotos(id, new Date())
       setSightings((list) => (list ?? []).filter((s) => s.id !== id))
       syncSoon()
     },

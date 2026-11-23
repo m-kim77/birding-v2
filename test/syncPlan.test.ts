@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { MAX_TRIES, accountDecision, afterFailure, askedAccountOf, dueEntries, planPull, queueChange, recordTags, remoteRecordOf, shouldPushRecord, type QueueEntry, type RemoteRecord } from '../src/data/syncPlan.ts'
+import { MAX_TRIES, accountDecision, afterFailure, askedAccountOf, dueEntries, keepsTombstones, planPull, queueChange, recordTags, remoteRecordOf, shouldPushRecord, type QueueEntry, type RemoteRecord } from '../src/data/syncPlan.ts'
 import type { Sighting } from '../src/types.ts'
 
 const T0 = new Date('2026-09-27T00:00:00.000Z')
@@ -175,4 +175,18 @@ test('askedAccountOf: 묻는 중 값은 새 계정 표지와 묻는 단계가 �
 
 test('askedAccountOf: 표지가 없거나 비었으면 묻는 중이 아니다 (null)', () => {
   for (const v of [undefined, null, '', 42, {}, { id: '' }, { id: 7, tracksWasOn: true }]) assert.equal(askedAccountOf(v), null, JSON.stringify(v))
+})
+
+test('keepsTombstones: 한 번이라도 드라이브와 연결한 기기는 끊긴 동안에도 지움 항목을 넣는다', () => {
+  assert.equal(keepsTombstones(true, undefined, undefined), true)
+  // 연결을 끊은 뒤 — 지움 표시가 없으면 다시 연결할 때 드라이브의 기록이 내려와 되살아난다
+  assert.equal(keepsTombstones(false, true, undefined), true)
+  // '연결한 적 있음' 표시가 생기기 전에 연결했다 끊은 기기 — 마지막 동기화 시각이 남아 있다
+  assert.equal(keepsTombstones(false, undefined, '2026-11-01T00:00:00.000Z'), true)
+})
+
+test('keepsTombstones: 드라이브를 쓴 적이 없는 기기는 넣지 않는다 (줄이 끝없이 쌓이지 않게) — 저장소의 엉뚱한 값도 아님으로 본다', () => {
+  assert.equal(keepsTombstones(undefined, undefined, undefined), false)
+  assert.equal(keepsTombstones(false, undefined, ''), false)
+  assert.equal(keepsTombstones('true', 1, 42), false)
 })

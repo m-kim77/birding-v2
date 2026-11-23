@@ -4,7 +4,7 @@ import { dbCount, dbGet, dbPut, dbWriteAll } from './db.ts'
 import { normalizeStored } from './normalizeSighting.ts'
 // 키 모양은 점검·정리(photoCheck.ts)와 함께 쓴다 — 여기서 따로 만들면 둘이 어긋날 수 있다
 import { PHOTO_KINDS as KINDS, photoKey as key } from './photoKey.ts'
-import type { QueueEntry } from './syncPlan'
+import { queueDeleteIn } from './syncQueue.ts'
 
 /** 저장할 사진 한 판. 만드는 쪽(record/savePhotos.ts)과 쓰는 쪽(여기)을 잇는다 */
 export interface PhotoFile { kind: PhotoKind; blob: Blob }
@@ -90,14 +90,15 @@ export async function patchSighting(id: string, patch: Partial<Sighting>, now: D
 
 /**
  * 기록과 딸린 사진 세 판을 트랜잭션 하나로 지운다. 없는 판이 있어도 성공한다.
- * `syncEntry`가 있으면(드라이브를 연결했을 때) 드라이브에서도 지우라는 일을 **같은 트랜잭션에** 줄에 넣는다 —
- * 따로 넣다가 그 사이 탭이 닫히면 다음 동기화가 드라이브의 기록을 도로 받아 지운 기록이 되살아난다.
+ * 이 기기가 드라이브와 한 번이라도 연결했으면(지금 끊겨 있어도) 드라이브에서도 지우라는 일을 **같은 트랜잭션에** 줄에 넣는다 (syncQueue.ts queueDeleteIn) —
+ * 따로 넣다가 그 사이 탭이 닫히거나, 끊긴 동안이라 빼먹으면 다음 동기화가 드라이브의 기록을 도로 받아 지운 기록이 되살아난다.
+ * `now`는 지운 시각 (드라이브의 지움 표시에 적힌다).
  */
-export function deleteSightingWithPhotos(id: string, syncEntry?: QueueEntry): Promise<void> {
-  return dbWriteAll(syncEntry ? ['sightings', 'photos', 'syncQueue'] : ['sightings', 'photos'], (store) => {
+export function deleteSightingWithPhotos(id: string, now: Date): Promise<void> {
+  return dbWriteAll(['sightings', 'photos', 'syncQueue', 'meta'], (store) => {
     store('sightings').delete(id)
     for (const kind of KINDS) store('photos').delete(key(id, kind))
-    if (syncEntry) store('syncQueue').put(syncEntry, id)
+    queueDeleteIn(store, id, now)
   })
 }
 

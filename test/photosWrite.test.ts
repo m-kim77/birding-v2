@@ -2,7 +2,8 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { installFakeIdb } from './fakeIdb.ts'
 import { openDb } from '../src/data/db.ts'
-import { patchSighting, writeSightingIfNewer } from '../src/data/photos.ts'
+import { deleteSightingWithPhotos, patchSighting, writeSightingIfNewer } from '../src/data/photos.ts'
+import type { QueueEntry } from '../src/data/syncPlan.ts'
 import type { Sighting } from '../src/types.ts'
 
 const fake = installFakeIdb()
@@ -56,4 +57,31 @@ test('writeSightingIfNewer: 기기에 없거나 기기 판이 더 오래됐으�
   assert.ok(fake.peek('photos', 'old:thumb') instanceof Blob)
   assert.equal(await writeSightingIfNewer(stored('fresh') as Sighting, []), true)
   assert.deepEqual(fake.keys('sightings').sort(), ['fresh', 'old'])
+})
+
+/** 지울 기록 하나와 그 사진 세 판을 넣어 둔다 */
+function seedRecordWithPhotos(id: string) {
+  fake.seed('sightings', id, stored(id))
+  for (const kind of ['full', 'thumb', 'crop']) fake.seed('photos', `${id}:${kind}`, `${kind} 사진`)
+}
+
+test('deleteSightingWithPhotos: 연결을 끊은 동안 지워도 한 번이라도 연결한 기기면 지움 항목을 같은 트랜잭션에 넣는다', async () => {
+  for (const meta of [{ driveLinked: false, driveEverLinked: true }, { driveLinked: false, lastSyncAt: '2026-11-01T00:00:00.000Z' }, { driveLinked: true }]) {
+    fake.clear()
+    for (const [k, v] of Object.entries(meta)) fake.seed('meta', k, v)
+    seedRecordWithPhotos('x')
+    await deleteSightingWithPhotos('x', NOW)
+    assert.deepEqual(fake.keys('sightings'), [], JSON.stringify(meta))
+    assert.deepEqual(fake.keys('photos'), [], JSON.stringify(meta))
+    const entry = fake.peek('syncQueue', 'x') as QueueEntry | undefined
+    assert.equal(entry?.op, 'delete', JSON.stringify(meta))
+    assert.equal(entry?.at, NOW.toISOString())
+  }
+})
+
+test('deleteSightingWithPhotos: 드라이브를 쓴 적이 없는 기기는 기록과 사진만 지우고 줄에 넣지 않는다', async () => {
+  fake.clear()
+  seedRecordWithPhotos('x')
+  await deleteSightingWithPhotos('x', NOW)
+  assert.deepEqual([fake.keys('sightings'), fake.keys('photos'), fake.keys('syncQueue')], [[], [], []])
 })
