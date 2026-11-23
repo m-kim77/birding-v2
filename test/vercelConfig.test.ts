@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { MAX_DURATION_SECONDS, TURN_SECONDS } from '../api/llm.ts'
 
 /** vercel.json의 함수·머리(header) 설정. 코드가 기대는 값이 여기 있다 — 주석의 약속과 어긋나도 로컬 시험은 모른다 */
@@ -36,4 +36,13 @@ test('모든 경로에 iframe 막기·형식 추측 끄기·리퍼러 줄이기 
   assert.match(headerOf(ALL, 'Content-Security-Policy') ?? '', /frame-ancestors 'none'/)
   assert.equal(headerOf(ALL, 'X-Content-Type-Options'), 'nosniff')
   assert.equal(headerOf(ALL, 'Referrer-Policy'), 'strict-origin-when-cross-origin')
+})
+
+test('이름에 내용 해시가 붙은 /assets/ 파일만 1년 동안 다시 묻지 않는다 — 없으면 앱을 열 때마다 묻고, 신호가 끊긴 곳에서는 처음 여는 화면을 못 연다', () => {
+  assert.equal(headerOf('/assets/(.*)', 'Cache-Control'), 'public, max-age=31536000, immutable')
+  // index.html·privacy.html·아이콘은 이름이 그대로라, 오래 기억하면 새 배포가 안 보인다 — 다른 규칙에는 캐시 머리를 두지 않는다
+  const others = (config.headers ?? []).filter((r) => r.source !== '/assets/(.*)')
+  for (const rule of others) assert.equal(headerOf(rule.source, 'Cache-Control'), undefined, rule.source)
+  // public/assets/에 둔 파일은 해시 없이 dist/assets/로 복사되어, 바꿔도 1년 동안 옛 판이 쓰인다
+  assert.equal(existsSync(new URL('../public/assets', import.meta.url)), false)
 })
