@@ -72,6 +72,22 @@ export function dueEntries(entries: QueueEntry[], now: Date, manual: boolean): Q
   return entries.filter((e) => manual || (!e.stuck && e.nextAt <= at)).sort((a, b) => a.at.localeCompare(b.at))
 }
 
+/**
+ * 줄에서 자동으로 다시 할 가장 이른 시각 — 멈추지 않은 항목의 nextAt 중 가장 이른 것 (UTC ISO). 그런 항목이 없으면(줄이 비었거나 모두 멈춤) 빈 글자.
+ * 1분 타이머는 이 시각이 지났을 때만 돈다 (useAutoSync — `isDue`): 멈춘 항목이나 한 시간 뒤에 다시 할 항목만 남았는데
+ * 매분 드라이브 목록 전체를 다시 받으면, 올릴 것이 없는데도(`dueEntries`가 거른다) 데이터와 배터리만 쓴다.
+ */
+export function nextDueAt(entries: QueueEntry[]): string {
+  let at = ''
+  for (const e of entries) if (!e.stuck && (at === '' || e.nextAt < at)) at = e.nextAt
+  return at
+}
+
+/** `nextDueAt`의 시각이 지났는지 — 자동으로 할 일이 지금 있는지. 빈 글자면 할 일이 없다 (false) */
+export function isDue(dueAt: string, now: Date): boolean {
+  return dueAt !== '' && dueAt <= now.toISOString()
+}
+
 /** 드라이브에 있는 기록 파일 하나를 목록의 꼬리표로 읽은 것 (내용을 받지 않고도 받을지 정할 수 있다) */
 export interface RemoteRecord {
   id: string

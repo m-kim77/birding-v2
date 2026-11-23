@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { MAX_TRIES, accountDecision, afterFailure, askedAccountOf, dueEntries, keepsTombstones, planPull, queueChange, recordTags, remoteRecordOf, shouldPushRecord, type QueueEntry, type RemoteRecord } from '../src/data/syncPlan.ts'
+import { MAX_TRIES, accountDecision, afterFailure, askedAccountOf, dueEntries, isDue, keepsTombstones, nextDueAt, planPull, queueChange, recordTags, remoteRecordOf, shouldPushRecord, type QueueEntry, type RemoteRecord } from '../src/data/syncPlan.ts'
 import type { Sighting } from '../src/types.ts'
 
 const T0 = new Date('2026-09-27T00:00:00.000Z')
@@ -41,6 +41,23 @@ test('dueEntries: 자동은 때가 된 것만(멈춘 것 제외), 누르면 전�
   assert.deepEqual(dueEntries([a, b, c], later(10), false).map((e) => e.id), ['a'])
   assert.deepEqual(dueEntries([a, b, c], later(40), false).map((e) => e.id), ['b', 'a'])
   assert.deepEqual(dueEntries([a, b, c], later(10), true).map((e) => e.id), ['b', 'c', 'a'])
+})
+
+test('nextDueAt · isDue: 1분 타이머는 멈추지 않았고 재시도 시각이 지난 항목이 있을 때만 돈다', () => {
+  const stuck = { ...queueChange(undefined, 'c', 'put', true, T0), stuck: true }
+  const waiting = afterFailure(queueChange(undefined, 'b', 'put', true, T0), 'x', T0) // 30초 뒤에 다시
+  // 멈춘 항목만 남았다 — 드라이브가 꽉 차 다섯 번 실패한 뒤. 매분 목록 전체를 받지 않는다
+  assert.equal(nextDueAt([stuck]), '')
+  assert.equal(isDue(nextDueAt([stuck]), later(600)), false)
+  assert.equal(isDue(nextDueAt([]), later(600)), false)
+  // 재시도를 기다리는 항목은 그 시각이 지나야 돈다
+  assert.equal(nextDueAt([stuck, waiting]), later(30).toISOString())
+  assert.equal(isDue(nextDueAt([stuck, waiting]), later(10)), false)
+  assert.equal(isDue(nextDueAt([stuck, waiting]), later(30)), true)
+  // 가장 이른 것을 본다 — dueEntries가 자동으로 올리는 항목과 같다
+  const fresh = queueChange(undefined, 'a', 'put', true, later(5))
+  assert.equal(nextDueAt([waiting, fresh, stuck]), later(5).toISOString())
+  assert.deepEqual(dueEntries([waiting, fresh, stuck], later(5), false).map((e) => e.id), ['a'])
 })
 
 test('planPull: 더 새 쪽이 이긴다 — 드라이브가 새것이면 받고, 기기가 새것이면 올린다, 같으면 그대로', () => {

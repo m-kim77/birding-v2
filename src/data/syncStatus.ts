@@ -45,6 +45,8 @@ export interface SyncStatus {
   pending: number
   /** 그중 자동 재시도를 멈춘 수 — "지금 올리기"를 눌러야 다시 한다 */
   stuck: number
+  /** 줄에서 자동으로 다시 할 가장 이른 시각 (UTC ISO, syncPlan.ts nextDueAt). 없으면 '' — 1분 타이머는 이 시각이 지났을 때만 돈다 */
+  nextDueAt: string
   /** 마지막으로 끝까지 동기화한 시각 (UTC ISO). 없으면 '' */
   lastSyncAt: string
   message: string
@@ -52,7 +54,7 @@ export interface SyncStatus {
   tracks?: TracksSyncStatus
 }
 
-let status: SyncStatus = { configured: null, clientId: '', linked: false, phase: 'idle', pending: 0, stuck: 0, lastSyncAt: '', message: '' }
+let status: SyncStatus = { configured: null, clientId: '', linked: false, phase: 'idle', pending: 0, stuck: 0, nextDueAt: '', lastSyncAt: '', message: '' }
 const listeners = new Set<() => void>()
 
 /** 지금 상태 */

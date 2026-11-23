@@ -4,14 +4,14 @@
  * 원본은 기기다. 여기서 무엇이 실패해도 기기의 기록은 그대로다 — 드라이브 쪽 일만 줄에 남아 다음에 다시 한다.
  *
  * 언제 도나: 앱을 열 때, 기록을 저장·고침·지운 뒤(몇 초 모아서), 도감을 열 때, 인터넷이 다시 붙을 때, 탭으로 돌아올 때,
- * 올릴 일이 남아 있으면 1분마다. 한 번에 하나만 돈다.
+ * 다시 할 때가 된 올릴 일이 있으면 1분마다 (멈춘 항목·때가 안 된 항목만 남았으면 돌지 않는다). 한 번에 하나만 돈다.
  */
 import { NotConnectedError, connectDrive, disconnectDrive, loadDriveConfig } from '../lib/google/driveAuth'
 import { DriveError } from '../lib/google/driveApi'
 import type { Sighting } from '../types'
 import { dbGet, dbGetAll, dbPut } from './db'
 import { deletePulledSighting } from './photos'
-import { afterFailure, dueEntries, planPull } from './syncPlan'
+import { afterFailure, dueEntries, nextDueAt, planPull } from './syncPlan'
 import { LAST_SYNC_KEY, finishEntry, isDriveLinked, listQueue, noteChange, saveFailure, setDriveLinked } from './syncQueue'
 import { getSyncStatus, setSyncStatus, tracksStatusOf } from './syncStatus'
 import { clearDriveTracks, loadTracksSync, setTracksSyncOn, syncTracksStep } from './syncTracks'
@@ -27,10 +27,10 @@ export function setOnPulled(fn: () => void): void {
   onPulled = fn
 }
 
-/** 줄의 수를 상태에 적는다 */
+/** 줄의 수와, 자동으로 다시 할 가장 이른 시각(1분 타이머가 본다)을 상태에 적는다. 줄을 못 읽으면 빈 줄로 본다 */
 async function refreshCounts(): Promise<void> {
   const q = await listQueue().catch(() => [])
-  setSyncStatus({ pending: q.length, stuck: q.filter((e) => e.stuck).length })
+  setSyncStatus({ pending: q.length, stuck: q.filter((e) => e.stuck).length, nextDueAt: nextDueAt(q) })
 }
 
 /**
