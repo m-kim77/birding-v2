@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { BACKUP_FORMAT, buildJournal, parseJournal, parsePhotoPath, photoPath, planMerge, shouldCopyPhoto } from '../src/data/backupFormat.ts'
+import { BACKUP_FORMAT, buildJournal, parseJournal, parsePhotoPath, photoPath, planMerge, settledPlan, shouldCopyPhoto } from '../src/data/backupFormat.ts'
 import type { Sighting } from '../src/types.ts'
 
 /** 검사에 필요한 값만 채운 기록 */
@@ -68,4 +68,23 @@ test('shouldCopyPhoto: 갱신되는 기록의 사진은 이미 있어도 덮어�
 
 test('shouldCopyPhoto: 백업의 기록 목록에 없는 id의 사진은 넣지 않는다', () => {
   assert.equal(shouldCopyPhoto('ghost', planMerge([], []), false, false), false)
+})
+
+test('settledPlan: 쓰기 직전에 기기 판이 더 새것이 되어 건너뛴 기록은 kept로 센다 — 결과 줄의 수가 실제와 맞는다', () => {
+  const plan = planMerge(
+    [sighting('upd', '2026-09-01T00:00:00.000Z'), sighting('same', '2026-09-01T00:00:00.000Z')],
+    [sighting('new', '2026-09-02T00:00:00.000Z'), sighting('raced', '2026-09-02T00:00:00.000Z'), sighting('upd', '2026-09-02T00:00:00.000Z'), sighting('same', '2026-09-01T00:00:00.000Z')],
+  )
+  // 'raced'는 계획 때 기기에 없었는데, 쓰기 전에 동기화가 더 새 판을 받아 썼다
+  const result = settledPlan(plan, new Set(['new', 'upd']))
+  assert.deepEqual(result.add.map((s) => s.id), ['new'])
+  assert.deepEqual(result.update.map((s) => s.id), ['upd'])
+  assert.equal(result.kept, 2)
+})
+
+test('settledPlan: 건너뛴 갱신 기록의 사진은 백업의 것으로 덮지 않고 빠진 판만 채운다', () => {
+  const plan = planMerge([sighting('a', '2026-09-01T00:00:00.000Z')], [sighting('a', '2026-09-02T00:00:00.000Z')])
+  const result = settledPlan(plan, new Set())
+  assert.equal(shouldCopyPhoto('a', result, true, true), false)
+  assert.equal(shouldCopyPhoto('a', result, true, false), true)
 })

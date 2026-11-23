@@ -46,6 +46,28 @@ export function writeSightingWithPhotos(s: Sighting, photos: PhotoFile[]): Promi
 }
 
 /**
+ * 바깥에서 온 기록(백업 불러오기)을 그 사진과 함께 트랜잭션 하나로 쓴다 — 단, 같은 트랜잭션 안에서 기기의 기록을 다시 읽어
+ * 기기 쪽이 같거나 더 새 판이면 기록도 사진도 쓰지 않는다. 어느 판을 쓸지는 그 전에 읽은 기기 기록으로 정했으니,
+ * 그사이 동기화가 받아 쓴 더 새 판이나 사용자의 고침을 옛 판으로 덮으면 안 된다 (늦은 쪽이 이긴다 — backupFormat.ts planMerge와 같은 규칙).
+ * 썼으면 true, 기기 판을 그대로 두었으면 false. 실패하면 한국어 Error로 거절된다 (용량 부족 포함).
+ */
+export async function writeSightingIfNewer(s: Sighting, photos: PhotoFile[]): Promise<boolean> {
+  let wrote = false
+  await dbWriteAll(['sightings', 'photos'], (store) => {
+    const req = store('sightings').get(s.id)
+    // 같은 트랜잭션 안에서 읽은 뒤 쓴다 (요청 콜백 안의 요청은 트랜잭션을 이어 간다)
+    req.onsuccess = () => {
+      const cur = req.result as Sighting | undefined
+      if (cur && cur.updatedAt >= s.updatedAt) return
+      store('sightings').put(s)
+      for (const p of photos) store('photos').put(p.blob, key(s.id, p.kind))
+      wrote = true
+    }
+  })
+  return wrote
+}
+
+/**
  * 기록의 몇 칸을 고친다 — 같은 트랜잭션 안에서 DB의 기록을 읽어 그 위에 고친 칸과 새 updatedAt(`now`)만 얹어 쓴다.
  * 화면이 들고 있던 판 위에 얹으면, 그사이 동기화가 받아 쓴 더 새 판(다른 기기의 고침)이 사라지고 그 결과가 '가장 새 판'으로 드라이브에 퍼진다.
  * 읽은 기록은 빈 칸을 채워(normalizeStored) 쓴다 — 화면이 보던 모양과 같게. 사진은 건드리지 않는다.

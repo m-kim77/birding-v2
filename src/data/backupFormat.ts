@@ -80,6 +80,17 @@ export function planMerge(local: Sighting[], incoming: Sighting[]): MergePlan {
 }
 
 /**
+ * 실제로 쓴 기록(`written`)만 남긴 합치기 결과. 계획에서 더하거나 갱신하려던 기록 중, 쓰기 직전에 기기 쪽이 같거나 더 새 판이 되어
+ * 건너뛴 것(불러오는 사이 동기화가 받아 쓴 것 — photos.ts writeSightingIfNewer)은 kept로 옮긴다.
+ * 그래야 결과 줄의 수가 실제와 맞고, `shouldCopyPhoto`가 그 기록의 사진을 백업의 옛 것으로 덮지 않는다 (빠진 판만 채운다).
+ */
+export function settledPlan(plan: MergePlan, written: Set<string>): MergePlan {
+  const add = plan.add.filter((s) => written.has(s.id))
+  const update = plan.update.filter((s) => written.has(s.id))
+  return { add, update, kept: plan.kept + (plan.add.length - add.length) + (plan.update.length - update.length) }
+}
+
+/**
  * 백업 안의 사진 한 판을 기기에 넣을지 정한다.
  * - 갱신되는 기록(update)의 사진은 늘 넣는다 — 백업 쪽이 더 새 것이다.
  * - 그 밖에는 백업의 기록 목록에 든 기록 중 **기기에 그 판이 없을 때만** 넣는다.

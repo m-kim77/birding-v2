@@ -1,9 +1,9 @@
 // 이동 기록(`tracks` 저장소)은 백업에 넣지 않는다 — 다시 내보내면 되는 자료이고 기록보다 훨씬 민감하다 (data/tracks.ts)
 import { unzip, zip, type Unzipped, type Zippable } from 'fflate'
 import type { PhotoKind, Sighting } from '../types'
-import { JOURNAL_FILE, buildJournal, parseJournal, parsePhotoPath, photoPath, planMerge, shouldCopyPhoto, type MergePlan } from './backupFormat'
+import { JOURNAL_FILE, buildJournal, parseJournal, parsePhotoPath, photoPath, planMerge, settledPlan, shouldCopyPhoto, type MergePlan } from './backupFormat'
 import { dbGetAll } from './db'
-import { allPhotosOf, hasPhoto, putPhoto, writeSightingWithPhotos, type PhotoFile } from './photos'
+import { allPhotosOf, hasPhoto, putPhoto, writeSightingIfNewer, type PhotoFile } from './photos'
 import { noteChange } from './syncQueue'
 
 /** 불러오기 결과: 합친 내용과, 읽지 못해 건너뛴 기록 수 */
@@ -35,7 +35,8 @@ export async function exportBackup(): Promise<Blob> {
  * 파일이 ZIP이 아니거나 우리 백업이 아니면 한국어 Error를 던지고 **아무것도 바꾸지 않는다** (검사를 다 끝낸 뒤에 쓴다).
  * 읽지 못하는 기록은 그것만 건너뛰고 수를 돌려준다 (`parseJournal`).
  * 더하거나 갱신하는 기록은 **그 기록 + 그 사진들**을 트랜잭션 하나로 쓴다 — 도중에 끊겨도 "기록은 최신인데 사진은 옛것"이 남지 않고,
- * 다시 불러오면 못 쓴 기록부터 다시 한다. 그대로 두는 기록은 빠진 사진만 채운다 (옛 판에서 끊긴 복원을 잇는다 — `shouldCopyPhoto`).
+ * 다시 불러오면 못 쓴 기록부터 다시 한다. 쓰기 직전에 기기 쪽이 같거나 더 새 판이 되었으면(그사이 동기화가 받아 씀) 그 기록은 건너뛰고 kept로 센다.
+ * 그대로 두는 기록은 빠진 사진만 채운다 (옛 판에서 끊긴 복원을 잇는다 — `shouldCopyPhoto`).
  * 쓰다 실패하면(용량 부족 등) 거기서 던진다 — 앞에서 쓴 기록은 온전하게 남는다.
  */
 export async function importBackup(file: Blob): Promise<ImportResult> {
@@ -47,19 +48,23 @@ export async function importBackup(file: Blob): Promise<ImportResult> {
 
   const plan = planMerge(await dbGetAll<Sighting>('sightings'), journal.sightings)
   const photos = photosById(entries)
+  const written = new Set<string>()
   for (const s of [...plan.add, ...plan.update]) {
-    await writeSightingWithPhotos(s, (photos.get(s.id) ?? []).map(({ kind, bytes }) => ({ kind, blob: jpeg(bytes) })))
+    // 계획은 처음에 한 번 읽은 기기 기록으로 정했다 — 수백 건을 쓰는 사이 동기화가 같은 기록의 더 새 판을 받아 썼으면
+    // 쓰는 트랜잭션 안에서 보고 건너뛴다. 그때는 줄에도 넣지 않는다 (넣으면 옛 판이 드라이브까지 덮는다)
+    if (!(await writeSightingIfNewer(s, (photos.get(s.id) ?? []).map(({ kind, bytes }) => ({ kind, blob: jpeg(bytes) }))))) continue
+    written.add(s.id)
     // 드라이브를 연결했으면 올릴 일로 적는다 (안 했으면 아무것도 안 한다 — syncQueue.ts)
     await noteChange(s.id, 'put', true)
   }
-  const writing = new Set([...plan.add, ...plan.update].map((s) => s.id))
+  const result = settledPlan(plan, written)
   for (const s of journal.sightings) {
-    if (writing.has(s.id)) continue
+    if (written.has(s.id)) continue
     for (const { kind, bytes } of photos.get(s.id) ?? []) {
-      if (shouldCopyPhoto(s.id, plan, true, await hasPhoto(s.id, kind))) await putPhoto(s.id, kind, jpeg(bytes))
+      if (shouldCopyPhoto(s.id, result, true, await hasPhoto(s.id, kind))) await putPhoto(s.id, kind, jpeg(bytes))
     }
   }
-  return { ...plan, skipped: journal.skipped }
+  return { ...result, skipped: journal.skipped }
 }
 
 /** ZIP 안의 사진을 기록 id별로 묶는다. 사진 경로가 아닌 항목은 무시한다. 바이트는 쓸 때 Blob으로 만든다 (한꺼번에 복사하면 메모리가 두 배) */
