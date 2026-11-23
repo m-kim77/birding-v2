@@ -1,4 +1,7 @@
-import { FilesetResolver, ObjectDetector } from '@mediapipe/tasks-vision'
+// 타입만 — 실행 코드(약 130kB)는 prepare 안에서 받는다. 맨 위에서 값을 import하면 이 파일을 부르는 곳(기록하기의 '+'·설정의 '받은 모델' 줄)이
+// 모델이 없거나 받아 둔 표시만 볼 때도 그 코드를 받는다
+import type { ObjectDetector } from '@mediapipe/tasks-vision'
+import { retryOnce } from '../../app/chunkLoad'
 import { shareInFlight } from '../../lib/sharedTask'
 import type { DetectBox } from '../../types'
 import type { Detector } from './detector'
@@ -26,11 +29,14 @@ let detector: ObjectDetector | null = null
 
 /**
  * 모델을 받고(받아 둔 것이 있으면 기기에서 읽고) 탐지기를 만든다. 진행률은 `report`로 — 기다리는 모두에게 간다 (shareInFlight).
- * 받기가 실패하면 fetchModel의 한국어 Error, 탐지기를 만들지 못하면(wasm을 못 받음 등) 한국어 Error.
+ * 받기가 실패하면 fetchModel의 한국어 Error, 탐지기를 만들지 못하면(실행 코드·wasm을 못 받음 등) 한국어 Error.
+ * 실행 코드 조각은 못 받으면 한 번 더 받아 본다 (retryOnce — 산에서 잠깐 끊긴 신호). 새 판이 나와 옛 조각이 없어도 같은 안내다 —
+ * 직접 자르기로 계속할 수 있고, 앱을 다시 열면 새 판으로 받는다.
  */
 async function prepare(report: (fraction: number) => void): Promise<void> {
   const model = await fetchModel(MODEL_URL, report)
   try {
+    const { FilesetResolver, ObjectDetector } = await retryOnce(() => import('@mediapipe/tasks-vision'))
     const fileset = await FilesetResolver.forVisionTasks(WASM_BASE)
     detector = await ObjectDetector.createFromOptions(fileset, {
       baseOptions: { modelAssetBuffer: model }, scoreThreshold: SCORE_MIN, categoryAllowlist: ['bird'], maxResults: 10,
