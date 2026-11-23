@@ -7,7 +7,7 @@ import type { PhotoKind, Sighting } from '../types'
 import { dbGet } from './db'
 import { normalizeSighting } from './normalizeSighting'
 import { PHOTO_KINDS } from './photoKey'
-import { getPhoto, writeSightingWithPhotos, type PhotoFile } from './photos'
+import { getPhoto, hasPhoto, writeSightingIfNewer, type PhotoFile } from './photos'
 import { PHOTOS_FOLDER, RECORDS_FOLDER, ROOT_FOLDER, photoFileName, recordFileName, recordTags, remoteRecordOf, type QueueEntry, type RemoteRecord } from './syncPlan'
 
 /** 한 번의 동기화 동안 들고 있는 드라이브의 모습. 올리면 여기도 고쳐서 같은 파일을 두 번 만들지 않는다 */
@@ -38,8 +38,11 @@ export async function readRemote(): Promise<Remote> {
 }
 
 /**
- * 드라이브의 기록 하나를 받아 기기에 쓴다 (기록과 사진을 트랜잭션 하나로).
- * 내용이 깨졌으면 쓰지 않고 false. 받는 사이 이 기기에서 그 기록을 더 새로 고쳤으면 덮지 않는다 (true — 할 일은 끝났다).
+ * 드라이브의 기록 하나를 받아 기기에 쓴다 (기록과 받은 사진을 트랜잭션 하나로).
+ * 사진은 기기에 없는 판만 받는다 — 사진은 기록을 만든 뒤 바뀌지 않아서(고치기는 글만 바꾼다), 다른 기기에서 글만 고친 기록을 받을 때
+ * 있는 사진까지 다시 받으면 모바일 데이터만 쓴다. 기기에 있는 판은 그대로 남는다 (쓰는 쪽이 받은 판만 넣는다).
+ * 내용이 깨졌으면 쓰지 않고 false. 받는 사이 이 기기에서 그 기록을 더 새로 고쳤으면 덮지 않는다 (true — 할 일은 끝났다) —
+ * 사진을 받기 **전에** 한 번 보고, 쓰는 트랜잭션 안에서 한 번 더 본다 (사진을 받는 몇 초 사이에도 고칠 수 있다).
  * 네트워크 실패는 던진다.
  */
 export async function pullRecord(r: RemoteRecord, remote: Remote): Promise<boolean> {
@@ -49,14 +52,14 @@ export async function pullRecord(r: RemoteRecord, remote: Remote): Promise<boole
     throw e
   }
   if (!s || s.id !== r.id) return false
+  const mine = await dbGet<Sighting>('sightings', s.id)
+  if (mine && mine.updatedAt >= s.updatedAt) return true
   const photos: PhotoFile[] = []
   for (const kind of PHOTO_KINDS) {
     const fileId = remote.photos.get(photoFileName(s.id, kind))
-    if (fileId) photos.push({ kind, blob: new Blob([await downloadFile(fileId)], { type: 'image/jpeg' }) })
+    if (fileId && !(await hasPhoto(s.id, kind))) photos.push({ kind, blob: new Blob([await downloadFile(fileId)], { type: 'image/jpeg' }) })
   }
-  const mine = await dbGet<Sighting>('sightings', s.id)
-  if (mine && mine.updatedAt >= s.updatedAt) return true
-  await writeSightingWithPhotos(s, photos)
+  await writeSightingIfNewer(s, photos)
   return true
 }
 

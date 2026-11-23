@@ -78,7 +78,8 @@ async function pull(remote: Remote): Promise<void> {
   let changed = false
   for (const r of plan.download) changed = (await pullRecord(r, remote)) || changed
   for (const id of plan.removeLocal) changed = (await deletePulledSighting(id, remote.records.get(id)!.updatedAt)) || changed
-  for (const id of plan.upload) await noteChange(id, 'put', true)
+  // 사진은 다시 올리라고 하지 않는다 — 드라이브에 없는 판은 어차피 올라가고(pushPhoto), 있는 판은 기기 것과 같다 (사진은 바뀌지 않는다)
+  for (const id of plan.upload) await noteChange(id, 'put', false)
   if (changed) onPulled()
 }
 
