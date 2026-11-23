@@ -54,14 +54,16 @@ async function run(manual: boolean): Promise<void> {
     // 기록을 주고받기 전에, 출입증의 계정이 이 기기가 동기화해 온 계정인지 본다 (다르면 묻는 중으로 적고 이동 기록 스위치를 끈다)
     if (!(await checkAccount())) { setSyncStatus({ phase: 'account', message: '' }); return }
     const remote = await readRemote()
-    await pull(remote)
+    // 받기에서 기록 몇 건이 실패해도 올리기는 돈다 — 저장 공간이 거의 찬 폰처럼 사본이 가장 필요한 때 올리기까지 멈추면 안 된다
+    const missed = await pull(remote)
     const { failed, behind } = await push(remote, manual)
     // 이동 기록은 기록 뒤에 따로 한 단계 (syncTracks.ts — 스위치를 켠 기기만). 그 실패는 이동 기록 카드에만 적고
     // 기록 쪽 결과(마지막 동기화·오류)를 바꾸지 않는다. 로그인이 풀린 것만 아래 catch로 온다
     await syncTracksStep(remote.rootFolder, manual)
     const now = new Date().toISOString()
-    if (failed === 0) await dbPut('meta', now, LAST_SYNC_KEY)
-    setSyncStatus({ phase: failed ? 'error' : 'idle', lastSyncAt: failed ? getSyncStatus().lastSyncAt : now, message: failed ? `${failed}건을 올리지 못했습니다. 잠시 뒤 다시 합니다.` : '' })
+    const done = failed === 0 && missed.count === 0
+    if (done) await dbPut('meta', now, LAST_SYNC_KEY)
+    setSyncStatus({ phase: done ? 'idle' : 'error', lastSyncAt: done ? now : getSyncStatus().lastSyncAt, message: failureText(missed, failed) })
     // 드라이브에 더 새 판이 있어 올리지 않은 기록이 있다 — 곧 한 번 더 돌아 그 판을 받아 온다 (그 항목은 줄에서 빠져 이번엔 받지 못했다)
     if (behind) syncSoon()
   } catch (e) {
@@ -72,17 +74,50 @@ async function run(manual: boolean): Promise<void> {
   }
 }
 
-/** 드라이브 쪽이 새것인 기록을 받고, 다른 기기에서 지운 기록을 지우고, 기기 쪽이 새것인 기록을 줄에 넣는다 */
-async function pull(remote: Remote): Promise<void> {
+/** 받기에서 받지 못한 기록 수와 마지막 이유 (이유는 화면에 그대로 보인다 — 저장 공간 부족 안내 등) */
+interface Missed { count: number; reason: string }
+
+/**
+ * 드라이브 쪽이 새것인 기록을 받고, 다른 기기에서 지운 기록을 지우고, 기기 쪽이 새것인 기록을 줄에 넣는다.
+ * 기록 하나를 받다 실패해도(사진 받기 시간 초과·저장 공간 부족 등) 나머지를 계속 받고 받지 못한 수를 준다 — 다음 동기화가 다시 받는다.
+ * 받지 못한 기록은 줄에 없어(받을 기록은 줄에 없는 것뿐이다) 뒤의 올리기가 건드리지 않는다.
+ * 로그인이 풀렸으면(NotConnectedError) 거기서 던지고, 인터넷이 끊겼으면 남은 받기를 그만둔다 (남은 것도 다 실패한다).
+ * 기기에서 지우기·줄에 넣기의 실패는 던진다 — 그때 올리기로 넘어가면 드라이브가 지운 기록의 옛 고침이 올라가 지운 기록이 되살아날 수 있다.
+ * 하나라도 받아 썼으면 던지더라도 화면을 다시 읽게 한다.
+ */
+async function pull(remote: Remote): Promise<Missed> {
   const local = await dbGetAll<Sighting>('sightings')
   const pending = new Set((await listQueue()).map((e) => e.id))
   const plan = planPull(local, [...remote.records.values()], pending)
+  const missed: Missed = { count: 0, reason: '' }
   let changed = false
-  for (const r of plan.download) changed = (await pullRecord(r, remote)) || changed
-  for (const id of plan.removeLocal) changed = (await deletePulledSighting(id, remote.records.get(id)!.updatedAt)) || changed
-  // 사진은 다시 올리라고 하지 않는다 — 드라이브에 없는 판은 어차피 올라가고(pushPhoto), 있는 판은 기기 것과 같다 (사진은 바뀌지 않는다)
-  for (const id of plan.upload) await noteChange(id, 'put', false)
-  if (changed) onPulled()
+  try {
+    for (const r of plan.download) {
+      try {
+        changed = (await pullRecord(r, remote)) || changed
+      } catch (e) {
+        if (e instanceof NotConnectedError) throw e
+        missed.count += 1
+        missed.reason = e instanceof Error ? e.message : ''
+        if (e instanceof DriveError && e.status === 0) break
+      }
+    }
+    for (const id of plan.removeLocal) changed = (await deletePulledSighting(id, remote.records.get(id)!.updatedAt)) || changed
+    // 사진은 다시 올리라고 하지 않는다 — 드라이브에 없는 판은 어차피 올라가고(pushPhoto), 있는 판은 기기 것과 같다 (사진은 바뀌지 않는다)
+    for (const id of plan.upload) await noteChange(id, 'put', false)
+  } finally {
+    if (changed) onPulled()
+  }
+  return missed
+}
+
+/** 이번 판에서 못 한 일을 한 줄로 (받지 못한 기록 · 올리지 못한 기록). 받기의 이유는 괄호로 붙인다. 다 했으면 빈 글자 */
+function failureText(missed: Missed, failed: number): string {
+  // 이유 끝의 마침표는 뗀다 — 괄호 뒤에 문장의 마침표가 또 붙는다
+  const reason = missed.reason ? ` (${missed.reason.replace(/\.\s*$/, '')})` : ''
+  if (missed.count && failed) return `드라이브의 기록 ${missed.count}건을 받지 못했고 ${failed}건을 올리지 못했습니다${reason}. 잠시 뒤 다시 합니다.`
+  if (missed.count) return `드라이브의 기록 ${missed.count}건을 받지 못했습니다${reason}. 다음 동기화 때 다시 받습니다.`
+  return failed ? `${failed}건을 올리지 못했습니다. 잠시 뒤 다시 합니다.` : ''
 }
 
 /**
