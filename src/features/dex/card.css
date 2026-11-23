@@ -51,4 +51,6 @@
 
 .card-actions { display: grid; gap: 8px; justify-items: center; width: 100%; }
 .card-actions .row-actions { justify-content: center; }
+/* 버튼 아래 안내 줄도 버튼처럼 가운데 — 두 줄로 넘어가면 왼쪽 정렬이 버튼과 어긋나 보인다 */
+.card-actions .status-line { text-align: center; }
 @media (prefers-reduced-motion: reduce) { .bird-card { transition: none; } }

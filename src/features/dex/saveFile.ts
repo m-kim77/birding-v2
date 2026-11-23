@@ -10,16 +10,25 @@ import { isTouchDevice } from '../../app/device'
 export type SaveOutcome = 'shared' | 'downloaded' | 'cancelled'
 
 /**
+ * saveFile이 이 파일을 운영체제 공유 창으로 넘길지 — 터치 기기이고 그 형식을 공유할 수 있을 때. 아니면 내려받기다.
+ * 공유 창은 버튼을 누른 뒤 짧은 시간(약 5초) 안에만 열린다. 오래 걸려 만드는 파일(카드 영상)은 이것을 먼저 보고,
+ * 다 만든 뒤 한 번 더 누르게 해서 그 누름 안에서 saveFile을 부른다 (CardActions).
+ */
+export function opensShareSheet(blob: Blob, filename: string): boolean {
+  return isTouchDevice() && navigator.canShare?.({ files: [new File([blob], filename, { type: blob.type })] }) === true
+}
+
+/**
  * 만든 파일을 사용자에게 넘긴다.
  * 폰(터치 기기)에서는 운영체제 공유 창을 연다 — 아이폰에서 내려받기 링크는 "파일" 앱으로 가 버려서
  * 사진첩에 넣으려면 공유 창의 "이미지 저장"을 거쳐야 한다. 그 밖에는 바로 내려받는다.
  * (안드로이드 크롬은 ZIP 같은 형식을 공유 창에 넘기지 못하게 막아 두어 canShare가 거짓이다 — 그때도 내려받기로 간다.)
  * 공유 창이 AbortError 아닌 이유로 실패하면(버튼을 누른 지 오래돼 제스처가 만료된 경우 등) 내려받기로 떨어진다.
+ * 공유 창은 이 함수를 부른 그 자리에서(기다리는 일 없이) 연다 — 부르는 쪽이 누름 안에서 곧바로 부르면 제스처가 살아 있다.
  */
 export async function saveFile(blob: Blob, filename: string): Promise<SaveOutcome> {
-  const file = new File([blob], filename, { type: blob.type })
-  if (isTouchDevice() && navigator.canShare?.({ files: [file] })) {
-    try { await navigator.share({ files: [file] }); return 'shared' } catch (e) {
+  if (opensShareSheet(blob, filename)) {
+    try { await navigator.share({ files: [new File([blob], filename, { type: blob.type })] }); return 'shared' } catch (e) {
       if ((e as { name?: string })?.name === 'AbortError') return 'cancelled'
       // 공유가 막힌 환경이면 아래 내려받기로 떨어진다
     }
