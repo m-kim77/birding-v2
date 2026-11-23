@@ -22,6 +22,16 @@ test('기본 제공 AI가 요청 제한(429)에 걸리면 한국어 안내 — �
   await assert.rejects(send(null), (e: unknown) => e instanceof LlmUnavailableError && /요청이 많아 잠시 쉬어 갑니다/.test(e.message))
 })
 
+test('기본 제공 AI의 전체 상한(x-llm-limit)에 걸린 429는 서버가 준 이유 그대로 — 오늘 시간을 다 쓴 것과 잠깐 붐비는 것은 다시 물을 때가 다르다', async () => {
+  answerWith(Response.json({ error: { message: '오늘 기본 제공 AI가 쓸 수 있는 시간을 다 썼습니다. 내일 다시 물어봐 주세요.' } }, { status: 429, headers: { 'x-llm-limit': 'day' } }))
+  await assert.rejects(send(null), (e: unknown) => e instanceof LlmUnavailableError && /내일 다시/.test(e.message))
+})
+
+test('머리말이 없는 429(Firewall)는 본문이 JSON이어도 우리 안내로 — 남의 영어 문구를 보여 주지 않는다', async () => {
+  answerWith(Response.json({ error: { message: 'Rate limit exceeded' } }, { status: 429 }))
+  await assert.rejects(send(null), (e: unknown) => e instanceof LlmUnavailableError && /요청이 많아 잠시 쉬어 갑니다/.test(e.message))
+})
+
 test('내 키 서비스의 429는 그 서비스가 준 안내를 그대로', async () => {
   answerWith(Response.json({ error: { message: 'You exceeded your current quota' } }, { status: 429 }))
   await assert.rejects(send(OWN), (e: unknown) => e instanceof Error && !(e instanceof LlmUnavailableError) && /exceeded your current quota/.test(e.message))

@@ -8,13 +8,17 @@
  * 쓰게 두면 운영자의 맥이 남의 무료 챗봇이 된다.
  * 자기 API 키를 쓰는 사용자는 이 함수를 거치지 않고 브라우저에서 그 서비스로 직접 간다 (키가 우리 서버를 지나지 않는다).
  * IP마다의 요청 수 제한은 코드가 아니라 Vercel Firewall 규칙이 맡는다 (README "Vercel 배포").
+ * **모든 사용자를 합친 상한**(하루 함수 시간·동시 요청 수)은 맥으로 보내기 전에 `_lib/llmQuota.ts`가 본다 — 넘으면 곧바로 429.
  *
  * 환경변수: LOCAL_LLM_URL(예: https://llm.example.com/v1), LOCAL_LLM_KEY(선택), LOCAL_LLM_MODEL,
  * LOCAL_LLM_MAX_TOKENS(선택, 기본 4096), LOCAL_LLM_FIRST_RESPONSE_SECONDS(선택, 기본 90),
- * LOCAL_LLM_REASONING_EFFORT(선택, 기본 low — low·medium·high·xhigh, 'server'면 보내지 않음. `_lib/llmRequest.ts reasoningEffortOf`)
+ * LOCAL_LLM_REASONING_EFFORT(선택, 기본 low — low·medium·high·xhigh, 'server'면 보내지 않음. `_lib/llmRequest.ts reasoningEffortOf`),
+ * 전체 상한: UPSTASH_REDIS_REST_URL·UPSTASH_REDIS_REST_TOKEN 또는 KV_REST_API_URL·KV_REST_API_TOKEN(없으면 상한 없음),
+ * LLM_DAILY_SECONDS(선택, 기본 18000), LLM_MAX_CONCURRENT(선택, 기본 3)
  */
 // 경로에 .ts를 적는다 — 확장자 없는 경로는 배포된 함수에서 못 찾는다 (_lib/llmRequest.ts 머리말)
 import { buildLlmRequest, reasoningEffortOf } from './_lib/llmRequest.ts'
+import { admit, quotaLimitsOf, quotaStoreOf } from './_lib/llmQuota.ts'
 import { relayStream } from './_lib/llmStream.ts'
 import { sameOrigin } from './_lib/origin.ts'
 
@@ -56,9 +60,12 @@ export const TURN_SECONDS = MAX_DURATION_SECONDS - 10
  */
 const IDLE_SECONDS = 60
 
-/** 한국어 안내와 함께 JSON 오류 응답을 만든다 */
-function fail(status: number, message: string): Response {
-  return Response.json({ error: { message } }, { status })
+/**
+ * 한국어 안내와 함께 JSON 오류 응답을 만든다. `limit`은 전체 상한에 걸린 이유(`x-llm-limit` 머리말) —
+ * 브라우저는 이 머리말이 있는 429에서만 본문의 안내를 쓴다 (Firewall의 429는 우리 JSON이 아니다).
+ */
+function fail(status: number, message: string, limit?: string): Response {
+  return Response.json({ error: { message } }, { status, headers: limit ? { 'x-llm-limit': limit } : {} })
 }
 
 /**
@@ -84,10 +91,12 @@ function firstResponseMs(endAt: number): number {
  * POST /api/llm — 본문은 OpenAI chat.completions 형식. 다른 사이트에서 온 요청이면 403, 검사에 걸리면 400(`_lib/llmRequest.ts`), 서버 설정이 없으면 503,
  * LLM 서버가 첫 응답을 마감 안에 주지 않으면 503(= "바쁩니다"), 닿지 못하거나 502·503·504로 답하면 502(= "쉬는 중"),
  * 그 밖의 오류 번호면 502(= "처리하지 못했습니다 (번호)")를 준다.
+ * 모든 사용자를 합친 상한에 걸리면 429(하루 시간을 다 씀·동시 요청이 많음), 그 상한을 세는 저장소에 닿지 못하면 503 — 둘 다 맥에 가지 않는다.
  */
 export async function POST(request: Request): Promise<Response> {
-  // 본문을 받는 시간도 함수가 열려 있는 시간이다 — 한 턴 마감은 요청을 받은 때부터 잰다
-  const endAt = Date.now() + TURN_SECONDS * 1000
+  // 본문을 받는 시간도 함수가 열려 있는 시간이다 — 한 턴 마감과 쓴 시간은 요청을 받은 때부터 잰다
+  const startedAt = Date.now()
+  const endAt = startedAt + TURN_SECONDS * 1000
   // 다른 사이트가 방문자의 브라우저로 대신 부르는 길을 막는다 (`_lib/origin.ts`) — 맥과 함수 시간을 남의 방문자 수만큼 쓰게 된다
   if (!sameOrigin(request)) return fail(403, '다른 사이트에서 온 요청입니다.')
   const base = process.env.LOCAL_LLM_URL
@@ -105,21 +114,44 @@ export async function POST(request: Request): Promise<Response> {
   })
   if ('error' in built) return fail(400, built.error)
 
+  // 모든 사용자를 합친 상한 — 넘으면 맥에 보내지 않고 곧바로 답해 함수가 몇 ms 만에 끝난다
+  const admission = await admit(quotaStoreOf(process.env), quotaLimitsOf(process.env, MAX_DURATION_SECONDS * 1000), startedAt)
+  if (!admission.ok) return fail(admission.status, admission.message, admission.reason)
+  return forward(request, { base, model, payload: built.payload, endAt, finish: admission.finish })
+}
+
+/** 받아들인 한 턴을 LLM 서버로 넘기는 데 필요한 것 */
+interface Turn {
+  base: string
+  model: string
+  payload: Record<string, unknown>
+  /** 한 턴을 끝내야 하는 시각(ms) */
+  endAt: number
+  /** 끝날 때 한 번 부른다 — 쓴 시간을 적는다 (`_lib/llmQuota.ts`). 던지지 않는다 */
+  finish: () => Promise<void>
+}
+
+/**
+ * LLM 서버에 한 턴을 보내고 답을 흘려보낸다. 스트림으로 답하지 못하는 길(오류 번호·닿지 못함·첫 응답 마감)에서는
+ * 쓴 시간을 적은 뒤 오류로 답하고, 스트림으로 답하면 스트림이 끝날 때 적는다 (`_lib/llmStream.ts onEnd`).
+ */
+async function forward(request: Request, turn: Turn): Promise<Response> {
   // 첫 응답의 마감. 마감이 지나도, 브라우저가 떠나도(request.signal) LLM 서버로 가는 요청을 끊는다.
   // 배포에서 request.signal은 vercel.json의 supportsCancellation이 있어야 울린다 — 없으면 맥이 버려진 답을 끝까지 만든다
   const deadline = new AbortController()
-  const timer = setTimeout(() => deadline.abort(), firstResponseMs(endAt))
+  const timer = setTimeout(() => deadline.abort(), firstResponseMs(turn.endAt))
   try {
-    const upstream = await fetch(`${base.replace(/\/$/, '')}/chat/completions`, {
+    const upstream = await fetch(`${turn.base.replace(/\/$/, '')}/chat/completions`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', ...(process.env.LOCAL_LLM_KEY ? { authorization: `Bearer ${process.env.LOCAL_LLM_KEY}` } : {}) },
-      body: JSON.stringify(built.payload),
+      body: JSON.stringify(turn.payload),
       signal: AbortSignal.any([request.signal, deadline.signal]),
     })
-    if (!upstream.ok || !upstream.body) return fail(502, upstreamFailure(upstream.status))
-    const stream = await relayStream(upstream.body, { idleMs: IDLE_SECONDS * 1000, endAt })
-    return new Response(stream, { headers: { 'content-type': 'text/event-stream', 'cache-control': 'no-store', 'x-llm-model': model } })
+    if (!upstream.ok || !upstream.body) { await turn.finish(); return fail(502, upstreamFailure(upstream.status)) }
+    const stream = await relayStream(upstream.body, { idleMs: IDLE_SECONDS * 1000, endAt: turn.endAt, onEnd: turn.finish })
+    return new Response(stream, { headers: { 'content-type': 'text/event-stream', 'cache-control': 'no-store', 'x-llm-model': turn.model } })
   } catch {
+    await turn.finish()
     return deadline.signal.aborted ? fail(503, '판정 서버가 바쁩니다. 잠시 뒤 다시 물어봐 주세요.') : fail(502, '판정 서버가 쉬는 중입니다.')
   } finally {
     // 첫 조각을 받았거나 실패했다 — 어느 쪽이든 마감은 더 필요 없다

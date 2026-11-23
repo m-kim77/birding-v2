@@ -4,7 +4,7 @@
  * 끊지 않는 한 함수가 최대 실행 시간까지 붙잡혀 Vercel Hobby의 한 달 함수 시간을 먹고 사용자는 멈춘 화면만 본다.
  * 생각하는 모델도 생각을 조각으로 끊임없이 보내므로(실측) 정상인 답은 이 마감에 걸리지 않는다.
  * **한 턴 전체에도 마감이 있다** (`endAt`) — 함수의 최대 실행 시간(vercel.json)에 닿기 전에 스스로 닫아야
- * 브라우저가 영문 모를 끊김 대신 안내를 받는다.
+ * 브라우저가 영문 모를 끊김 대신 안내를 받고, 끝을 적는 일(`onEnd` — 사용량 기록)이 함수가 살아 있을 때 돈다.
  */
 
 /**
@@ -20,6 +20,11 @@ export interface RelayOptions {
   idleMs: number
   /** 한 턴을 끝내야 하는 시각(`Date.now()` 기준 ms). 지나면 남은 답을 기다리지 않고 끊는다 */
   endAt: number
+  /**
+   * 스트림이 어떻게든 끝날 때 한 번 부른다 (다 보냄·끊음·브라우저가 떠남). 던지지 않아야 한다.
+   * 브라우저에 끝을 알리기 **전에** 기다린다 — 응답이 끝나면 Vercel이 함수를 멈춰 그 뒤의 일은 돌지 않을 수 있다.
+   */
+  onEnd?: () => Promise<void>
 }
 
 /** 아직 남은 조각을 기다리다 마감이 지났다는 표시 (reader.read()와 겨룬다) */
@@ -46,20 +51,34 @@ async function readWithin(reader: ReadableStreamDefaultReader<Uint8Array>, ms: n
  * 첫 조각을 기다리는 동안 요청이 끊기면(첫 응답 마감·브라우저가 떠남) 던진다 — 부르는 쪽이 오류 번호로 답한다. 첫 조각 전에 끝나면 빈 스트림.
  * 첫 조각 뒤에 조각 사이 마감이 지나거나 LLM 서버 쪽 연결이 끊기면 `STALL_EVENT`, 한 턴 마감에 닿으면 `TOO_LONG_EVENT`를 보내고
  * LLM 서버 쪽 스트림을 끊은 뒤 닫는다 (던지지 않는다).
- * 받는 쪽(브라우저)이 끊으면 LLM 서버 쪽 스트림도 끊는다 — 그래야 맥이 그 일을 버린다.
+ * 받는 쪽(브라우저)이 끊으면 LLM 서버 쪽 스트림도 끊는다 — 그래야 맥이 그 일을 버린다. 어느 길로 끝나든 `onEnd`를 한 번 부른다.
+ * 첫 조각 전에 던질 때는 부르지 않는다 — 그때는 부르는 쪽이 끝을 적는다.
  */
 export async function relayStream(body: ReadableStream<Uint8Array>, options: RelayOptions): Promise<ReadableStream<Uint8Array>> {
   const reader = body.getReader()
   const first = await reader.read()
   const encoder = new TextEncoder()
-  /** 남은 답을 버리고 마지막 조각 하나로 닫는다. 브라우저가 이미 떠나 닫힌 스트림이면 조용히 끝낸다 */
-  function endWith(controller: ReadableStreamDefaultController<Uint8Array>, event: string): void {
+  let ended = false
+  /** `onEnd`를 한 번만 부른다 */
+  async function end(): Promise<void> {
+    if (ended) return
+    ended = true
+    await options.onEnd?.()
+  }
+  /** 끝을 적은 뒤 닫는다. 브라우저가 이미 떠나 닫힌 스트림이면 조용히 끝낸다 */
+  async function close(controller: ReadableStreamDefaultController<Uint8Array>): Promise<void> {
+    await end()
+    try { controller.close() } catch { /* 닫힌 스트림 */ }
+  }
+  /** 남은 답을 버리고 마지막 조각 하나로 닫는다 */
+  async function endWith(controller: ReadableStreamDefaultController<Uint8Array>, event: string): Promise<void> {
     reader.cancel('마감').catch(() => { /* 이미 끊긴 연결 */ })
-    try { controller.enqueue(encoder.encode(event)); controller.close() } catch { /* 닫힌 스트림 */ }
+    try { controller.enqueue(encoder.encode(event)) } catch { /* 닫힌 스트림 */ }
+    await close(controller)
   }
   return new ReadableStream<Uint8Array>({
-    start(controller) {
-      if (first.done) controller.close(); else controller.enqueue(first.value)
+    async start(controller) {
+      if (first.done) await close(controller); else controller.enqueue(first.value)
     },
     async pull(controller) {
       const left = options.endAt - Date.now()
@@ -67,11 +86,13 @@ export async function relayStream(body: ReadableStream<Uint8Array>, options: Rel
       const byTurn = left <= options.idleMs
       let next: ReadableStreamReadResult<Uint8Array> | typeof IDLE | typeof BROKEN
       try { next = left > 0 ? await readWithin(reader, Math.min(options.idleMs, left)) : IDLE } catch { next = BROKEN }
-      if (next === IDLE || next === BROKEN) { endWith(controller, next === IDLE && byTurn ? TOO_LONG_EVENT : STALL_EVENT); return }
-      try { if (next.done) controller.close(); else controller.enqueue(next.value) } catch { /* 닫힌 스트림 */ }
+      if (next === IDLE || next === BROKEN) return endWith(controller, next === IDLE && byTurn ? TOO_LONG_EVENT : STALL_EVENT)
+      if (next.done) return close(controller)
+      try { controller.enqueue(next.value) } catch { /* 닫힌 스트림 */ }
     },
-    cancel(reason) {
-      return reader.cancel(reason)
+    async cancel(reason) {
+      await reader.cancel(reason).catch(() => { /* 이미 끊긴 연결 */ })
+      await end()
     },
   })
 }

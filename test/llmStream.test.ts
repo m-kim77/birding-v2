@@ -88,3 +88,23 @@ test('relayStream: 조각이 계속 와도 한 턴 마감에 닿으면 LLM 쪽�
   assert.ok(text.endsWith(TOO_LONG_EVENT))
   assert.equal(up.cancelled(), true)
 })
+
+test('relayStream: 어느 길로 끝나든 onEnd를 한 번 부르고, 브라우저에 끝을 알리기 전에 기다린다', TIMED, async () => {
+  for (const ending of ['done', 'idle', 'broken', 'cancel'] as const) {
+    const up = fakeUpstream()
+    up.push('a')
+    const log: string[] = []
+    const out = await relayStream(up.body, { idleMs: 50, endAt: later(), onEnd: async () => { await wait(20); log.push('끝 적음') } })
+    if (ending === 'done') setTimeout(() => up.end(), 10)
+    if (ending === 'broken') setTimeout(() => up.fail(), 10)
+    if (ending === 'cancel') {
+      const reader = out.getReader()
+      await reader.read()
+      await reader.cancel('떠남')
+    } else {
+      await new Response(out).text()
+      log.push('브라우저가 끝을 받음')
+    }
+    assert.deepEqual(log, ending === 'cancel' ? ['끝 적음'] : ['끝 적음', '브라우저가 끝을 받음'], ending)
+  }
+})

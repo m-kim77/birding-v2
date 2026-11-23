@@ -78,10 +78,11 @@ export async function chat(own: OwnKey | null, messages: ChatMessage[], tools: u
       : '판정 서버에 닿지 못했습니다.')
   }
   if (!res.ok || !res.body) {
-    // 기본 제공 AI의 429는 Vercel Firewall의 요청 제한이다 — 본문이 우리 JSON이 아니어서 안내를 여기서 정한다.
-    // 내 키의 429(그 서비스의 한도·요금)는 그 서비스가 준 안내를 아래에서 그대로 쓴다
-    if (res.status === 429 && !own) throw new LlmUnavailableError('요청이 많아 잠시 쉬어 갑니다. 몇 분 뒤 다시 물어봐 주세요.')
     const message = await res.json().then((j) => String(j?.error?.message ?? ''), () => '')
+    // 기본 제공 AI의 429는 둘이다. 우리 함수의 전체 상한(`api/_lib/llmQuota.ts`)은 `x-llm-limit` 머리말과 이유를 준다 —
+    // "오늘 시간을 다 씀"과 "잠깐 붐빔"은 다시 물을 때가 달라 그 안내를 쓴다. Vercel Firewall의 요청 제한은 본문이 우리 JSON이 아니어서 안내를 여기서 정한다.
+    // 내 키의 429(그 서비스의 한도·요금)는 그 서비스가 준 안내를 아래에서 그대로 쓴다
+    if (res.status === 429 && !own) throw new LlmUnavailableError((res.headers.has('x-llm-limit') && message) || '요청이 많아 잠시 쉬어 갑니다. 몇 분 뒤 다시 물어봐 주세요.')
     if (res.status === 502 || res.status === 503) throw new LlmUnavailableError(message || '판정 서버가 쉬는 중입니다.')
     throw new Error(message || `판정 요청이 실패했습니다 (${res.status}).`)
   }

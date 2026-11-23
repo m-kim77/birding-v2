@@ -21,6 +21,8 @@ process.env.LOCAL_LLM_MODEL = 'test-model'
 process.env.LOCAL_LLM_FIRST_RESPONSE_SECONDS = '0.3'
 const { POST } = await import('../api/llm.ts')
 const { STALL_EVENT } = await import('../api/_lib/llmStream.ts')
+const { koreanDay, STORE_MESSAGE } = await import('../api/_lib/llmQuota.ts')
+const { fakeUpstash } = await import('./fakeUpstash.ts')
 const { SYSTEM_PROMPT } = await import('../src/features/identify/prompts.ts')
 
 test.after(() => { upstream.closeAllConnections(); upstream.close() })
@@ -152,4 +154,62 @@ test('다른 사이트에서 온 요청·Origin이 없는 요청은 LLM 서버�
     assert.match(await messageOf(res), /다른 사이트에서 온 요청/)
   }
   assert.equal(received, null)
+})
+
+/** 가짜 Upstash를 붙인다 — 그 주소로 가는 fetch만 가로챈다. 시험이 끝나면 `test.afterEach`가 떼어 낸다 */
+const realFetch = globalThis.fetch
+function withQuota(env: Record<string, string> = {}) {
+  const up = fakeUpstash()
+  globalThis.fetch = ((input: string | URL | Request, init?: RequestInit) =>
+    String(input).startsWith('https://upstash.test') ? up.fetch(input, init) : realFetch(input, init)) as typeof fetch
+  Object.assign(process.env, { KV_REST_API_URL: 'https://upstash.test', KV_REST_API_TOKEN: 'test-token', ...env })
+  return up
+}
+test.afterEach(() => {
+  globalThis.fetch = realFetch
+  for (const key of ['KV_REST_API_URL', 'KV_REST_API_TOKEN', 'LLM_MAX_CONCURRENT', 'LLM_DAILY_SECONDS']) delete process.env[key]
+})
+
+test('전체 상한: 받아들인 한 턴은 스트림이 끝날 때 실제로 쓴 초로 고치고 열림 표시를 지운다', async () => {
+  const up = withQuota()
+  respond = (_req, res) => { res.writeHead(200, { 'content-type': 'text/event-stream' }); res.end(sse('새')) }
+  const res = await ask()
+  assert.equal(await res.text(), sse('새'))
+  assert.equal(up.counters.get(`llm:sec:${koreanDay(Date.now())}`), 1)
+  assert.equal(up.zsets.get('llm:active')?.size, 0)
+})
+
+test('전체 상한: 동시 요청이 상한을 넘으면 LLM 서버에 가지 않고 곧바로 429 (x-llm-limit: busy)', async () => {
+  const up = withQuota({ LLM_MAX_CONCURRENT: '1' })
+  up.zsets.set('llm:active', new Map([['다른-요청', Date.now()]]))
+  const res = await ask()
+  assert.equal(res.status, 429)
+  assert.equal(res.headers.get('x-llm-limit'), 'busy')
+  assert.equal(received, null)
+})
+
+test('전체 상한: 오늘 쓸 시간을 다 썼으면 429 (x-llm-limit: day)', async () => {
+  const up = withQuota({ LLM_DAILY_SECONDS: '60' })
+  up.counters.set(`llm:sec:${koreanDay(Date.now())}`, 60)
+  const res = await ask()
+  assert.equal(res.status, 429)
+  assert.equal(res.headers.get('x-llm-limit'), 'day')
+  assert.equal(received, null)
+})
+
+test('전체 상한: 상한을 세는 저장소에 닿지 못하면 LLM 서버에 가지 않고 503', async () => {
+  const up = withQuota()
+  up.state.mode = 'down'
+  const res = await ask()
+  assert.equal(res.status, 503)
+  assert.equal(await messageOf(res), STORE_MESSAGE)
+  assert.equal(received, null)
+})
+
+test('전체 상한: LLM 서버가 오류로 답해 스트림이 없어도 쓴 시간을 적고 열림 표시를 지운다', async () => {
+  const up = withQuota()
+  respond = (_req, res) => { res.writeHead(502); res.end() }
+  assert.equal((await ask()).status, 502)
+  assert.equal(up.counters.get(`llm:sec:${koreanDay(Date.now())}`), 1)
+  assert.equal(up.zsets.get('llm:active')?.size, 0)
 })
