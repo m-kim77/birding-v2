@@ -54,7 +54,8 @@ async function run(manual: boolean): Promise<void> {
     // 기록을 주고받기 전에, 출입증의 계정이 이 기기가 동기화해 온 계정인지 본다 (다르면 묻는 중으로 적고 이동 기록 스위치를 끈다)
     if (!(await checkAccount())) { setSyncStatus({ phase: 'account', message: '' }); return }
     const remote = await readRemote()
-    // 받기에서 기록 몇 건이 실패해도 올리기는 돈다 — 저장 공간이 거의 찬 폰처럼 사본이 가장 필요한 때 올리기까지 멈추면 안 된다
+    // 받기에서 기록 몇 건이 실패해도 올리기는 돈다 — 저장 공간이 거의 찬 폰처럼 사본이 가장 필요한 때 올리기까지 멈추면 안 된다.
+    // 인터넷이 끊겨 받기를 그만두었으면 pull이 던져 올리기를 건너뛴다 (아래 catch)
     const missed = await pull(remote)
     const { failed, behind } = await push(remote, manual)
     // 이동 기록은 기록 뒤에 따로 한 단계 (syncTracks.ts — 스위치를 켠 기기만). 그 실패는 이동 기록 카드에만 적고
@@ -81,7 +82,9 @@ interface Missed { count: number; reason: string }
  * 드라이브 쪽이 새것인 기록을 받고, 다른 기기에서 지운 기록을 지우고, 기기 쪽이 새것인 기록을 줄에 넣는다.
  * 기록 하나를 받다 실패해도(드라이브가 파일 하나를 거절하는 등) 나머지를 계속 받고 받지 못한 수를 준다 — 다음 동기화가 다시 받는다.
  * 받지 못한 기록은 줄에 없어(받을 기록은 줄에 없는 것뿐이다) 뒤의 올리기가 건드리지 않는다.
- * 로그인이 풀렸으면(NotConnectedError) 거기서 던지고, 인터넷이 끊겼으면 남은 받기를 그만둔다 (남은 것도 다 실패한다).
+ * 로그인이 풀렸으면(NotConnectedError) 거기서 던진다. 인터넷이 끊겼으면(DriveError status 0) 남은 받기를 그만두고(남은 것도 다 실패한다)
+ * 기기 쪽 일(지우기·줄에 넣기)을 마친 뒤 그 오류를 던진다 — 올리기로 넘어가면 줄의 첫 항목이 곧바로 실패해 실패 횟수만 오르고,
+ * 연결이 오락가락하는 곳에서는 항목이 금세 다섯 번에 닿아 자동 재시도가 멈춘다.
  * 저장 공간이 모자라도(StorageFullError) 남은 받기를 그만두고 남은 수까지 받지 못한 것으로 센다 — 남은 기록도 사진을 다 받은 **뒤에**
  * 쓰기에서 똑같이 실패해, 계속 받으면 동기화가 돌 때마다 기록마다의 사진 세 판을 모바일 데이터로 받았다가 버린다 (30건이면 약 45MB).
  * 기기에서 지우기·줄에 넣기의 실패는 던진다 — 그때 올리기로 넘어가면 드라이브가 지운 기록의 옛 고침이 올라가 지운 기록이 되살아날 수 있다.
@@ -93,21 +96,23 @@ async function pull(remote: Remote): Promise<Missed> {
   const plan = planPull(local, [...remote.records.values()], pending)
   const missed: Missed = { count: 0, reason: '' }
   let changed = false
+  let offline: DriveError | null = null
   try {
     for (const [i, r] of plan.download.entries()) {
       try {
         changed = (await pullRecord(r, remote)) || changed
       } catch (e) {
         if (e instanceof NotConnectedError) throw e
+        if (e instanceof DriveError && e.status === 0) { offline = e; break }
         missed.count += 1
         missed.reason = e instanceof Error ? e.message : ''
-        if (e instanceof DriveError && e.status === 0) break
         if (e instanceof StorageFullError) { missed.count += plan.download.length - i - 1; break }
       }
     }
     for (const id of plan.removeLocal) changed = (await deletePulledSighting(id, remote.records.get(id)!.updatedAt)) || changed
     // 사진은 다시 올리라고 하지 않는다 — 드라이브에 없는 판은 어차피 올라가고(pushPhoto), 있는 판은 기기 것과 같다 (사진은 바뀌지 않는다)
     for (const id of plan.upload) await noteChange(id, 'put', false)
+    if (offline) throw offline
   } finally {
     if (changed) onPulled()
   }
