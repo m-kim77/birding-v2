@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { isTouchDevice } from '../../app/device'
 import Button from '../../ui/Button'
 import { fileDateOf } from '../../ui/when'
 import type { Sighting } from '../../types'
@@ -22,11 +21,12 @@ function versionOf(s: Sighting): string {
 
 /**
  * 넘긴 결과를 사용자에게 알릴 문구. 알릴 것이 없으면 빈 글자.
- * 폰에서 내려받기로 떨어졌으면 알린다 — 공유 창이 열리지 않았다는 뜻이고, 홈 화면 앱에서는 내려받기가 조용히 실패할 수 있다 (saveFile.ts).
+ * 공유 창을 열려다 내려받기로 떨어졌을 때만 알린다 — 홈 화면 앱에서는 그 내려받기가 조용히 실패할 수 있다 (saveFile.ts).
+ * 처음부터 내려받기로 가는 곳(PC, 파일 공유가 없는 터치 브라우저)의 'downloaded'는 알리지 않는다 — 다시 눌러도 같은 내려받기다.
  */
 function outcomeText(outcome: SaveOutcome): string {
   if (outcome === 'cancelled') return '저장을 취소했습니다.'
-  if (outcome === 'downloaded' && isTouchDevice()) return '공유 창이 열리지 않아 내려받기로 넘겼습니다. 내려받은 파일에 없으면 다시 저장해 주세요.'
+  if (outcome === 'downloaded-after-share') return '공유 창이 열리지 않아 내려받기로 넘겼습니다. 내려받은 파일에 없으면 다시 저장해 주세요.'
   return ''
 }
 
