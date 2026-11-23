@@ -99,7 +99,8 @@ export async function POST(request: Request): Promise<Response> {
   })
   if ('error' in built) return fail(400, built.error)
 
-  // 첫 응답의 마감. 마감이 지나도, 브라우저가 떠나도(request.signal) LLM 서버로 가는 요청을 끊는다
+  // 첫 응답의 마감. 마감이 지나도, 브라우저가 떠나도(request.signal) LLM 서버로 가는 요청을 끊는다.
+  // 배포에서 request.signal은 vercel.json의 supportsCancellation이 있어야 울린다 — 없으면 맥이 버려진 답을 끝까지 만든다
   const deadline = new AbortController()
   const timer = setTimeout(() => deadline.abort(), firstResponseMs())
   try {
