@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { MAX_TRIES, accountDecision, afterFailure, dueEntries, planPull, queueChange, recordTags, remoteRecordOf, type QueueEntry, type RemoteRecord } from '../src/data/syncPlan.ts'
+import { MAX_TRIES, accountDecision, afterFailure, askedAccountOf, dueEntries, planPull, queueChange, recordTags, remoteRecordOf, type QueueEntry, type RemoteRecord } from '../src/data/syncPlan.ts'
 import type { Sighting } from '../src/types.ts'
 
 const T0 = new Date('2026-09-27T00:00:00.000Z')
@@ -134,4 +134,17 @@ test('accountDecision: 같은 계정이면 그대로, 다른 계정이면 주고
   assert.equal(accountDecision('perm-A', 'perm-B'), 'ask')
   // 대소문자만 달라도 다른 계정이다 — 표지는 구글이 준 그대로 견준다
   assert.equal(accountDecision('perm-a', 'perm-A'), 'ask')
+})
+
+test('askedAccountOf: 묻는 중 값은 새 계정 표지와 묻는 단계가 이동 기록 올리기를 껐는지', () => {
+  assert.deepEqual(askedAccountOf({ id: 'perm-B', tracksWasOn: true }), { id: 'perm-B', tracksWasOn: true })
+  assert.deepEqual(askedAccountOf({ id: 'perm-B', tracksWasOn: false }), { id: 'perm-B', tracksWasOn: false })
+  // 처음 나온 판은 표지 글자만 적었다 — 묻는 중으로 읽고, 스위치는 켜져 있지 않았던 것으로 본다
+  assert.deepEqual(askedAccountOf('perm-B'), { id: 'perm-B', tracksWasOn: false })
+  // 참·거짓이 아닌 값은 켜져 있지 않았던 것으로 (결과 줄에 덧말만 빠진다)
+  assert.deepEqual(askedAccountOf({ id: 'perm-B', tracksWasOn: 'yes' }), { id: 'perm-B', tracksWasOn: false })
+})
+
+test('askedAccountOf: 표지가 없거나 비었으면 묻는 중이 아니다 (null)', () => {
+  for (const v of [undefined, null, '', 42, {}, { id: '' }, { id: 7, tracksWasOn: true }]) assert.equal(askedAccountOf(v), null, JSON.stringify(v))
 })

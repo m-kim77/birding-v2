@@ -148,3 +148,23 @@ export function accountDecision(saved: unknown, current: string): 'adopt' | 'sam
   if (typeof saved !== 'string' || saved === '') return 'adopt'
   return saved === current ? 'same' : 'ask'
 }
+
+/** 다른 계정이라 묻는 중일 때 `meta`에 적어 두는 값 (data/syncAccount.ts) */
+export interface AskedAccount {
+  /** 묻는 새 계정의 표지 (드라이브 permissionId) */
+  id: string
+  /** 묻는 단계가 이동 기록 올리기를 껐는지 (켜져 있었다) — '합치지 않고 연결 끊기'의 결과 줄이 알린다 */
+  tracksWasOn: boolean
+}
+
+/**
+ * `meta`의 묻는 중 값을 읽는다. 표지가 없거나 비었으면 null (묻는 중이 아니다).
+ * 옛 모양(표지 글자만 — 이동 기록 스위치를 적기 전)도 읽는다: 스위치는 켜져 있지 않았던 것으로 본다.
+ */
+export function askedAccountOf(value: unknown): AskedAccount | null {
+  if (typeof value === 'string') return value === '' ? null : { id: value, tracksWasOn: false }
+  if (typeof value !== 'object' || value === null) return null
+  const { id, tracksWasOn } = value as { id?: unknown; tracksWasOn?: unknown }
+  if (typeof id !== 'string' || id === '') return null
+  return { id, tracksWasOn: tracksWasOn === true }
+}

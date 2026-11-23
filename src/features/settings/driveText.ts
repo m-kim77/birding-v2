@@ -38,6 +38,20 @@ export function statusLine(s: StatusInput, now = new Date()): TaskMessage {
  * 말하지 않으면 다시 연결한 뒤 이동 기록이 계속 오간다고 여긴다. 꺼져 있었으면 더하지 않는다 — 켠 적 없는 스위치가 꺼졌다는 말은 헷갈린다.
  */
 export function disconnectedText(tracksWasOn: boolean): TaskMessage {
-  const tracks = tracksWasOn ? ' 이동 기록 올리기도 껐습니다 — 다시 연결한 뒤 올리려면 이동 기록 카드에서 다시 켜 주세요.' : ''
-  return { tone: 'ok', text: `연결을 끊었습니다. 드라이브의 사본과 이 기기의 기록은 그대로 있습니다.${tracks}` }
+  return { tone: 'ok', text: `연결을 끊었습니다. 드라이브의 사본과 이 기기의 기록은 그대로 있습니다.${tracksOffNote(tracksWasOn)}` }
+}
+
+/**
+ * '합치지 않고 연결 끊기'(다른 구글 계정이라 묻던 것) 뒤의 결과 줄. 그 계정에는 아무것도 올리지 않았고, 전 계정으로 돌아오면 기록은 이어진다고 적는다.
+ * 묻는 단계가 이동 기록 올리기를 껐으면(`tracksWasOn`) 그것도 더한다 — 돌아와도 스위치는 꺼진 채라, 말하지 않으면 이동 기록도 이어서 오간다고 여긴다.
+ * 꺼져 있었으면 더하지 않는다 (disconnectedText와 같은 규칙).
+ */
+export function refusedText(tracksWasOn: boolean): TaskMessage {
+  const base = '연결을 끊었습니다. 그 계정의 드라이브에는 아무것도 올리지 않았고, 이 기기의 기록은 그대로 있습니다. 전에 쓰던 계정으로 다시 로그인하면 이어서 동기화합니다.'
+  return { tone: 'ok', text: `${base}${tracksOffNote(tracksWasOn)}` }
+}
+
+/** 이동 기록 올리기를 껐다는 덧말 — 켜져 있지 않았으면 빈 글자 */
+function tracksOffNote(tracksWasOn: boolean): string {
+  return tracksWasOn ? ' 이동 기록 올리기도 껐습니다 — 다시 연결한 뒤 올리려면 이동 기록 카드에서 다시 켜 주세요.' : ''
 }

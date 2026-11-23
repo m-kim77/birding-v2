@@ -8,13 +8,16 @@
 import { accessToken } from '../lib/google/driveAuth'
 import { accountId } from '../lib/google/driveApi'
 import { dbDelete, dbGet, dbPut, dbWriteAll } from './db'
-import { accountDecision } from './syncPlan'
+import { accountDecision, askedAccountOf, type AskedAccount } from './syncPlan'
 import { setTracksStatus } from './syncStatus'
-import { forgetTracksOnDrive, setTracksSyncOn } from './syncTracks'
+import { forgetTracksOnDrive, isTracksSyncOn, setTracksSyncOn } from './syncTracks'
 
 /** `meta`: 이 기기가 동기화해 온 구글 계정의 표지 */
 const ACCOUNT_KEY = 'driveAccount'
-/** `meta`: 다른 계정으로 로그인해 묻는 중일 때 그 새 계정의 표지. 있으면 동기화는 돌지 않는다 */
+/**
+ * `meta`: 다른 계정으로 로그인해 묻는 중일 때 그 새 계정의 표지와, 묻는 단계가 이동 기록 올리기를 껐는지 (syncPlan.ts AskedAccount).
+ * 있으면 동기화는 돌지 않는다. 처음 나온 판은 표지 글자만 적었다 — 읽을 때는 askedAccountOf가 둘 다 받는다.
+ */
 const ASK_KEY = 'driveAccountAsk'
 
 /** 계정을 확인한 출입증 — 같은 출입증이면 드라이브에 다시 묻지 않는다 (출입증은 1시간마다·로그인할 때 바뀐다) */
@@ -37,9 +40,11 @@ export async function checkAccount(): Promise<boolean> {
   const [current, saved] = await Promise.all([accountId(), dbGet<unknown>('meta', ACCOUNT_KEY)])
   const decision = accountDecision(saved, current)
   if (decision === 'ask') {
+    // 켜져 있었는지 먼저 읽어 둔다 — '합치지 않고 연결 끊기'의 결과 줄이 꺼졌다고 알린다 (전 계정으로 돌아와도 꺼진 채다)
+    const asked: AskedAccount = { id: current, tracksWasOn: await isTracksSyncOn() }
     // 스위치를 먼저 끈다 — 묻는 표시를 적다 실패해도 이동 경로가 새 계정으로 가지 않게 (다음 동기화가 다시 묻는다)
     await setTracksSyncOn(false)
-    await dbPut('meta', current, ASK_KEY)
+    await dbPut('meta', asked, ASK_KEY)
     return false
   }
   if (decision === 'adopt') await dbPut('meta', current, ACCOUNT_KEY)
@@ -59,8 +64,9 @@ export async function adoptAskedAccount(): Promise<void> {
     const req = meta.get(ASK_KEY)
     // 같은 트랜잭션 안에서 읽은 뒤 쓴다 (요청 콜백 안의 요청은 트랜잭션을 이어 간다)
     req.onsuccess = () => {
-      if (typeof req.result !== 'string' || req.result === '') return
-      meta.put(req.result, ACCOUNT_KEY)
+      const asked = askedAccountOf(req.result)
+      if (!asked) return
+      meta.put(asked.id, ACCOUNT_KEY)
       meta.delete(ASK_KEY)
       forgetTracksOnDrive(meta)
       adopted = true
@@ -69,6 +75,14 @@ export async function adoptAskedAccount(): Promise<void> {
   // 커밋된 뒤에만 화면을 맞춘다 — 이동 기록 카드가 전 계정 기준의 '드라이브의 이동 기록 지우기'를 보이지 않게
   if (adopted) setTracksStatus({ on: false, onDrive: false, note: null })
   checkedToken = ''
+}
+
+/**
+ * 묻는 단계가 이동 기록 올리기를 껐는지 (그때 켜져 있었다). 묻는 중이 아니거나, 옛 모양의 값이거나, 저장소를 못 읽으면 false —
+ * 결과 줄에 덧말만 빠진다.
+ */
+export async function askedTracksWasOn(): Promise<boolean> {
+  return askedAccountOf(await dbGet<unknown>('meta', ASK_KEY).catch(() => null))?.tracksWasOn === true
 }
 
 /** 묻기를 거둔다 (새로 로그인했거나 합치지 않기로 했다). 이 기기의 계정 표지는 그대로 둔다. 저장소 오류는 던진다 */

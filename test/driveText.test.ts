@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { disconnectedText, statusLine, type StatusInput } from '../src/features/settings/driveText.ts'
+import { disconnectedText, refusedText, statusLine, type StatusInput } from '../src/features/settings/driveText.ts'
 
 /** 지금 — 날짜 경계는 브라우저(여기서는 node) 시간대라 로컬 시각으로 만든다 (when.test.ts와 같다) */
 const NOW = new Date(2026, 8, 22, 18, 0)
@@ -86,4 +86,16 @@ test('연결 끊기 결과: 이동 기록 올리기를 켜 두었으면 그것�
   assert.ok(withTracks.text.startsWith(plain.text), '기록 쪽 말은 그대로 앞에 둔다')
   assert.match(withTracks.text, /이동 기록 올리기도 껐습니다/)
   assert.doesNotMatch(plain.text, /이동 기록/)
+})
+
+test('합치지 않고 끊은 뒤: 묻는 단계가 이동 기록 올리기를 껐을 때만 그것도 알린다 — 전 계정으로 돌아와도 꺼진 채다', () => {
+  const plain = refusedText(false)
+  assert.equal(plain.tone, 'ok')
+  assert.match(plain.text, /그 계정의 드라이브에는 아무것도 올리지 않았고/)
+  assert.match(plain.text, /전에 쓰던 계정으로 다시 로그인하면 이어서 동기화합니다\.$/)
+  assert.doesNotMatch(plain.text, /이동 기록/)
+  const withTracks = refusedText(true)
+  assert.ok(withTracks.text.startsWith(plain.text), '기록 쪽 말은 그대로 앞에 둔다')
+  // 연결 끊기와 같은 덧말 — 두 길의 안내가 다르면 어느 쪽이 맞는지 헷갈린다
+  assert.ok(withTracks.text.endsWith(disconnectedText(true).text.slice(disconnectedText(false).text.length)))
 })

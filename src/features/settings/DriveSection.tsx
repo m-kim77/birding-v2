@@ -4,7 +4,7 @@ import { getSyncStatus, tracksStatusOf, useSyncStatus } from '../../data/syncSta
 import { preloadGis } from '../../lib/google/gis'
 import { Card } from '../../ui/bits'
 import Button from '../../ui/Button'
-import { disconnectedText, statusLine } from './driveText'
+import { disconnectedText, refusedText, statusLine } from './driveText'
 import TaskResult from './TaskResult'
 import { useTask } from './useTask'
 
@@ -28,10 +28,7 @@ export default function DriveSection() {
   /** 다른 계정에 합친다 — 곧 동기화하고 결과는 상태 줄에 */
   const join = () => run(async () => { await joinAccount(); return null })
   /** 합치지 않는다 — 새 계정의 연결을 끊는다 (이 기기의 기록은 그대로) */
-  const refuse = () => run(async () => {
-    await refuseAccount()
-    return { tone: 'ok', text: '연결을 끊었습니다. 그 계정의 드라이브에는 아무것도 올리지 않았고, 이 기기의 기록은 그대로 있습니다. 전에 쓰던 계정으로 다시 로그인하면 이어서 동기화합니다.' }
-  })
+  const refuse = () => run(async () => refusedText(await refuseAccount()))
   return (
     <Card>
       <h2>구글 드라이브 동기화</h2>

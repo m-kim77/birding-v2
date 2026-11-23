@@ -13,10 +13,10 @@ import { dbGet, dbGetAll, dbPut } from './db'
 import { deletePulledSighting } from './photos'
 import { afterFailure, dueEntries, planPull } from './syncPlan'
 import { LAST_SYNC_KEY, finishEntry, isDriveLinked, listQueue, noteChange, saveFailure, setDriveLinked } from './syncQueue'
-import { getSyncStatus, setSyncStatus } from './syncStatus'
+import { getSyncStatus, setSyncStatus, tracksStatusOf } from './syncStatus'
 import { clearDriveTracks, loadTracksSync, setTracksSyncOn, syncTracksStep } from './syncTracks'
 import { pullRecord, pushEntry, readRemote, type Remote } from './syncTransfer'
-import { adoptAskedAccount, checkAccount, forgetAskedAccount, isAccountAsked } from './syncAccount'
+import { adoptAskedAccount, askedTracksWasOn, checkAccount, forgetAskedAccount, isAccountAsked } from './syncAccount'
 
 let running: Promise<void> | null = null
 /** 받아서 기기가 바뀌었을 때 부른다 (일지가 다시 읽는다) */
@@ -171,11 +171,15 @@ export async function joinAccount(): Promise<void> {
 
 /**
  * '합치지 않고 연결 끊기': 새 계정의 연결을 끊고(이동 기록 스위치도 꺼진다) 묻기를 거둔다. 이 기기의 계정 표지는 그대로라,
- * 전에 쓰던 계정으로 다시 로그인하면 묻지 않고 이어서 동기화한다. 끊기가 실패하면 한국어 Error로 던진다 — 묻는 중 그대로라 동기화는 돌지 않는다.
+ * 전에 쓰던 계정으로 다시 로그인하면 묻지 않고 이어서 동기화한다 — 다만 이동 기록 스위치는 꺼진 채라, 묻는 단계가 껐거나 지금 켜져 있었는지를 준다
+ * (결과 줄이 알린다, settings/driveText.ts refusedText). 끊기가 실패하면 한국어 Error로 던진다 — 묻는 중 그대로라 동기화는 돌지 않는다.
  */
-export async function refuseAccount(): Promise<void> {
+export async function refuseAccount(): Promise<boolean> {
+  // 끊기 전에 읽는다 — disconnect가 스위치를 끄고, forgetAskedAccount가 묻던 값을 지운다
+  const tracksWasOn = (await askedTracksWasOn()) || tracksStatusOf(getSyncStatus()).on
   await disconnect()
   await forgetAskedAccount()
+  return tracksWasOn
 }
 
 /**
