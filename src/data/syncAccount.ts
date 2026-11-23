@@ -9,7 +9,8 @@ import { accessToken } from '../lib/google/driveAuth'
 import { accountId } from '../lib/google/driveApi'
 import { dbDelete, dbGet, dbPut, dbWriteAll } from './db'
 import { accountDecision } from './syncPlan'
-import { setTracksSyncOn } from './syncTracks'
+import { setTracksStatus } from './syncStatus'
+import { forgetTracksOnDrive, setTracksSyncOn } from './syncTracks'
 
 /** `meta`: 이 기기가 동기화해 온 구글 계정의 표지 */
 const ACCOUNT_KEY = 'driveAccount'
@@ -47,10 +48,12 @@ export async function checkAccount(): Promise<boolean> {
 }
 
 /**
- * '이 계정에 합치기': 묻던 새 계정을 이 기기의 계정으로 적고 묻기를 거둔다 (트랜잭션 하나).
- * 묻던 것이 없으면(다른 탭에서 이미 정했다) 아무것도 바꾸지 않는다. 다음 동기화가 출입증의 계정을 다시 확인한다. 저장소 오류는 던진다.
+ * '이 계정에 합치기': 묻던 새 계정을 이 기기의 계정으로 적고 묻기를 거둔다. 같은 트랜잭션에서 이동 기록의 드라이브 쪽 기억
+ * ('드라이브에 있음' 등 — 전 계정의 드라이브를 본 것)도 거둔다 (syncTracks.ts forgetTracksOnDrive).
+ * 묻던 것이 없으면(다른 탭에서 이미 정했다) 아무것도 바꾸지 않는다. 다음 동기화가 출입증의 계정을 다시 확인한다. 저장소 오류는 던진다 (아무것도 바뀌지 않는다).
  */
 export async function adoptAskedAccount(): Promise<void> {
+  let adopted = false
   await dbWriteAll(['meta'], (store) => {
     const meta = store('meta')
     const req = meta.get(ASK_KEY)
@@ -59,8 +62,12 @@ export async function adoptAskedAccount(): Promise<void> {
       if (typeof req.result !== 'string' || req.result === '') return
       meta.put(req.result, ACCOUNT_KEY)
       meta.delete(ASK_KEY)
+      forgetTracksOnDrive(meta)
+      adopted = true
     }
   })
+  // 커밋된 뒤에만 화면을 맞춘다 — 이동 기록 카드가 전 계정 기준의 '드라이브의 이동 기록 지우기'를 보이지 않게
+  if (adopted) setTracksStatus({ on: false, onDrive: false, note: null })
   checkedToken = ''
 }
 

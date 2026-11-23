@@ -111,6 +111,9 @@ export async function startSync(): Promise<void> {
   const linked = await isDriveLinked()
   setSyncStatus({ linked, lastSyncAt: (await dbGet<string>('meta', LAST_SYNC_KEY).catch(() => '')) ?? '' })
   if (!linked) return
+  // 묻는 중이면 설정 상태(네트워크)를 기다리기 전에 알린다 — 그 사이 이동 기록 카드의 스위치·지우기 버튼이 잠깐 보이지 않게.
+  // 못 읽으면 넘어간다 (아래 동기화가 다시 읽고, 못 읽으면 오류로 멈춘다)
+  if (await isAccountAsked().catch(() => false)) setSyncStatus({ phase: 'account', message: '' })
   await loadTracksSync()
   await loadConfig()
   await syncNow()
@@ -157,7 +160,8 @@ export async function disconnect(): Promise<void> {
 
 /**
  * '이 계정에 합치기': 다른 계정으로 로그인해 묻던 것을 받아들이고 곧 동기화한다 — 이 기기의 기록·사진이 그 계정의 드라이브에 올라가고
- * 그 계정의 기록이 이 기기로 내려와 섞인다. 이동 기록 스위치는 꺼진 채다 (다시 켜야 올린다). 저장소 오류는 던진다 (묻는 중 그대로).
+ * 그 계정의 기록이 이 기기로 내려와 섞인다. 이동 기록 스위치는 꺼진 채고 전 계정 기준의 '드라이브에 있음'도 거둔다 (다시 켜야 올리고, 켜면 새 계정의 모습을 다시 본다).
+ * 저장소 오류는 던진다 (묻는 중 그대로).
  */
 export async function joinAccount(): Promise<void> {
   await adoptAskedAccount()
@@ -187,10 +191,15 @@ export async function syncAgain(): Promise<void> {
  * 드라이브의 이동 기록을 지운다 (syncTracks.ts clearDriveTracks). 도는 동기화가 있으면 끝나기를 기다린다 — 그 판이 올리던 달 파일이
  * 지운 뒤에 다시 생기지 않게. 지우는 동안 부른 동기화는 이것이 끝나기를 기다렸다가 돌지 않고 끝난다 (다음 계기에 돈다).
  * 실패는 한국어 Error로 던진다 — 설정 카드가 결과 줄에 적는다. 도중에 끊겼으면 다시 누르면 된다.
+ * 다른 구글 계정이라 합칠지 묻는 중이면 드라이브에 닿지 않고 거절한다 — 지금 출입증은 묻는 새 계정의 것이라, 그 계정의 이동 기록이 지워진다.
  */
 export async function clearDriveTracksNow(): Promise<void> {
   while (running) await running
-  const job = clearDriveTracks()
+  // 묻는 중인지는 자물쇠(running) 안에서 본다 — 밖에서 기다리면 그 사이 다른 동기화가 끼어든다
+  const job = (async () => {
+    if (await isAccountAsked()) throw new Error('다른 구글 계정으로 로그인해 합칠지 묻는 중이라 지우지 않았습니다. 드라이브 카드에서 먼저 정해 주세요.')
+    await clearDriveTracks()
+  })()
   running = job.then(() => {}, () => {}).finally(() => { running = null })
   await job
 }

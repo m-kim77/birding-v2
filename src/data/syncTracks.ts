@@ -60,6 +60,19 @@ export async function setTracksSyncOn(on: boolean): Promise<void> {
 }
 
 /**
+ * 이 기기가 동기화하는 구글 계정이 바뀔 때('이 계정에 합치기', syncAccount.ts) 이동 기록의 드라이브 쪽 기억을 거둔다 — 부르는 쪽의 트랜잭션 안에서 요청만 만든다.
+ * '드라이브에 있음'과 본 "지웠음" 표시는 전 계정의 드라이브를 본 것이다. 남겨 두면 새 계정에서 '드라이브의 이동 기록 지우기'가 보이고,
+ * 누르면 이 기기가 올린 적 없는 새 계정의 이동 기록(그 계정의 다른 기기가 올린 것)을 지운다. 새 계정의 모습은 스위치를 켜면 다시 배운다.
+ * 스위치도 끈다 — 묻는 단계에서 이미 꺼졌지만, 그 사이 켜졌어도 합친 뒤에는 다시 켜야 올린다고 안내했다.
+ * 트랜잭션이 커밋된 뒤 화면 상태는 부르는 쪽이 맞춘다 (on·onDrive 둘 다 false).
+ */
+export function forgetTracksOnDrive(meta: IDBObjectStore): void {
+  meta.put(false, TRACKS_SYNC_ON_KEY)
+  meta.put(false, ON_DRIVE_KEY)
+  meta.delete(CLEAR_SEEN_KEY)
+}
+
+/**
  * 이 기기의 이동 기록을 지운다 — 스위치도 같은 트랜잭션에서 꺼진다 (tracks.ts clearTracks). 드라이브의 사본은 그대로다.
  * 드라이브에 사본이 남아 있을 수 있는지(스위치가 켜져 있었거나 드라이브에 있다고 봤다)를 준다 — 결과 줄이 그렇게 알린다. DB 오류는 던진다.
  */
