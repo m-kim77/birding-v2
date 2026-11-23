@@ -102,7 +102,11 @@ ref_design/design_v01 디자인 초안과 BUTTONS.md (버튼마다 존재 이유
    - `LOCAL_LLM_MODEL` — 쓸 모델 이름. 사진을 볼 수 있고(vision) 도구 호출을 지원해야 한다.
    - `LOCAL_LLM_FIRST_RESPONSE_SECONDS` (선택, 기본 90) — LLM 서버가 이 시간 안에 답을 시작하지 않으면 "판정 서버가 바쁩니다"로 끝낸다. 앞 요청이 밀린 동안 함수가 한 턴 마감(170초)까지 붙잡지 않게 하는 값이다. 한 턴 마감보다 길게 적어도 한 턴 마감에서 끊긴다. 모델을 처음 올리는 데 더 걸리면 올린다. 생각하는 모델도 생각을 조각으로 바로 흘려보내 긴 생각에는 걸리지 않는다 (실측: 첫 조각 4초).
    - `LOCAL_LLM_REASONING_EFFORT` (선택, 기본 `low`) — 생각(reasoning) 세기: low·medium·high·xhigh. 서버 기본(high)보다 판정이 빠르고 판정은 나빠지지 않았다 (작업 21 시험 평균 86초 → 53초). `server`로 두면 보내지 않는다 — 이 옵션을 모르는 서버로 바꿨을 때. 값을 바꾸면 LLM 서버가 대화의 앞부분을 한 번 새로 계산한다.
-3. 환경변수가 없으면 앱은 그대로 돌고, 판정만 "기본 제공 AI가 아직 설정되지 않았습니다"로 나온다. 내 키를 넣은 사용자는 판정할 수 있다.
+   - `LOCAL_LLM_MAX_TOKENS` (선택, 기본 4096) — 한 턴의 토큰 상한(생각 토큰 포함). 생각이 긴 모델이 답을 다 내지 못하고 끊기면 올린다 (아래 "LLM 서버 쪽에서 할 일").
+   - `GOOGLE_CLIENT_ID`·`GOOGLE_CLIENT_SECRET` — 구글 드라이브 동기화(`api/drive.ts`). 구글 클라우드 콘솔 → Google 인증 플랫폼 → 클라이언트(웹 애플리케이션)의 ID와 보안 비밀번호. 같은 클라이언트의 **승인된 JavaScript 원본**에 실제 사이트 주소(`https://<사이트 주소>`)와 개발 서버 주소(`http://localhost:<포트>`)를 넣는다. **리디렉션 URI는 넣지 않는다** — 로그인 팝업이 코드를 페이지에 바로 건네는 방식(`redirect_uri=postmessage`)이다. 원본 목록에 없는 주소(Vercel 미리보기 주소 등)에서는 로그인이 안 된다.
+   - `DRIVE_COOKIE_KEY` — 로그인 열쇠(갱신권)를 쿠키에 잠그는 키. `openssl rand -base64 32`로 만든다(32바이트가 아니면 함수가 거절한다). 바꾸면 모든 사용자가 한 번 다시 로그인한다. 값을 채팅·문서·커밋에 붙여 넣지 않는다.
+   - **넣거나 바꾼 뒤에는 다시 배포한다** — 함수는 다음 배포부터 새 값을 읽는다. Deployments → 맨 위 배포의 `⋯` → **Redeploy**. 터널 주소나 키를 바꾸고 다시 배포하지 않으면 함수가 옛 값으로 계속 실패한다.
+3. 환경변수가 없으면 앱은 그대로 돌고, 판정만 "기본 제공 AI가 아직 설정되지 않았습니다"로 나온다. 내 키를 넣은 사용자는 판정할 수 있다. 드라이브 세 값 중 하나라도 없으면 설정에 드라이브 카드가 **오류 없이 보이지 않는다**(`/api/drive`가 `"configured":false`) — 배포한 뒤 `curl -s https://<사이트 주소>/api/drive`가 `"configured":true`인지 본다.
 4. **요청 수 제한 — 코드가 아니라 Vercel 대시보드에서 건다**: 프로젝트 → 왼쪽 **Firewall** → 오른쪽 위 **Configure** → **+ New Rule**.
    - 이름(예: `api-rate-limit`) / **If**: `Request Path` · `Starts with` · `/api/` / **Then**: **Rate Limit** (처음이면 요금 안내 창 → **Continue**)
    - **Fixed Window**, Time Window **10분**, Request Limit **60**, 기준 **IP**. 동작은 처음에 **Log**(막지 않고 세기만 한다) → **Save Rule** → 오른쪽 위 **Review Changes** → **Publish**
