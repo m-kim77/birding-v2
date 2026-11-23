@@ -143,7 +143,7 @@ export function fitLongEdge(
  *
  * data URL 이 아니거나 base64 가 깨졌으면 한국어 Error 를 던진다 — **짧은 Blob 을 만들어
  * 돌려주지 않는다.** `'data:,'` 는 명시적으로 거부한다: `canvas.toDataURL` 은 인코딩에
- * 실패해도 던지지 않고 그 값을 돌려주는데(아래 cropFromFile 참고), 걸러 내지 않으면
+ * 실패해도 던지지 않고 그 값을 돌려주는데(아래 cropFromBitmap 참고), 걸러 내지 않으면
  * 0바이트 본문이 사이드카로 올라가 원인을 알 수 없는 413 으로 되돌아온다.
  *
  * `server/index.js` 의 saveDataUrl 과 같은 형태를 받아들인다 — 클라이언트와 서버가
@@ -165,29 +165,7 @@ export function dataUrlToBlob(dataUrl: string): Blob {
   return new Blob([bytes], { type: m[1] })
 }
 
-/**
- * 브라우저가 디코드한 사진 크기가 사이드카가 보고한 `source`와 다를 때 던지는 오류.
- * 이 경우 둘이 EXIF 회전을 다르게 해석한 것이므로, 좌표를 그대로 쓰면 **엉뚱한 영역이 잘린다**.
- * 조용히 자르는 대신 이 타입으로 올려서 호출부가 사용자에게 알릴 수 있게 한다.
- */
-export class CropSourceMismatchError extends Error {
-  // 생성자 파라미터 프로퍼티(readonly x: T)를 쓰지 않는다 — node --test 의 타입 제거 모드가
-  // 그 문법을 지원하지 않아, 이 모듈을 import 하는 테스트가 통째로 실행되지 못한다.
-  readonly decoded: Dimensions
-  readonly reported: Dimensions
-
-  constructor(decoded: Dimensions, reported: Dimensions) {
-    super(
-      `사진 방향 해석이 서버와 다릅니다 (브라우저 ${decoded.width}×${decoded.height}, ` +
-        `검출 ${reported.width}×${reported.height}). 잘못된 영역을 자르지 않기 위해 중단했습니다.`,
-    )
-    this.decoded = decoded
-    this.reported = reported
-    this.name = 'CropSourceMismatchError'
-  }
-}
-
-/** cropFromFile 결과 — 저장에 필요한 것만 담는다 */
+/** cropFromBitmap 결과 — 저장에 필요한 것만 담는다 */
 export interface CropOutput {
   /** data URL (data:image/jpeg;base64,...) — photo_base64와 같은 형식이라 그대로 올릴 수 있다 */
   dataUrl: string
@@ -202,62 +180,41 @@ export interface CropOutput {
 }
 
 /**
- * 원본 File에서 상자 영역을 잘라 JPEG data URL로 만든다.
+ * 이미 연 비트맵에서 상자 영역을 잘라 JPEG data URL로 만든다. 원본 파일을 다시 디코드하지 않는다 —
+ * 수천만 화소를 한 번 더 풀면 폰에서 0.5~1.5초와 비트맵 하나(100~180MB)가 더 든다.
+ * 비트맵은 EXIF 방향을 적용해 연 것이어야 한다 (resize.ts openOriented — 사진 고르기의 photo.bitmap). 상자 좌표가 그 프레임 기준이고,
+ * 픽셀 환산도 이 비트맵의 크기로 한다. 비트맵은 닫지 않는다 — 가진 쪽(usePhotoPick)이 놓아준다.
  *
  * 성공하거나 던지거나 둘 중 하나다 — **틀린 크롭을 반환하는 경우는 없어야 한다.**
- * 디코드 실패·캔버스 없음·인코딩 실패는 한국어 Error로, 브라우저와 사이드카의 방향 해석이
- * 어긋난 경우는 CropSourceMismatchError로 던진다. 호출부는 이걸 붙잡아 조용한 안내만 띄우고
- * 저장 자체는 막지 말아야 한다 (검출은 저장을 가로막지 않는다).
+ * 이미 닫힌 비트맵(사진을 바꿔 놓아준 것)은 크기가 0×0이라 그리기 전에 '원본 크기가 올바르지 않습니다'로 던진다 —
+ * 그리다가 브라우저의 영어 오류가 나지 않는다. 캔버스 없음·인코딩 실패도 한국어 Error. 호출부는 이걸 붙잡아
+ * 저장 자체는 막지 말아야 한다 (검출은 저장을 가로막지 않는다 — savePhotos.ts makeCrop).
  */
-export async function cropFromFile(
-  file: Blob,
+export function cropFromBitmap(
+  bitmap: ImageBitmap,
   box: NormalizedBox,
-  source: Dimensions,
   opts: { padFrac?: number; maxEdge?: number } = {},
-): Promise<CropOutput> {
+): CropOutput {
+  const source = { width: bitmap.width, height: bitmap.height }
   const rect = cropRect(box, source, opts.padFrac ?? CROP_PAD_FRAC)
+  const out = fitLongEdge(rect.width, rect.height, opts.maxEdge ?? CROP_MAX_EDGE)
+  const canvas = document.createElement('canvas')
+  canvas.width = out.width
+  canvas.height = out.height
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('캔버스를 만들지 못했습니다.')
 
-  let bitmap: ImageBitmap
-  try {
-    // imageOrientation:'from-image' — 사이드카는 EXIF 회전을 적용한 프레임 기준으로 좌표를 주므로
-    // 브라우저도 같은 방향으로 디코드해야 좌표계가 맞는다 (기본값은 브라우저마다 다르다).
-    bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
-  } catch {
-    throw new Error('사진을 디코드하지 못했습니다.')
+  // 9인자 drawImage로 잘라낸다. 비트맵은 이미 회전을 적용한 프레임이라 좌표가 그대로 맞는다.
+  // **원본 파일을 createImageBitmap(file, sx, sy, sw, sh) 5인자로 잘라내면 안 된다** — EXIF
+  // orientation 6/8 사진에서 회전을 적용하기 **전** 좌표계로 잘라내 정반대 영역이 조용히 나온다.
+  // 같은 이유로 CSS image-orientation도 어디에도 걸지 않는다 (그리면 캔버스는 CSS를 안 본다).
+  ctx.drawImage(bitmap, rect.x, rect.y, rect.width, rect.height, 0, 0, out.width, out.height)
+
+  const dataUrl = canvas.toDataURL('image/jpeg', CROP_QUALITY)
+  // toDataURL은 실패해도 던지지 않고 'data:,'를 돌려준다 — 빈 문자열을 서버로 올리지 않도록 막는다
+  if (!dataUrl.startsWith('data:image/jpeg')) {
+    throw new Error('잘라낸 사진을 JPEG로 인코드하지 못했습니다.')
   }
 
-  try {
-    // 방향 해석이 어긋났는지는 크기로만 알 수 있다. 여기서 멈추지 않으면 orientation 6/8 사진에서
-    // 가로·세로가 뒤바뀐 좌표로 잘라 낸 뒤에도 아무 신호가 없다.
-    if (bitmap.width !== source.width || bitmap.height !== source.height) {
-      throw new CropSourceMismatchError(
-        { width: bitmap.width, height: bitmap.height },
-        source,
-      )
-    }
-
-    const out = fitLongEdge(rect.width, rect.height, opts.maxEdge ?? CROP_MAX_EDGE)
-    const canvas = document.createElement('canvas')
-    canvas.width = out.width
-    canvas.height = out.height
-    const ctx = canvas.getContext('2d')
-    if (!ctx) throw new Error('캔버스를 만들지 못했습니다.')
-
-    // 9인자 drawImage로 잘라낸다.
-    // **createImageBitmap(file, sx, sy, sw, sh) 5인자 잘라내기를 쓰면 안 된다** — EXIF
-    // orientation 6/8 사진에서 회전을 적용하기 **전** 좌표계로 잘라내 정반대 영역이 조용히 나온다.
-    // 같은 이유로 CSS image-orientation도 어디에도 걸지 않는다 (그리면 캔버스는 CSS를 안 본다).
-    ctx.drawImage(bitmap, rect.x, rect.y, rect.width, rect.height, 0, 0, out.width, out.height)
-
-    const dataUrl = canvas.toDataURL('image/jpeg', CROP_QUALITY)
-    // toDataURL은 실패해도 던지지 않고 'data:,'를 돌려준다 — 빈 문자열을 서버로 올리지 않도록 막는다
-    if (!dataUrl.startsWith('data:image/jpeg')) {
-      throw new Error('잘라낸 사진을 JPEG로 인코드하지 못했습니다.')
-    }
-
-    return { dataUrl, rect, box: normalizeRect(rect, source), width: out.width, height: out.height }
-  } finally {
-    // 원본 한 장이 수천만 픽셀이다. 예외로 빠져나갈 때도 반드시 놓아준다
-    bitmap.close()
-  }
+  return { dataUrl, rect, box: normalizeRect(rect, source), width: out.width, height: out.height }
 }

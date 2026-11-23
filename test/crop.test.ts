@@ -1,9 +1,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { CROP_MAX_EDGE, cropRect, dataUrlToBlob, fitLongEdge, normalizeRect } from '../src/lib/crop.ts'
+import { CROP_MAX_EDGE, cropFromBitmap, cropRect, dataUrlToBlob, fitLongEdge, normalizeRect } from '../src/lib/crop.ts'
 
-// node --test 에는 canvas 도 createImageBitmap 도 없다. 그래서 cropFromFile 자체는 여기서
-// 못 돌린다 — 대신 좌표를 실제로 틀리게 만드는 순수 계산부만 정면으로 검사한다.
+// node --test 에는 canvas 도 createImageBitmap 도 없다. 그래서 cropFromBitmap 이 그리는 부분은 여기서
+// 못 돌린다 — 대신 좌표를 실제로 틀리게 만드는 순수 계산부만 정면으로 검사한다 (그리기 전에 거르는 것은 맨 아래).
 
 const SRC = { width: 6240, height: 4160 }
 const NO_PAD = 0
@@ -125,4 +125,11 @@ test('data URL 이 아닌 문자열을 거부한다', () => {
 
 test('base64 가 깨졌으면 짧은 Blob 을 만들지 않고 던진다', () => {
   assert.throws(() => dataUrlToBlob('data:image/jpeg;base64,!!!not-base64!!!'), /base64/)
+})
+
+test('닫힌 비트맵(0×0)은 캔버스를 만들기 전에 한국어 오류로 던진다 — 그새 사진을 바꿔 놓아준 비트맵을 그리면 영어 오류가 난다', () => {
+  // 닫힌 ImageBitmap 은 width·height 가 0 이다. 여기서 document 에 닿으면 node 에서는 ReferenceError 가 나므로,
+  // 한국어 오류가 나온 것은 그리기 전에 멈췄다는 뜻이다
+  const closed = { width: 0, height: 0 } as ImageBitmap
+  assert.throws(() => cropFromBitmap(closed, { x1: 0.1, y1: 0.1, x2: 0.5, y2: 0.5 }), /원본 크기가 올바르지 않습니다/)
 })

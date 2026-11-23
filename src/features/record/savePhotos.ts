@@ -1,5 +1,5 @@
 import type { PhotoFile } from '../../data/photos'
-import { cropFromFile, dataUrlToBlob } from '../../lib/crop'
+import { cropFromBitmap, dataUrlToBlob } from '../../lib/crop'
 import { FULL_MAX_EDGE, THUMB_MAX_EDGE, bitmapToJpeg, blobToDataUrl } from '../../lib/resize'
 import { IDENTIFY_MAX_EDGE } from '../identify/loop'
 import type { NormalizedBox } from '../../types'
@@ -7,11 +7,12 @@ import type { PickedPhoto } from './usePhotoPick'
 
 /**
  * 고른 영역을 원본 해상도에서 잘라 낸다. LLM에 보낼 그림과 저장할 그림이 같은 것이어야 해서 한 곳에서 만든다.
- * 실패하면(방향 해석 불일치 등) null — 자르기가 안 돼도 기록 저장은 막지 않는다 (v1과 같은 원칙).
+ * 사진을 고를 때 이미 연 비트맵(photo.bitmap)에서 자른다 — 물어볼 때·저장할 때마다 원본 파일을 다시 디코드하지 않는다.
+ * 실패하면(그새 사진을 바꿔 비트맵이 닫힘·인코딩 실패 등) null — 자르기가 안 돼도 기록 저장은 막지 않는다 (v1과 같은 원칙).
  */
 export async function makeCrop(photo: PickedPhoto, box: NormalizedBox): Promise<{ blob: Blob; box: NormalizedBox; dataUrl: string } | null> {
   try {
-    const out = await cropFromFile(photo.file, box, photo.size)
+    const out = cropFromBitmap(photo.bitmap, box)
     return { blob: dataUrlToBlob(out.dataUrl), box: out.box, dataUrl: out.dataUrl }
   } catch {
     return null
