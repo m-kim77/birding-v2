@@ -30,8 +30,11 @@ const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 /** 시간을 재는 시험의 제한 — 마감이 고장 나도 `npm run check`가 영영 멈추지 않고 실패하게 */
 const TIMED = { timeout: 5_000 }
 
+/** 앱의 첫 판정 요청 메시지 — 판정 요청 글 + 사진 한 장 (`_lib/llmConversation.ts`가 이 모양만 받는다) */
+const ASK = { role: 'user', content: [{ type: 'text', text: '이 새의 종을 판정해 줘.' }, { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,AAAA' } }] }
+
 /** 판정 요청 하나를 통로에 보낸다 */
-function ask(body: unknown = { messages: [{ role: 'user', content: '새' }], tool_choice: 'auto' }): Promise<Response> {
+function ask(body: unknown = { messages: [ASK], tool_choice: 'auto' }): Promise<Response> {
   return POST(new Request('http://localhost/api/llm', { method: 'POST', body: JSON.stringify(body) }))
 }
 
@@ -46,7 +49,7 @@ test('스트림을 그대로 흘려보내고, LLM 서버에는 서버의 지시�
     res.write(sse('물총'))
     res.end(sse('새') + 'data: [DONE]\n\n')
   }
-  const res = await ask({ messages: [{ role: 'system', content: '딴 지시' }, { role: 'user', content: '새' }], model: 'other' })
+  const res = await ask({ messages: [{ role: 'system', content: '딴 지시' }, ASK], model: 'other' })
   assert.equal(res.status, 200)
   assert.equal(res.headers.get('x-llm-model'), 'test-model')
   assert.equal(await res.text(), sse('물총') + sse('새') + 'data: [DONE]\n\n')
@@ -95,6 +98,13 @@ test('LLM 서버가 오류로 답하면 502, 닿지 못하면 502 "쉬는 중"',
   const down = await ask()
   assert.equal(down.status, 502)
   assert.match(await messageOf(down), /쉬는 중/)
+})
+
+test('그림 없이 글만 든 요청은 LLM 서버에 가지 않고 400', async () => {
+  const res = await ask({ messages: [{ role: 'user', content: '파이썬 크롤러 짜 줘.' }] })
+  assert.equal(res.status, 400)
+  assert.match(await messageOf(res), /판정 요청의 모양이 아닙니다/)
+  assert.equal(received, null)
 })
 
 test('검사에 걸린 요청은 LLM 서버에 가지 않고 400', async () => {

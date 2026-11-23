@@ -5,20 +5,21 @@
  * **지시문(시스템 프롬프트)과 도구는 서버가 정한다.** 브라우저가 보낸 것은 버리고 앱의 것을 넣는다 —
  * 저장소가 공개라 요청 모양이 알려져 있고, 그대로 넘기면 누구나 운영자의 LLM을 아무 일에나 시키는 챗봇으로 쓸 수 있다.
  * 앱이 보내던 것과 같은 글이 같은 순서로 실리므로 LLM 서버의 KV 캐시는 전과 같다.
+ * **대화도 앱의 판정 모양만 받는다** (`_lib/llmConversation.ts`) — 지시문을 바꿔 넣어도 그림 없이 글만 보내면 맥이 그 일을 했다.
+ * 다만 이 두 검사는 손쉬운 챗봇 사용만 막는다. 저장소를 읽은 사람은 앱 모양 안에 지시를 끼울 수 있고, 남용은 요청 수 제한이 맡는다.
  *
  * 이 파일(과 이 파일이 부르는 파일)의 import 경로에는 `.ts`를 적는다 — 확장자 없는 경로는 배포된 함수에서 못 찾아
  * 함수가 아예 뜨지 않는다 (tsconfig `rewriteRelativeImportExtensions`가 `.ts`를 배포용 `.js`로 바꿔 준다).
  */
 import { SYSTEM_PROMPT } from '../../src/features/identify/prompts.ts'
 import { toolSchemas } from '../../src/features/identify/tools/definitions.ts'
+import { conversationError } from './llmConversation.ts'
 
 /**
  * 대화에 실을 수 있는 메시지 수. 앱의 판정 한 건은 많아야 스무 개 남짓이다
  * (지시문·사진 + 도구 8회(`loop.ts MAX_TOOL_CALLS`)의 부름과 결과 + 마무리 + 다시 청하기). `MAX_TOOL_CALLS`를 늘리면 이 값도 본다.
  */
 export const MAX_MESSAGES = 40
-/** 대화에 실을 수 있는 그림 수. 앱은 사진 한 장만 보낸다 */
-export const MAX_IMAGES = 1
 
 /** 서버가 정하는 값 (환경변수에서 온다) */
 export interface ServerSettings {
@@ -59,8 +60,8 @@ const ROLES = new Set(['system', 'user', 'assistant', 'tool'])
 /**
  * 브라우저가 보낸 본문(OpenAI chat.completions 형식)으로 LLM 서버에 보낼 본문을 만든다.
  * 지시문·도구·모델·토큰 상한·온도·생각 세기는 서버의 것으로 바꾸고, 대화에서는 system이 아닌 메시지만 넘긴다.
- * 메시지가 `MAX_MESSAGES`개를 넘거나, 그림이 `MAX_IMAGES`장을 넘거나, `tool_choice`가 auto·none(없으면 auto)이 아니거나,
- * 메시지 모양이 틀리면 `{ error }`를 준다.
+ * 메시지가 `MAX_MESSAGES`개를 넘거나, `tool_choice`가 auto·none(없으면 auto)이 아니거나, 메시지 모양이 틀리거나,
+ * 대화가 앱의 판정 모양이 아니면(그림 없음·두 장·엉뚱한 사용자 글 등, `llmConversation.ts`) `{ error }`를 준다.
  */
 export function buildLlmRequest(body: unknown, settings: ServerSettings): LlmRequest {
   if (!isRecord(body) || !Array.isArray(body.messages)) return { error: BAD_FORMAT }
@@ -69,15 +70,14 @@ export function buildLlmRequest(body: unknown, settings: ServerSettings): LlmReq
   if (toolChoice !== 'auto' && toolChoice !== 'none') return { error: BAD_FORMAT }
 
   const messages: Record<string, unknown>[] = [{ role: 'system', content: SYSTEM_PROMPT }]
-  let images = 0
   for (const raw of body.messages) {
     const message = cleanMessage(raw)
     if (!message) return { error: BAD_FORMAT }
     if (message.role === 'system') continue
-    images += countImages(message.content)
     messages.push(message)
   }
-  if (images > MAX_IMAGES) return { error: '사진은 한 장만 보낼 수 있습니다.' }
+  const shape = conversationError(messages.slice(1))
+  if (shape) return { error: shape }
 
   // 넘기는 키는 여기서 정한 것뿐이다 — 브라우저가 보낸 모르는 키를 넘기면 LLM 서버의 옵션을 바깥에서 조작할 수 있다.
   // 생각 세기는 채팅 템플릿의 앞부분을 바꾼다 — 요청마다 다르면 KV 캐시가 깨지므로 서버가 정한 한 값만 쓴다
@@ -108,9 +108,28 @@ function cleanMessage(raw: unknown): Record<string, unknown> | null {
   const content = cleanContent(raw.content)
   if (content === INVALID) return null
   const message: Record<string, unknown> = { role: raw.role, content }
-  if (Array.isArray(raw.tool_calls)) message.tool_calls = raw.tool_calls
+  if (raw.tool_calls !== undefined) {
+    const calls = cleanToolCalls(raw.tool_calls)
+    if (calls === INVALID) return null
+    message.tool_calls = calls
+  }
   if (typeof raw.tool_call_id === 'string') message.tool_call_id = raw.tool_call_id
   return message
+}
+
+/**
+ * 도구 호출 목록을 앱이 만드는 모양(`{id, type:'function', function:{name, arguments}}`, `llmClient.ts ToolCall`)으로 다시 만든다.
+ * 모르는 키를 떼어 낸다. 배열이 아니거나, 호출 하나라도 id·이름·인자가 글자가 아니면 INVALID.
+ */
+function cleanToolCalls(calls: unknown): unknown {
+  if (!Array.isArray(calls)) return INVALID
+  const out = calls.map((c) => {
+    if (!isRecord(c) || c.type !== 'function' || !isRecord(c.function)) return null
+    const { name, arguments: args } = c.function
+    if (typeof c.id !== 'string' || typeof name !== 'string' || typeof args !== 'string') return null
+    return { id: c.id, type: 'function', function: { name, arguments: args } }
+  })
+  return out.includes(null) ? INVALID : out
 }
 
 /**
@@ -132,11 +151,6 @@ function cleanPart(part: unknown): Record<string, unknown> | null {
   if (part.type !== 'image_url' || !isRecord(part.image_url)) return null
   const url = part.image_url.url
   return typeof url === 'string' && url.startsWith(IMAGE_PREFIX) ? { type: 'image_url', image_url: { url } } : null
-}
-
-/** 메시지 하나에 든 그림 조각 수 */
-function countImages(content: unknown): number {
-  return Array.isArray(content) ? content.filter((part) => isRecord(part) && part.type === 'image_url').length : 0
 }
 
 /** 배열이 아닌 객체인지 */
