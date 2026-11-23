@@ -5,12 +5,14 @@
  *
  * - GET    → { configured, clientId, connected, accessToken?, expiresIn? } — 쿠키가 있으면 새 출입증을 받아 준다
  * - POST   { code } → { connected, accessToken, expiresIn } — 로그인 창의 코드를 바꾸고 쿠키를 둔다
+ *          (갱신권이 오지 않으면 이 브라우저의 옛 쿠키를 이어 쓰되, 같은 구글 계정의 것일 때만)
  * - DELETE → 구글에서 갱신권을 철회하고 쿠키를 지운다
  *
  * 환경변수: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, DRIVE_COOKIE_KEY(base64 32바이트).
  */
 // 경로에 .ts를 적는다 — 확장자 없는 경로는 배포된 함수에서 못 찾는다 (CLAUDE.md)
 import { readCookie, seal, unseal } from './_lib/cookieSeal.ts'
+import { accountOf } from './_lib/driveAccount.ts'
 import { RevokedError, exchangeCode, refreshAccess, revoke } from './_lib/googleOAuth.ts'
 import { sameOrigin } from './_lib/origin.ts'
 
@@ -18,9 +20,11 @@ const COOKIE = 'drive_rt'
 /** 쿠키 수명. 구글 갱신권은 6개월 안 쓰면 죽으므로 그 정도로 둔다. 쓸 때마다 다시 적어 늘린다 */
 const COOKIE_DAYS = 180
 
-/** 한국어 안내와 함께 JSON 오류 응답을 만든다 */
-function fail(status: number, message: string): Response {
-  return Response.json({ error: { message } }, { status, headers: { 'cache-control': 'no-store' } })
+/** 한국어 안내와 함께 JSON 오류 응답을 만든다. `cookie`를 주면 그 쿠키 헤더도 붙인다 (옛 쿠키 지우기) */
+function fail(status: number, message: string, cookie?: string): Response {
+  const headers: Record<string, string> = { 'cache-control': 'no-store' }
+  if (cookie) headers['set-cookie'] = cookie
+  return Response.json({ error: { message } }, { status, headers })
 }
 
 /**
@@ -60,8 +64,29 @@ export async function GET(request: Request): Promise<Response> {
 }
 
 /**
+ * 옛 쿠키의 갱신권이 방금 로그인한 계정(`accessToken`)의 것인지 본다 — 두 출입증의 드라이브 계정 번호를 견준다.
+ * 쿠키가 깨졌거나 그 갱신권이 죽었으면 false (쓰지 않고 버린다). 구글에 닿지 못하거나 계정을 확인해 주지 않으면 던진다 —
+ * 확인하지 못한 갱신권은 쓰지 않는다 (부르는 쪽은 502로 답하고 쿠키를 그대로 둔다).
+ */
+async function sameAccount(oldSealed: string, accessToken: string): Promise<boolean> {
+  const oldRefresh = await unseal(oldSealed, process.env.DRIVE_COOKIE_KEY)
+  if (!oldRefresh) return false
+  let oldAccess: string
+  try {
+    oldAccess = (await refreshAccess(oldRefresh)).accessToken
+  } catch (e) {
+    if (e instanceof RevokedError) return false
+    throw e
+  }
+  const [now, before] = await Promise.all([accountOf(accessToken), accountOf(oldAccess)])
+  return now === before
+}
+
+/**
  * 로그인 창의 코드를 토큰으로 바꾼다. 구글은 **처음 허락할 때만** 갱신권을 준다 —
- * 갱신권이 오지 않았는데 쿠키도 없으면(구글 쪽에는 허락이 남았는데 이 브라우저는 모르는 경우) 한국어로 풀어 알린다.
+ * 갱신권이 오지 않으면 이 브라우저의 옛 쿠키를 이어 쓰는데, **같은 구글 계정의 것일 때만** 쓴다.
+ * 쿠키가 없거나 다른 계정의 것이면(구글 쪽에는 허락이 남았는데 이 브라우저는 모르는 경우) 옛 쿠키를 지우고 받은 허락을 철회한 뒤
+ * 한국어로 풀어 알린다 (409 — 한 번 더 누르면 구글이 갱신권을 다시 준다).
  */
 export async function POST(request: Request): Promise<Response> {
   // POST·DELETE는 쿠키를 바꾼다 — 다른 사이트의 폼·스크립트가 부르지 못하게 (SameSite 쿠키에 더한 두 번째 잠금, `_lib/origin.ts`)
@@ -72,10 +97,14 @@ export async function POST(request: Request): Promise<Response> {
   try {
     const t = await exchangeCode(code)
     const old = readCookie(request.headers.get('cookie'), COOKIE)
-    const sealed = t.refreshToken ? await seal(t.refreshToken, process.env.DRIVE_COOKIE_KEY) : old
+    // 기기 저장소만 지워지고 쿠키는 남은 브라우저에서 다른 계정으로 로그인하면, 옛 쿠키를 그대로 쓸 때
+    // 1시간 뒤(출입증을 새로 받을 때)부터 옛 계정의 드라이브로 바뀌어 두 계정의 기록이 섞인다 — 그래서 계정을 견준다
+    const keepOld = !t.refreshToken && old !== '' && (await sameAccount(old, t.accessToken))
+    const sealed = t.refreshToken ? await seal(t.refreshToken, process.env.DRIVE_COOKIE_KEY) : keepOld ? old : ''
     if (!sealed) {
       await revoke(t.accessToken)
-      return fail(409, '구글이 자동 연결 권한을 주지 않았습니다. 한 번 더 "구글로 로그인"을 눌러 주세요.')
+      // 다른 계정(또는 죽은) 옛 쿠키는 버리기만 한다 — 그 갱신권을 철회하면 그 계정 주인의 다른 기기 연결까지 끊길 수 있다
+      return fail(409, '구글이 자동 연결 권한을 주지 않았습니다. 한 번 더 "구글로 로그인"을 눌러 주세요.', old ? cookieHeader(request, '', 0) : undefined)
     }
     return ok({ connected: true, accessToken: t.accessToken, expiresIn: t.expiresIn }, cookieHeader(request, sealed, COOKIE_DAYS))
   } catch (e) {

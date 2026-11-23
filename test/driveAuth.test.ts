@@ -36,8 +36,9 @@ test('readCookie: 이름으로 값을 꺼낸다, 없으면 빈 글자', () => {
 
 // 통로 함수: 구글 토큰 창구는 가짜 fetch로 대신한다 (진짜 구글에 가지 않는다)
 const realFetch = globalThis.fetch
-let google: (url: string, body: URLSearchParams) => Response = () => new Response('{}', { status: 500 })
-globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => google(String(input), init?.body as URLSearchParams)) as typeof fetch
+// 세 번째 인자는 요청의 Authorization 머리 (드라이브 계정 묻기가 어느 출입증으로 왔는지 가린다)
+let google: (url: string, body: URLSearchParams, auth: string) => Response = () => new Response('{}', { status: 500 })
+globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => google(String(input), init?.body as URLSearchParams, new Headers(init?.headers).get('authorization') ?? '')) as typeof fetch
 test.after(() => { globalThis.fetch = realFetch })
 process.env.GOOGLE_CLIENT_ID = 'client-1'
 process.env.GOOGLE_CLIENT_SECRET = 'secret-1'
@@ -115,6 +116,60 @@ test('POST: 갱신권이 안 왔고 쿠키도 없으면 409 + 받은 허락을 �
   const res = await POST(req('POST', { origin: SITE, body: { code: '4/abc' } }))
   assert.equal(res.status, 409)
   assert.ok(urls.some((u) => u.includes('revoke')))
+})
+
+/**
+ * 갱신권 없이 다시 로그인하는 구글 가짜: 코드 → 새 계정의 출입증(갱신권 없음), 옛 갱신권 → 옛 계정의 출입증,
+ * 드라이브 계정 묻기 → 출입증마다의 계정 번호. 철회한 토큰은 `revoked`에 모은다.
+ */
+function relogin(accounts: Record<string, string>, revoked: string[], oldRefresh: Response = Response.json({ access_token: 'ya29.old', expires_in: 3599 })) {
+  google = (url, body, auth) => {
+    if (url.includes('revoke')) { revoked.push(body.get('token') ?? ''); return new Response('') }
+    if (url.includes('/drive/v3/about')) {
+      const id = accounts[auth.replace('Bearer ', '')]
+      return id ? Response.json({ user: { permissionId: id } }) : Response.json({}, { status: 401 })
+    }
+    if (body.get('grant_type') === 'refresh_token') return oldRefresh.clone()
+    return Response.json({ access_token: 'ya29.new', expires_in: 3599 })
+  }
+}
+
+test('POST: 갱신권이 안 왔고 옛 쿠키가 같은 계정의 것이면 그 쿠키를 이어 쓴다', async () => {
+  const revoked: string[] = []
+  relogin({ 'ya29.new': 'acct-A', 'ya29.old': 'acct-A' }, revoked)
+  const old = await seal('1//old-A', KEY)
+  const res = await POST(req('POST', { origin: SITE, cookie: `drive_rt=${old}`, body: { code: '4/abc' } }))
+  assert.equal(res.status, 200)
+  assert.equal((await res.json()).accessToken, 'ya29.new')
+  assert.equal(/drive_rt=([^;]+)/.exec(res.headers.get('set-cookie') ?? '')![1], old)
+  assert.deepEqual(revoked, [])
+})
+
+test('POST: 갱신권이 안 왔고 옛 쿠키가 다른 계정의 것이면 쓰지 않는다 — 409, 옛 쿠키를 지우고 새 허락만 철회한다', async () => {
+  const revoked: string[] = []
+  relogin({ 'ya29.new': 'acct-B', 'ya29.old': 'acct-A' }, revoked)
+  const res = await POST(req('POST', { origin: SITE, cookie: `drive_rt=${await seal('1//old-A', KEY)}`, body: { code: '4/abc' } }))
+  assert.equal(res.status, 409)
+  assert.match(res.headers.get('set-cookie') ?? '', /drive_rt=; .*Max-Age=0/)
+  // 옛 계정의 갱신권은 철회하지 않는다 (그 계정의 다른 기기가 쓰고 있을 수 있다)
+  assert.deepEqual(revoked, ['ya29.new'])
+})
+
+test('POST: 옛 쿠키의 갱신권이 죽었으면 쓰지 않는다 — 409 + 옛 쿠키를 지운다', async () => {
+  const revoked: string[] = []
+  relogin({ 'ya29.new': 'acct-A' }, revoked, Response.json({ error: 'invalid_grant' }, { status: 400 }))
+  const res = await POST(req('POST', { origin: SITE, cookie: `drive_rt=${await seal('1//dead', KEY)}`, body: { code: '4/abc' } }))
+  assert.equal(res.status, 409)
+  assert.match(res.headers.get('set-cookie') ?? '', /Max-Age=0/)
+})
+
+test('POST: 계정을 확인하지 못하면(드라이브가 거절) 옛 쿠키를 쓰지도 지우지도 않는다 — 502', async () => {
+  const revoked: string[] = []
+  relogin({ 'ya29.old': 'acct-A' }, revoked) // 새 출입증의 계정 묻기만 401
+  const res = await POST(req('POST', { origin: SITE, cookie: `drive_rt=${await seal('1//old-A', KEY)}`, body: { code: '4/abc' } }))
+  assert.equal(res.status, 502)
+  assert.equal(res.headers.get('set-cookie'), null)
+  assert.ok(!(await res.text()).includes('ya29'))
 })
 
 test('DELETE: 갱신권을 철회하고 쿠키를 지운다', async () => {
