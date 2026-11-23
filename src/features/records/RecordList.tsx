@@ -37,7 +37,8 @@ function OutingHead({ outing }: { outing: Outing }) {
 function RecordItem({ s, onOpen }: { s: Sighting; onOpen: (id: string) => void }) {
   return (
     <button type="button" className="record-item card" onClick={() => onOpen(s.id)}>
-      <SightingPhoto id={s.id} kind="thumb" alt={nameText(s.speciesKo)} ratio="3 / 2" sound={s.fromSound} />
+      {/* 화면 가까이 올 때 읽는다 — 기록이 수백 건이어도 일지를 열 때·상세에서 돌아올 때 보이는 칸부터 채운다 (읽은 것은 보관함에 남는다 — usePhotoUrl) */}
+      <SightingPhoto id={s.id} kind="thumb" alt={nameText(s.speciesKo)} ratio="3 / 2" sound={s.fromSound} lazy />
       <div className="record-item-text">
         <strong className="display">{nameText(s.speciesKo)}</strong>
         {s.latin && <em>{s.latin}</em>}

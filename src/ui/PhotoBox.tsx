@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useState, type ReactNode, type Ref } from 'react'
 import Icon from './Icon'
 
 interface Props {
@@ -10,19 +10,23 @@ interface Props {
   children?: ReactNode
   /** 소리로 만든 기록은 새 대신 소리 아이콘을 자리 표시로 쓴다 */
   sound?: boolean
+  /** 목록의 작은 사진 — 그림을 화면 밖에서는 미루고(loading=lazy) 그리기를 막지 않고 풀게(decoding=async) 한다 */
+  lazy?: boolean
+  /** 상자 요소 — 화면 가까이 왔는지 보는 곳(SightingPhoto lazy)이 쓴다 */
+  boxRef?: Ref<HTMLDivElement>
 }
 
 /**
  * 사진 상자. 주소가 비었거나 불러오기에 실패하면 자리 표시를 그린다.
  * 어떤 테마에서도 사진에 색을 입히지 않는다 — 새의 색이 곧 정보다.
  */
-export default function PhotoBox({ src, alt, ratio = '3 / 2', children, sound }: Props) {
+export default function PhotoBox({ src, alt, ratio = '3 / 2', children, sound, lazy, boxRef }: Props) {
   const [failed, setFailed] = useState(false)
   const showImage = src && !failed
   return (
-    <div className="photo-box" style={{ aspectRatio: ratio }}>
+    <div className="photo-box" style={{ aspectRatio: ratio }} ref={boxRef}>
       {showImage
-        ? <img src={src} alt={alt} onError={() => setFailed(true)} />
+        ? <img src={src} alt={alt} onError={() => setFailed(true)} loading={lazy ? 'lazy' : undefined} decoding={lazy ? 'async' : undefined} />
         : <div className="photo-empty" role="img" aria-label={alt}><Icon name={sound ? 'wave' : 'bird'} size={36} /></div>}
       {children}
     </div>
