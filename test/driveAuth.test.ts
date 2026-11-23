@@ -122,14 +122,14 @@ test('POST: 갱신권이 안 왔고 쿠키도 없으면 409 + 받은 허락을 �
 
 /**
  * 갱신권 없이 다시 로그인하는 구글 가짜: 코드 → 새 계정의 출입증(갱신권 없음), 옛 갱신권 → 옛 계정의 출입증,
- * 드라이브 계정 묻기 → 출입증마다의 계정 번호. 철회한 토큰은 `revoked`에 모은다.
+ * 드라이브 계정 묻기 → 출입증마다의 계정 번호 (숫자면 드라이브가 그 상태 번호로 거절한다, 없는 출입증은 401). 철회한 토큰은 `revoked`에 모은다.
  */
-function relogin(accounts: Record<string, string>, revoked: string[], oldRefresh: Response = Response.json({ access_token: 'ya29.old', expires_in: 3599 })) {
+function relogin(accounts: Record<string, string | number>, revoked: string[], oldRefresh: Response = Response.json({ access_token: 'ya29.old', expires_in: 3599 })) {
   google = (url, body, auth) => {
     if (url.includes('revoke')) { revoked.push(body.get('token') ?? ''); return new Response('') }
     if (url.includes('/drive/v3/about')) {
-      const id = accounts[auth.replace('Bearer ', '')]
-      return id ? Response.json({ user: { permissionId: id } }) : Response.json({}, { status: 401 })
+      const id = accounts[auth.replace('Bearer ', '')] ?? 401
+      return typeof id === 'string' ? Response.json({ user: { permissionId: id } }) : Response.json({ error: { code: id } }, { status: id })
     }
     if (body.get('grant_type') === 'refresh_token') return oldRefresh.clone()
     return Response.json({ access_token: 'ya29.new', expires_in: 3599 })
@@ -172,6 +172,26 @@ test('POST: 계정을 확인하지 못하면(드라이브가 거절) 옛 쿠키�
   assert.equal(res.status, 502)
   assert.equal(res.headers.get('set-cookie'), null)
   assert.ok(!(await res.text()).includes('ya29'))
+})
+
+test('POST: 드라이브가 옛 출입증에만 계정을 알려 주지 않으면(403 — 그 계정의 드라이브가 꺼짐 등) 옛 쿠키를 버린다 — 409, 쿠키를 지우고 새 허락만 철회한다', async () => {
+  const revoked: string[] = []
+  relogin({ 'ya29.new': 'acct-B', 'ya29.old': 403 }, revoked)
+  const res = await POST(req('POST', { origin: SITE, cookie: `drive_rt=${await seal('1//old-A', KEY)}`, body: { code: '4/abc' } }))
+  assert.equal(res.status, 409)
+  assert.match(res.headers.get('set-cookie') ?? '', /drive_rt=; .*Max-Age=0/)
+  assert.deepEqual(revoked, ['ya29.new'])
+})
+
+test('POST: 옛 출입증의 계정 묻기가 잠깐의 실패(429·5xx)면 거절로 치지 않는다 — 502, 쿠키를 쓰지도 지우지도 않는다', async () => {
+  for (const status of [429, 503]) {
+    const revoked: string[] = []
+    relogin({ 'ya29.new': 'acct-A', 'ya29.old': status }, revoked)
+    const res = await POST(req('POST', { origin: SITE, cookie: `drive_rt=${await seal('1//old-A', KEY)}`, body: { code: '4/abc' } }))
+    assert.equal(res.status, 502, String(status))
+    assert.equal(res.headers.get('set-cookie'), null, String(status))
+    assert.deepEqual(revoked, [], String(status))
+  }
 })
 
 test('POST의 가장 긴 길(다른 계정: 코드 → 옛 갱신권 → 계정 묻기 둘 → 새 허락 철회)을 구글마다 상한까지 기다려도 함수의 최대 실행 시간 안이다 — 짧으면 느린 날 Vercel이 먼저 끊어, 한국어 안내도 옛 쿠키 지우기도 새 허락 철회도 없이 끝난다', async () => {

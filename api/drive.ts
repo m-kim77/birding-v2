@@ -16,7 +16,7 @@
  */
 // 경로에 .ts를 적는다 — 확장자 없는 경로는 배포된 함수에서 못 찾는다 (CLAUDE.md)
 import { readCookie, seal, unseal } from './_lib/cookieSeal.ts'
-import { accountOf } from './_lib/driveAccount.ts'
+import { accountOf, refusedByDrive } from './_lib/driveAccount.ts'
 import { RevokedError, exchangeCode, refreshAccess, revoke } from './_lib/googleOAuth.ts'
 import { sameOrigin } from './_lib/origin.ts'
 
@@ -69,7 +69,8 @@ export async function GET(request: Request): Promise<Response> {
 
 /**
  * 옛 쿠키의 갱신권이 방금 로그인한 계정(`accessToken`)의 것인지 본다 — 두 출입증의 드라이브 계정 번호를 견준다.
- * 쿠키가 깨졌거나 그 갱신권이 죽었으면 false (쓰지 않고 버린다). 구글에 닿지 못하거나 계정을 확인해 주지 않으면 던진다 —
+ * 쿠키가 깨졌거나, 그 갱신권이 죽었거나, 드라이브가 옛 출입증에는 계정을 알려 주지 않겠다고 거절하면(4xx) false (쓰지 않고 버린다 —
+ * 버리는 쪽은 기록이 섞이지 않는다). 구글에 닿지 못했거나 구글 쪽 고장이거나 새 출입증의 계정을 확인하지 못하면 던진다 —
  * 확인하지 못한 갱신권은 쓰지 않는다 (부르는 쪽은 502로 답하고 쿠키를 그대로 둔다).
  */
 async function sameAccount(oldSealed: string, accessToken: string): Promise<boolean> {
@@ -82,8 +83,15 @@ async function sameAccount(oldSealed: string, accessToken: string): Promise<bool
     if (e instanceof RevokedError) return false
     throw e
   }
-  const [now, before] = await Promise.all([accountOf(accessToken), accountOf(oldAccess)])
-  return now === before
+  const [now, before] = await Promise.allSettled([accountOf(accessToken), accountOf(oldAccess)])
+  if (now.status === 'rejected') throw now.reason
+  if (before.status === 'rejected') {
+    // 옛 쪽만 늘 거절당하는 계정(드라이브가 꺼짐 등)이면 502로 두는 한 이 브라우저에서는 다른 계정으로 영영 로그인하지 못한다 —
+    // 쿠키가 남고, 설정 카드를 열 때마다 GET이 그 수명을 늘린다
+    if (refusedByDrive(before.reason)) return false
+    throw before.reason
+  }
+  return now.value === before.value
 }
 
 /**
@@ -107,7 +115,7 @@ export async function POST(request: Request): Promise<Response> {
     const sealed = t.refreshToken ? await seal(t.refreshToken, process.env.DRIVE_COOKIE_KEY) : keepOld ? old : ''
     if (!sealed) {
       await revoke(t.accessToken)
-      // 다른 계정(또는 죽은) 옛 쿠키는 버리기만 한다 — 그 갱신권을 철회하면 그 계정 주인의 다른 기기 연결까지 끊길 수 있다
+      // 다른 계정(또는 죽었거나 드라이브가 계정 확인을 거절한) 옛 쿠키는 버리기만 한다 — 그 갱신권을 철회하면 그 계정 주인의 다른 기기 연결까지 끊길 수 있다
       return fail(409, '구글이 자동 연결 권한을 주지 않았습니다. 한 번 더 "구글로 로그인"을 눌러 주세요.', old ? cookieHeader(request, '', 0) : undefined)
     }
     return ok({ connected: true, accessToken: t.accessToken, expiresIn: t.expiresIn }, cookieHeader(request, sealed, COOKIE_DAYS))
