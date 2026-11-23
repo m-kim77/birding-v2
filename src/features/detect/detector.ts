@@ -7,15 +7,15 @@ import type { DetectBox } from '../../types'
 export interface Detector {
   /** 기록에 남기는 모델 id */
   id: string
-  /** 사용자에게 보여 주는 이름과 받을 크기 */
+  /** 사용자에게 보여 주는 이름과 받을 크기 (모델과 그 실행 파일을 합친, 처음 받을 때 오가는 양) */
   label: string
   sizeMb: number
-  /** 모델 파일이 이미 이 기기에 있는지 (받기 동의를 다시 묻지 않으려고) */
+  /** 받을 파일(모델·실행 파일)이 모두 이 기기에 있는지 (받기 동의를 다시 묻지 않으려고). 하나라도 없으면 false */
   isCached(): Promise<boolean>
   /** 모델을 받아 준비한다. `onProgress`는 0~1. 네트워크가 없으면 한국어 Error */
   load(onProgress: (fraction: number) => void): Promise<void>
   /** 사진에서 새를 찾는다. 못 찾으면 빈 배열. `load` 전에 부르면 Error */
   detect(bitmap: ImageBitmap): Promise<DetectBox[]>
-  /** 받아 둔 모델 파일을 지운다 (저장 공간 돌려받기) */
+  /** 받아 둔 모델·실행 파일을 지운다 (저장 공간 돌려받기) */
   clearCache(): Promise<void>
 }

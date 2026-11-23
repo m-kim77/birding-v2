@@ -5,7 +5,7 @@ import { soundEntryOn } from '../sound/soundModel'
  * **바깥으로 나가는 요청을 더하거나 보내는 값을 바꾸면 여기를 같이 고친다** (CLAUDE.md) — 안 고치면 이 안내가 거짓이 된다.
  * 2026-09-27에 코드에서 찾은 곳: `/api/place`(lib/place.ts) · `/api/llm` 또는 내 키의 주소(identify/llmClient.ts, 설정의 연결 확인)
  * · 위키백과 API와 참고 사진(identify/tools/wikipedia.ts, VerdictDetails) · 지도 타일(map/LeafletMap.tsx) · 글꼴(index.html)
- * · 새 찾기 모델과 wasm(detect/mediapipeDetector.ts) · 공유 창·내려받기(dex/saveFile.ts, 백업)
+ * · 새 찾기 모델(detect/mediapipeDetector.ts — 구글에서. 실행 파일 wasm은 이 사이트에서 받는다, mediapipeWasm.ts) · 공유 창·내려받기(dex/saveFile.ts, 백업)
  * · 구글 드라이브 동기화(data/sync*.ts, lib/google/ — 로그인은 `/api/drive`를 거치고 기록·사진은 브라우저에서 드라이브로 곧장).
  *   로그인 창 코드는 드라이브 카드가 보이면 동기화를 켜지 않았어도 미리 받는다(lib/google/gis.ts preloadGis — 누른 뒤에 받으면 팝업이 막힌다).
  *   같은 계정인지 보는 드라이브 계정 번호(about.get의 permissionId — 2026-11-23. 브라우저는 data/syncAccount.ts, 갱신권 없이 다시 로그인할 때 서버는

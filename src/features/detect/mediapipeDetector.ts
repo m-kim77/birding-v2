@@ -6,7 +6,8 @@ import { ChunkLoadError, loadChunk } from '../../app/chunkLoad'
 import { shareInFlight } from '../../lib/sharedTask'
 import type { DetectBox } from '../../types'
 import type { Detector } from './detector'
-import { dropModel, fetchModel, isModelCached } from './modelCache'
+import { dropModel, dropStale, fetchModel, isModelCached, partProgress } from './modelCache'
+import { isVisionWasm, wasmFiles } from './mediapipeWasm'
 import { fromTile, makeTiles, mergeBoxes } from './tiling'
 
 /**
@@ -16,10 +17,13 @@ import { fromTile, makeTiles, mergeBoxes } from './tiling'
  */
 const MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float16/1/efficientdet_lite0.tflite'
 /**
- * wasm은 JS와 버전이 정확히 같아야 한다 (어긋나면 초기화에서 실패한다).
- * 그래서 버전을 손으로 적지 않고, 설치된 패키지의 버전을 빌드 때 넣는다 (vite.config.ts의 define).
+ * 처음 받을 때 오가는 대략의 크기(MB). 모델은 압축 없이 약 7.3MB, wasm은 원본 약 11MB를 사이트(Vercel)가 br로 줄여 약 2.3MB (점검 5-9 실측).
+ * 진행 막대를 이 비율로 나누고, 둘을 더한 것이 화면의 '받기 (…MB)'다.
  */
-const WASM_BASE = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${__MEDIAPIPE_VERSION__}/wasm`
+const MODEL_MB = 7.3
+const WASM_MB = 2.3
+/** wasm의 풀린 크기(대략, 판마다 10.5~11.2MB) — 압축해 보내면 content-length로 진행률을 셀 수 없어 이 값으로 센다 (modelCache.ts progressTotal) */
+const WASM_BYTES = 11_000_000
 const SCORE_MIN = 0.3
 /** 가로로 긴 망원 사진 기준 3×2 조각, 20% 겹침 */
 const TILES = makeTiles(3, 2, 0.2)
@@ -28,7 +32,7 @@ const TILE_EDGE = 640
 
 let detector: ObjectDetector | null = null
 
-/** 실행 코드·wasm을 받지 못했다 (오프라인·신호 약함·jsDelivr에 닿지 못함) */
+/** 실행 코드를 받지 못했거나 탐지기를 만들지 못했다 (오프라인·신호 약함·이 브라우저가 wasm을 못 돌림) */
 const PREPARE_FAILED = '새 찾기 모델을 준비하지 못했습니다. 인터넷 연결을 확인해 주세요.'
 /** 새로 배포되어 지금 열린 앱의 실행 코드 조각이 사이트에서 사라졌다 (404) — 인터넷은 멀쩡하니 연결을 확인하라고 하면 원인을 알 수 없다 */
 const NEW_BUILD = '새 판이 나와서 지금 열린 앱으로는 새 찾기를 준비할 수 없습니다. 앱을 다시 열면 쓸 수 있습니다.'
@@ -46,20 +50,28 @@ async function loadVision(): Promise<typeof import('@mediapipe/tasks-vision')> {
 }
 
 /**
- * 모델을 받고(받아 둔 것이 있으면 기기에서 읽고) 탐지기를 만든다. 진행률은 `report`로 — 기다리는 모두에게 간다 (shareInFlight).
+ * 모델과 wasm을 받고(받아 둔 것이 있으면 기기에서 읽고) 탐지기를 만든다. 진행률은 `report`로 — 기다리는 모두에게 간다 (shareInFlight).
+ * wasm은 Cache Storage에서 꺼낸 바이트를 blob 주소로 넘긴다 — 브라우저의 보통 캐시가 비어도 다시 받지 않고, '받아 둠'이면 정말 받아 둔 것이다 (점검 5-9).
  * 받기가 실패하면 fetchModel의 한국어 Error, 실행 코드 조각을 못 받으면 loadVision의 한국어 Error(새 판이면 '앱을 다시 열면'),
- * 탐지기를 만들지 못하면(wasm을 못 받음 등) PREPARE_FAILED. 어느 쪽이든 직접 자르기로 계속할 수 있다.
+ * 탐지기를 만들지 못하면(로더 js를 못 받음, 이 브라우저가 wasm을 못 돌림 등) PREPARE_FAILED. 어느 쪽이든 직접 자르기로 계속할 수 있다.
  */
 async function prepare(report: (fraction: number) => void): Promise<void> {
-  const model = await fetchModel(MODEL_URL, report)
-  const { FilesetResolver, ObjectDetector } = await loadVision()
+  const files = wasmFiles()
+  const [toModel, toWasm] = partProgress([MODEL_MB, WASM_MB], report)
+  const model = await fetchModel(MODEL_URL, toModel)
+  const wasm = await fetchModel(files.binary, toWasm, WASM_BYTES)
+  void dropStale(isVisionWasm, [files.binary])
+  const { ObjectDetector } = await loadVision()
+  // type이 application/wasm이어야 스트리밍 컴파일을 쓴다 (아니면 로더가 한 번 더 읽어 컴파일한다). 다 만들면 주소를 놓는다 — 로더는 그 전에 읽기를 마친다
+  const binaryUrl = URL.createObjectURL(new Blob([wasm], { type: 'application/wasm' }))
   try {
-    const fileset = await FilesetResolver.forVisionTasks(WASM_BASE)
-    detector = await ObjectDetector.createFromOptions(fileset, {
+    detector = await ObjectDetector.createFromOptions({ wasmLoaderPath: files.loader, wasmBinaryPath: binaryUrl }, {
       baseOptions: { modelAssetBuffer: model }, scoreThreshold: SCORE_MIN, categoryAllowlist: ['bird'], maxResults: 10,
     })
   } catch {
     throw new Error(PREPARE_FAILED)
+  } finally {
+    URL.revokeObjectURL(binaryUrl)
   }
 }
 
@@ -84,9 +96,10 @@ function tileCanvas(bitmap: ImageBitmap, tile: (typeof TILES)[number]): HTMLCanv
 export const mediapipeDetector: Detector = {
   id: 'efficientdet_lite0',
   label: '새 찾기',
-  sizeMb: 7,
-  isCached: () => isModelCached(MODEL_URL),
-  clearCache: async () => { detector?.close(); detector = null; await dropModel(MODEL_URL) },
+  sizeMb: Math.round(MODEL_MB + WASM_MB),
+  isCached: () => isModelCached(MODEL_URL, wasmFiles().binary),
+  // wasm은 지금 판·옛 판 모두 지운다 (keep 없음)
+  clearCache: async () => { detector?.close(); detector = null; await dropModel(MODEL_URL); await dropStale(isVisionWasm, []) },
 
   async load(onProgress) {
     if (detector) { onProgress(1); return }
