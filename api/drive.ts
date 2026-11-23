@@ -9,6 +9,10 @@
  * - DELETE → 구글에서 갱신권을 철회하고 쿠키를 지운다
  *
  * 환경변수: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, DRIVE_COOKIE_KEY(base64 32바이트).
+ *
+ * 최대 실행 시간: POST는 구글을 많으면 넷 차례로 기다린다 (코드 → 옛 갱신권 → 계정 묻기 둘을 함께 → 새 허락 철회, 하나마다 많아야
+ * `GOOGLE_TIMEOUT_MS`). `vercel.json`의 maxDuration은 그 합보다 길어야 한다 — 짧으면 느린 날 Vercel이 먼저 끊어 한국어 안내도
+ * 쿠키 정리도 없이 끝난다. 차례를 더하면 그 값도 같이 늘린다 (test/driveAuth.test.ts가 잰다). 평소에는 차례마다 수백 ms다.
  */
 // 경로에 .ts를 적는다 — 확장자 없는 경로는 배포된 함수에서 못 찾는다 (CLAUDE.md)
 import { readCookie, seal, unseal } from './_lib/cookieSeal.ts'

@@ -7,7 +7,7 @@
   "functions": {
     "api/llm.ts": { "maxDuration": 180, "supportsCancellation": true },
     "api/place.ts": { "maxDuration": 15 },
-    "api/drive.ts": { "maxDuration": 15 }
+    "api/drive.ts": { "maxDuration": 45 }
   },
   "headers": [
     {

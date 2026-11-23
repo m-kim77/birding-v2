@@ -1,6 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { readCookie, seal, unseal } from '../api/_lib/cookieSeal.ts'
+import { GOOGLE_TIMEOUT_MS } from '../api/_lib/googleOAuth.ts'
 
 // 시험용 키 (32바이트). 실제 키는 환경변수에만 있다
 const KEY = Buffer.alloc(32, 7).toString('base64')
@@ -37,7 +39,7 @@ test('readCookie: 이름으로 값을 꺼낸다, 없으면 빈 글자', () => {
 // 통로 함수: 구글 토큰 창구는 가짜 fetch로 대신한다 (진짜 구글에 가지 않는다)
 const realFetch = globalThis.fetch
 // 세 번째 인자는 요청의 Authorization 머리 (드라이브 계정 묻기가 어느 출입증으로 왔는지 가린다)
-let google: (url: string, body: URLSearchParams, auth: string) => Response = () => new Response('{}', { status: 500 })
+let google: (url: string, body: URLSearchParams, auth: string) => Response | Promise<Response> = () => new Response('{}', { status: 500 })
 globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => google(String(input), init?.body as URLSearchParams, new Headers(init?.headers).get('authorization') ?? '')) as typeof fetch
 test.after(() => { globalThis.fetch = realFetch })
 process.env.GOOGLE_CLIENT_ID = 'client-1'
@@ -170,6 +172,27 @@ test('POST: 계정을 확인하지 못하면(드라이브가 거절) 옛 쿠키�
   assert.equal(res.status, 502)
   assert.equal(res.headers.get('set-cookie'), null)
   assert.ok(!(await res.text()).includes('ya29'))
+})
+
+test('POST의 가장 긴 길(다른 계정: 코드 → 옛 갱신권 → 계정 묻기 둘 → 새 허락 철회)을 구글마다 상한까지 기다려도 함수의 최대 실행 시간 안이다 — 짧으면 느린 날 Vercel이 먼저 끊어, 한국어 안내도 옛 쿠키 지우기도 새 허락 철회도 없이 끝난다', async () => {
+  const revoked: string[] = []
+  relogin({ 'ya29.new': 'acct-B', 'ya29.old': 'acct-A' }, revoked)
+  const answer = google
+  // 요청마다 "몇 번째 차례인가"를 잰다: 그 요청이 떠날 때까지 끝난 차례 수 + 1 (함께 떠난 요청은 같은 차례 — 기다림이 겹친다)
+  let finished = 0
+  let turns = 0
+  google = (url, body, auth) => {
+    const turn = finished + 1
+    turns = Math.max(turns, turn)
+    return new Promise((resolve) => setTimeout(() => { finished = Math.max(finished, turn); resolve(answer(url, body, auth)) }, 1))
+  }
+  const res = await POST(req('POST', { origin: SITE, cookie: `drive_rt=${await seal('1//old-A', KEY)}`, body: { code: '4/abc' } }))
+  assert.equal(res.status, 409)
+  assert.deepEqual(revoked, ['ya29.new'])
+  assert.equal(turns, 4)
+  const config = JSON.parse(readFileSync(new URL('../vercel.json', import.meta.url), 'utf8')) as { functions: Record<string, { maxDuration?: number }> }
+  // 구글 말고도 요청 읽기·잠금 풀기·응답에 시간이 들어 넉넉히 둔다
+  assert.ok((config.functions['api/drive.ts']?.maxDuration ?? 0) * 1000 >= turns * GOOGLE_TIMEOUT_MS + 5_000)
 })
 
 test('DELETE: 갱신권을 철회하고 쿠키를 지운다', async () => {

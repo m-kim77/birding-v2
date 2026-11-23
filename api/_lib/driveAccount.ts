@@ -1,8 +1,11 @@
 /**
  * 드라이브 출입증이 어느 구글 계정의 것인지 묻는다 — 드라이브 about.get의 user.permissionId (drive.file 권한으로 부를 수 있다).
  * 이름·이메일은 묻지 않는다 (fields로 계정 번호 하나만 받는다). 출입증은 로그·오류 문구에 넣지 않는다.
- * 이 파일은 import가 없다 — `api/`와 node --test가 함께 읽는다.
+ * `api/`와 node --test가 함께 읽는다.
  */
+// 경로에 .ts를 적는다 — 확장자 없는 경로는 배포된 함수에서 못 찾는다 (CLAUDE.md)
+import { GOOGLE_TIMEOUT_MS } from './googleOAuth.ts'
+
 const ABOUT_URL = 'https://www.googleapis.com/drive/v3/about?fields=user(permissionId)'
 
 /**
@@ -12,7 +15,7 @@ const ABOUT_URL = 'https://www.googleapis.com/drive/v3/about?fields=user(permiss
 export async function accountOf(accessToken: string): Promise<string> {
   let res: Response
   try {
-    res = await fetch(ABOUT_URL, { headers: { authorization: `Bearer ${accessToken}` }, signal: AbortSignal.timeout(10_000) })
+    res = await fetch(ABOUT_URL, { headers: { authorization: `Bearer ${accessToken}` }, signal: AbortSignal.timeout(GOOGLE_TIMEOUT_MS) })
   } catch {
     throw new Error('구글 드라이브에 닿지 못했습니다.')
   }

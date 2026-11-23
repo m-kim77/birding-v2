@@ -5,6 +5,11 @@
  */
 const TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const REVOKE_URL = 'https://oauth2.googleapis.com/revoke'
+/**
+ * 구글에 묻는 요청 하나를 기다리는 상한(ms) — 토큰 창구와 드라이브 계정 묻기(driveAccount.ts)가 같이 쓴다.
+ * `api/drive.ts`의 POST는 많으면 넷을 차례로 기다리므로 `vercel.json`의 maxDuration이 그 합보다 길어야 한다 (test/driveAuth.test.ts가 본다).
+ */
+export const GOOGLE_TIMEOUT_MS = 10_000
 
 export interface GoogleTokens {
   accessToken: string
@@ -30,7 +35,7 @@ function credentials(): { id: string; secret: string } {
  * invalid_grant(갱신권이 죽음)는 RevokedError, 그 밖의 실패는 한국어 Error (구글의 오류 설명은 토큰이 들어 있지 않아 붙인다).
  */
 async function post(form: Record<string, string>): Promise<GoogleTokens> {
-  const res = await fetch(TOKEN_URL, { method: 'POST', body: new URLSearchParams(form), signal: AbortSignal.timeout(10_000) })
+  const res = await fetch(TOKEN_URL, { method: 'POST', body: new URLSearchParams(form), signal: AbortSignal.timeout(GOOGLE_TIMEOUT_MS) })
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>
   if (!res.ok) {
     if (data.error === 'invalid_grant') throw new RevokedError('드라이브 연결이 끊겼습니다.')
@@ -61,6 +66,6 @@ export function refreshAccess(refreshToken: string): Promise<GoogleTokens> {
 /** 갱신권을 구글에서 철회한다 (연결 끊기). 실패해도 던지지 않는다 — 쿠키는 어차피 지운다 */
 export async function revoke(token: string): Promise<void> {
   try {
-    await fetch(REVOKE_URL, { method: 'POST', body: new URLSearchParams({ token }), signal: AbortSignal.timeout(10_000) })
+    await fetch(REVOKE_URL, { method: 'POST', body: new URLSearchParams({ token }), signal: AbortSignal.timeout(GOOGLE_TIMEOUT_MS) })
   } catch { /* 네트워크 실패 — 사용자는 구글 계정 페이지에서도 끊을 수 있다 */ }
 }
