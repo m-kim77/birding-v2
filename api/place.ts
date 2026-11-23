@@ -6,6 +6,7 @@
  */
 // 경로에 .ts를 적는다 — 확장자 없는 경로는 배포된 함수에서 못 찾는다 (CLAUDE.md)
 import { crossSiteFetch } from './_lib/origin.ts'
+import { placeCell } from '../src/lib/placeCell.ts'
 
 const ENDPOINT = 'https://nominatim.openstreetmap.org/reverse'
 /**
@@ -36,7 +37,10 @@ export function formatFeature(address: Record<string, string> | null | undefined
 /**
  * GET /api/place?lat=..&lng=.. → { place: string }.
  * **어떤 실패에도 오류를 내지 않고 빈 이름을 준다** — 장소 이름이 없어도 기록은 저장돼야 하고, 좌표는 이미 있다.
- * 같은 자리는 CDN이 하루 동안 기억한다 (좌표를 소수 4자리 ≈ 11m로 뭉갠 주소를 브라우저가 부른다).
+ * Nominatim에는 좌표를 소수 3자리(≈110m) 칸으로 뭉개서 묻는다 (src/lib/placeCell.ts — 브라우저가 이미 뭉갠 주소로 부른다).
+ * 같은 칸은 CDN이 하루 동안 모든 사용자와 함께 기억한다 — 이용 정책(모든 사용자 합계 초당 1회) 때문에 둔다.
+ * 그 공유 캐시는 주소가 칸의 모양 그대로일 때만 쓴다: 더 촘촘한 좌표(새 판 전에 열린 앱의 소수 4자리 등)로 온 답까지 공유하면
+ * 남이 같은 주소를 불러 보고 '최근 하루 안에 누군가 이 11m 자리를 찾았다'를 알 수 있다 (점검 2-4). 그런 답은 그 브라우저만 기억한다.
  * 다른 사이트가 시킨 요청(`<img src>` 등)도 빈 이름 — 남의 방문자 수만큼 Nominatim을 부르게 두면 이용 정책(초당 1회)을 넘겨 막힌다.
  */
 export async function GET(request: Request): Promise<Response> {
@@ -46,14 +50,16 @@ export async function GET(request: Request): Promise<Response> {
   const lat = Number(url.searchParams.get('lat'))
   const lng = Number(url.searchParams.get('lng'))
   if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return empty
+  const cell = placeCell(lat, lng)
+  const cache = url.search === `?${cell.query}` ? 'public, s-maxage=86400, max-age=86400' : 'private, max-age=86400'
   try {
-    const res = await fetch(`${ENDPOINT}?format=jsonv2&zoom=16&accept-language=ko&lat=${lat}&lon=${lng}`, {
+    const res = await fetch(`${ENDPOINT}?format=jsonv2&zoom=16&accept-language=ko&lat=${cell.lat}&lon=${cell.lng}`, {
       headers: { 'user-agent': USER_AGENT }, signal: AbortSignal.timeout(8000),
     })
     if (!res.ok) return empty
     const data = (await res.json()) as { address?: Record<string, string> }
     const place = [formatPlace(data.address), formatFeature(data.address)].filter(Boolean).join(' · ')
-    return Response.json({ place }, { headers: { 'cache-control': 'public, s-maxage=86400, max-age=86400' } })
+    return Response.json({ place }, { headers: { 'cache-control': cache } })
   } catch {
     return empty
   }

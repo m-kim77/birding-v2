@@ -1,7 +1,8 @@
 /**
  * 좌표 → 장소 이름. `/api/place`(Vercel 함수)를 거친다 — 이유는 그 파일 머리말 참고.
  * **실패해도 던지지 않고 빈 문자열을 준다.** 장소 이름이 없어도 기록은 저장돼야 한다.
- * 좌표를 소수 4자리(≈11m)로 뭉개서 부른다 — 같은 자리의 요청이 같은 주소가 되어 캐시에 걸린다.
+ * 좌표를 소수 3자리(≈110m) 칸으로 뭉개서 부른다 (placeCell.ts) — 같은 칸의 요청이 같은 주소가 되어 캐시에 걸린다.
+ * 서버의 캐시는 모든 사용자가 함께 써서 '최근 하루 안에 누군가 이 칸을 찾았는지'가 드러나므로, 칸을 사람이 서 있던 자리(11m)보다 넓게 둔다 (점검 2-4).
  *
  * Nominatim 이용 정책(OSMF): 모든 사용자를 합쳐 초당 1회가 절대 상한이고, 어기면 막힌다 — 막히면 장소 이름이 조용히 빈칸이 된다.
  * 그래서 이 브라우저는 이번 실행 동안 찾은 좌표를 다시 묻지 않고, 서버에 묻는 요청을 한 줄로 세워 1초 간격으로 보낸다.
@@ -11,6 +12,9 @@
  * 그대로 쓴다 (v1 가져오기는 v1에 저장된 이름). 1초 줄은 사람이 위치를 고를 때를 위한 것이고, 수백 건을 줄 세우면
  * 정책이 말하는 대량 조회다.
  */
+
+// node --test가 이 파일을 읽어서 확장자를 적는다 (CLAUDE.md)
+import { placeCell } from './placeCell.ts'
 
 /** 이 브라우저가 `/api/place`에 요청을 보내는 최소 간격 — 이용 정책의 "초당 1회" */
 const GAP_MS = 1000
@@ -39,7 +43,7 @@ const BROWSER: PlaceDeps = {
  * - 보내는 요청은 앞 요청을 **보낸** 지 1초가 지난 뒤에 보낸다. 앞 요청의 응답은 기다리지 않는다 — 느린 응답 하나가 줄을 막지 않게.
  */
 export function createPlaceLookup(deps: PlaceDeps = BROWSER): (lat: number, lng: number) => Promise<string> {
-  /** 찾은 이름. 키는 소수 4자리로 뭉갠 "위도,경도". 크기 제한은 없다 — 사람이 한 번 실행에 고르는 자리는 많지 않다 */
+  /** 찾은 이름. 키는 칸의 "위도,경도"(placeCell key). 크기 제한은 없다 — 사람이 한 번 실행에 고르는 자리는 많지 않다 */
   const found = new Map<string, string>()
   /** 줄에 섰거나 가는 중인 요청 */
   const asking = new Map<string, Promise<string>>()
@@ -58,10 +62,10 @@ export function createPlaceLookup(deps: PlaceDeps = BROWSER): (lat: number, lng:
   }
 
   /** 차례가 오면 서버에 묻는다. 어떤 실패도 빈 이름으로 (던지지 않는다) */
-  async function request(lat4: string, lng4: string): Promise<string> {
+  async function request(query: string): Promise<string> {
     try {
       await waitTurn()
-      const res = await deps.fetch(`/api/place?lat=${lat4}&lng=${lng4}`)
+      const res = await deps.fetch(`/api/place?${query}`)
       if (!res.ok) return ''
       return String(((await res.json()) as { place?: string }).place ?? '')
     } catch {
@@ -70,14 +74,12 @@ export function createPlaceLookup(deps: PlaceDeps = BROWSER): (lat: number, lng:
   }
 
   return (lat, lng) => {
-    const lat4 = lat.toFixed(4)
-    const lng4 = lng.toFixed(4)
-    const key = `${lat4},${lng4}`
+    const { key, query } = placeCell(lat, lng)
     const known = found.get(key)
     if (known) return Promise.resolve(known)
     const going = asking.get(key)
     if (going) return going
-    const answer = request(lat4, lng4).then((name) => {
+    const answer = request(query).then((name) => {
       asking.delete(key)
       if (name) found.set(key, name)
       return name
