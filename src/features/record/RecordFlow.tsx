@@ -60,11 +60,15 @@ export default function RecordFlow({ onCancel, onDone, onOpenSettings, onOpenSou
   const picked = crop ?? (only ? { box: only, by: detection.detectorId } : null)
   const known = useMemo(() => [...new Set(existing.map((s) => s.speciesKo).filter(Boolean))], [existing])
 
-  /** AI에 물어본다. 고른 영역이 있으면 그 부분을, 없으면 사진 전체를 보낸다 (새를 못 찾았어도 자르지 않고 물어볼 수 있다) */
-  async function askAI() {
+  /**
+   * AI에 물어본다. 고른 영역이 있으면 그 부분을, 없으면 사진 전체를 보낸다 (새를 못 찾았어도 자르지 않고 물어볼 수 있다).
+   * 그림은 ask.start 안에서 만든다 — 만드는 동안 이미 '진행 중'이라 버튼을 두 번 누를 수 없고, 그림을 못 만들면 '실패'로 보인다.
+   */
+  function askAI() {
     if (!photo) return
-    setAskedBox(picked?.box ?? null)
-    void ask.start(await imageForAI(photo, picked?.box ?? null), { capturedAt: photo.exif.capturedAt, place: loc.place.name })
+    const box = picked?.box ?? null
+    setAskedBox(box)
+    void ask.start(() => imageForAI(photo, box), { capturedAt: photo.exif.capturedAt, place: loc.place.name })
   }
 
   if (saved) return <CardResult sighting={saved.sighting} firstMeet={saved.firstMeet} onDone={() => onDone(saved.sighting.id)} />
@@ -92,7 +96,7 @@ export default function RecordFlow({ onCancel, onDone, onOpenSettings, onOpenSou
           <Card>
             <SpeciesInput value={name} known={known} onChange={setName} />
             <IdentifyPanel ask={ask} hasCrop={picked !== null} cropChanged={ask.state === 'done' && !sameBox(askedBox, picked?.box ?? null)} name={name} applied={acceptsVerdict(name, ask.verdict)}
-              onAsk={() => void askAI()} onApply={(v) => setName(v.speciesKo)} onPickName={setName} onOpenSettings={onOpenSettings} />
+              onAsk={askAI} onApply={(v) => setName(v.speciesKo)} onPickName={setName} onOpenSettings={onOpenSettings} />
           </Card>
           <NoteCard value={note} onChange={setNote} count={count} onCount={setCount} />
           {pickError}

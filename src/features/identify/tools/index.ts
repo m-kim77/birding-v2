@@ -1,11 +1,12 @@
-import { TOOL_DEFINITIONS, type ToolName } from './definitions'
-import { koreanName } from './koreanName'
-import { readWikipedia } from './readWikipedia'
-import { searchWikipedia } from './searchWikipedia'
+// node --test가 판정 루프를 거쳐 이 파일을 읽는다 (test/identifyLoop.test.ts) — 확장자를 적는다
+import { TOOL_DEFINITIONS, type ToolName } from './definitions.ts'
+import { koreanName } from './koreanName.ts'
+import { readWikipedia } from './readWikipedia.ts'
+import { searchWikipedia } from './searchWikipedia.ts'
 import type { ToolRun } from './types'
 
 // 도구 정의(모델이 읽는 설명·인자)와 그 순서는 definitions.ts 한 곳이 정한다. 판정 루프는 여기서 함께 가져간다
-export { toolSchemas } from './definitions'
+export { toolSchemas } from './definitions.ts'
 
 /**
  * 도구 이름 → 실행부. 키의 타입이 정의의 이름(ToolName)에서 나오므로, 정의만 더하고 실행부를 빠뜨리거나

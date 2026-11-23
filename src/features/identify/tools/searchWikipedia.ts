@@ -1,4 +1,5 @@
-import { langOf, wikiQuery } from './wikipedia'
+// node --test가 판정 루프를 거쳐 이 파일을 읽는다 — 확장자를 적는다
+import { langOf, wikiQuery } from './wikipedia.ts'
 
 /**
  * search_wikipedia — 위키백과에서 문서 제목을 찾는다. 후보 종의 문서가 어떤 제목으로 있는지 알아내는 첫 단계.

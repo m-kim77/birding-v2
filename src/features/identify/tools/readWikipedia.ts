@@ -1,5 +1,6 @@
-import { MAX_RESULT_CHARS } from './types'
-import { langOf, wikiQuery } from './wikipedia'
+// node --test가 판정 루프를 거쳐 이 파일을 읽는다 — 확장자를 적는다
+import { MAX_RESULT_CHARS } from './types.ts'
+import { langOf, wikiQuery } from './wikipedia.ts'
 
 /**
  * read_wikipedia — 위키백과 문서의 본문을 읽는다. 생김새·분포·서식지 근거는 여기서 나온다.

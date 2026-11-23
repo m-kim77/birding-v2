@@ -1,12 +1,11 @@
-import { useState } from 'react'
 import { useJournal } from '../../data/journal'
 import { getBestPhoto } from '../../data/photos'
-import { Banner, Card } from '../../ui/bits'
+import { Card } from '../../ui/bits'
 import type { Sighting, Verdict } from '../../types'
 import IdentifyPanel from '../record/IdentifyPanel'
 import { nameFields } from '../record/nameFields'
 import { blobForAI } from '../record/savePhotos'
-import { useAsk } from '../record/useAsk'
+import { AskImageError, useAsk } from '../record/useAsk'
 
 interface Props {
   sighting: Sighting
@@ -27,18 +26,18 @@ function holds(s: Sighting, v: Verdict | null): boolean {
 export default function DetailIdentify({ sighting, onOpenSettings }: Props) {
   const { update } = useJournal()
   const ask = useAsk()
-  const [error, setError] = useState('')
 
-  /** 저장된 사진을 1024px로 다시 인코딩해 보낸다 (blobForAI). 사진을 못 읽으면(지워졌거나 DB 오류) 안내만 하고 판정을 시작하지 않는다 */
-  async function askAI() {
-    setError('')
-    try {
-      const blob = await getBestPhoto(sighting.id, 'full')
-      if (!blob) { setError('이 기록의 사진을 찾을 수 없어 물어볼 수 없습니다.'); return }
-      void ask.start(await blobForAI(blob), { capturedAt: sighting.capturedAt, place: sighting.place })
-    } catch (e) {
-      setError(e instanceof Error ? e.message : '사진을 읽지 못했습니다.')
-    }
+  /**
+   * 저장된 사진을 1024px로 다시 인코딩해 보낸다 (blobForAI). 읽고 만드는 일은 ask.start 안에서 한다 — 그동안 이미 '진행 중'이라 두 번 누를 수 없다.
+   * 사진이 없거나(지워졌음) 저장소를 읽지 못하면(DB 오류 — 저장소가 준 한국어 안내 그대로) 그 안내로,
+   * 그림을 만들지 못하면 '그림을 만들지 못했습니다'로 판정 자리에 '실패'가 뜬다.
+   */
+  function askAI() {
+    void ask.start(async () => {
+      const blob = await getBestPhoto(sighting.id, 'full').catch((e: unknown) => { throw new AskImageError(e instanceof Error ? e.message : '사진을 읽지 못했습니다.') })
+      if (!blob) throw new AskImageError('이 기록의 사진을 찾을 수 없어 물어볼 수 없습니다.')
+      return blobForAI(blob)
+    }, { capturedAt: sighting.capturedAt, place: sighting.place })
   }
 
   /**
@@ -60,8 +59,7 @@ export default function DetailIdentify({ sighting, onOpenSettings }: Props) {
       <h2>{sighting.verdict ? 'AI에게 다시 물어보기' : 'AI에게 물어보기'}</h2>
       <IdentifyPanel ask={ask} hasCrop={sighting.cropBox !== null} name={sighting.speciesKo} applied={holds(sighting, ask.verdict)} into="이 기록"
         idleHint={sighting.cropBox ? '' : '잘라낸 영역이 없어 저장된 사진 전체를 보냅니다.'}
-        onAsk={() => void askAI()} onApply={(v) => void apply(v)} onPickName={(n) => void pickName(n)} onOpenSettings={onOpenSettings} />
-      {error && <Banner tone="err" icon="alert">{error}</Banner>}
+        onAsk={askAI} onApply={(v) => void apply(v)} onPickName={(n) => void pickName(n)} onOpenSettings={onOpenSettings} />
     </Card>
   )
 }

@@ -6,6 +6,9 @@ import { runIdentify, type IdentifyEvent } from '../identify/loop'
 
 export type AskState = 'idle' | 'running' | 'done' | 'server-down' | 'failed'
 
+/** 보낼 그림을 만들 수 없는 이유를 사용자 말로 알릴 때 던진다 (예: 기록의 사진이 없다). 그 밖의 오류는 정해 둔 안내로 바꾼다 */
+export class AskImageError extends Error {}
+
 /** 진행 단계 한 줄. 도구 호출을 사람의 말로 옮긴 것 */
 function stepText(e: IdentifyEvent): string | null {
   if (e.type === 'wrap-up') return '지금까지의 근거로 답을 정리하는 중'
@@ -34,24 +37,45 @@ export function useAsk() {
   const abort = useRef<AbortController | null>(null)
   useEffect(() => () => abort.current?.abort(), [])
 
-  /** 판정을 시작한다. 오래 걸리고 서버 자원(또는 사용자의 API 요금)을 쓰므로 자동으로 부르지 않는다 */
-  async function start(imageDataUrl: string, context: { capturedAt?: string; place?: string }) {
+  /**
+   * 판정을 시작한다. 오래 걸리고 서버 자원(또는 사용자의 API 요금)을 쓰므로 자동으로 부르지 않는다.
+   * 보낼 그림은 `makeImage`가 여기서 만든다 — 원본을 다시 디코드해 폰에서 0.5~1초 걸리는데, 그동안 이미 '진행 중'이라
+   * 'AI에게 물어보기'가 숨어 두 번 누를 수 없다. 그림을 못 만들면 '실패'(AskImageError면 그 안내)로 끝난다. 던지지 않는다.
+   * 판정마다 제 중단 신호를 든다: 새 판정·중단·사진 바꾸기·되살리기로 밀려난 판정의 결과·오류·단계는 버린다
+   * (밀어낸 쪽이 상태를 이미 정했다 — 여기서 '실패'나 '시작 전'으로 덮으면 새 판정이 가려진다).
+   */
+  async function start(makeImage: () => Promise<string>, context: { capturedAt?: string; place?: string }) {
     abort.current?.abort()
-    abort.current = new AbortController()
+    const ctrl = new AbortController()
+    abort.current = ctrl
+    // 이 판정이 아직 화면의 판정인지 — 아니면 늦게 온 결과·오류·단계를 버린다
+    const current = () => abort.current === ctrl && !ctrl.signal.aborted
     setState('running')
     setStartedAt(Date.now())
-    setSteps(['사진에서 특징을 살펴보는 중'])
+    setSteps(['보낼 그림을 준비하는 중'])
     setVerdict(null)
     const key = loadOwnKey()
     setOwn(key !== null)
+    let imageDataUrl: string
+    try {
+      imageDataUrl = await makeImage()
+    } catch (e) {
+      if (!current()) return
+      setMessage(e instanceof AskImageError ? e.message : '보낼 그림을 만들지 못했습니다. 다시 시도해 보세요.')
+      setState('failed')
+      return
+    }
+    if (!current()) return
+    setSteps((list) => [...list, '사진에서 특징을 살펴보는 중'])
     try {
       const result = await runIdentify({
-        imageDataUrl, context, own: key, signal: abort.current.signal,
-        onEvent: (e) => { const text = stepText(e); if (text) setSteps((list) => [...list, text]) },
+        imageDataUrl, context, own: key, signal: ctrl.signal,
+        onEvent: (e) => { const text = stepText(e); if (text && current()) setSteps((list) => [...list, text]) },
       })
+      if (!current()) return
       if (result) { setVerdict(result); setState('done') } else { setMessage('AI의 답을 읽지 못했습니다. 다시 시도해 보세요.'); setState('failed') }
     } catch (e) {
-      if (abort.current.signal.aborted) { setState('idle'); return }
+      if (!current()) return
       // 서버가 보낸 이유("아직 설정되지 않았습니다" 등)를 버리지 않는다 — "쉬는 중"과 "영영 안 됨"은 사용자가 할 일이 다르다
       if (e instanceof LlmUnavailableError) { setMessage(e.message); setState('server-down'); return }
       setMessage(e instanceof Error ? e.message : '판정에 실패했습니다.')
