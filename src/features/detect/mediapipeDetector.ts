@@ -1,4 +1,5 @@
 import { FilesetResolver, ObjectDetector } from '@mediapipe/tasks-vision'
+import { shareInFlight } from '../../lib/sharedTask'
 import type { DetectBox } from '../../types'
 import type { Detector } from './detector'
 import { dropModel, fetchModel, isModelCached } from './modelCache'
@@ -22,17 +23,13 @@ const TILES = makeTiles(3, 2, 0.2)
 const TILE_EDGE = 640
 
 let detector: ObjectDetector | null = null
-/** 진행 중인 준비 — 두 곳(사진을 바로 바꾼 기록 화면 · 설정의 받기)이 동시에 불러도 하나를 함께 기다린다 */
-let loading: Promise<void> | null = null
-/** 지금 준비를 기다리는 곳들의 진행률 받기. 함께 기다리는 쪽도 막대가 움직이게 모두에게 알린다 */
-const progressListeners = new Set<(fraction: number) => void>()
 
 /**
- * 모델을 받고(받아 둔 것이 있으면 기기에서 읽고) 탐지기를 만든다. 진행률은 progressListeners 모두에게 간다.
+ * 모델을 받고(받아 둔 것이 있으면 기기에서 읽고) 탐지기를 만든다. 진행률은 `report`로 — 기다리는 모두에게 간다 (shareInFlight).
  * 받기가 실패하면 fetchModel의 한국어 Error, 탐지기를 만들지 못하면(wasm을 못 받음 등) 한국어 Error.
  */
-async function prepare(): Promise<void> {
-  const model = await fetchModel(MODEL_URL, (fraction) => { for (const listen of progressListeners) listen(fraction) })
+async function prepare(report: (fraction: number) => void): Promise<void> {
+  const model = await fetchModel(MODEL_URL, report)
   try {
     const fileset = await FilesetResolver.forVisionTasks(WASM_BASE)
     detector = await ObjectDetector.createFromOptions(fileset, {
@@ -42,6 +39,12 @@ async function prepare(): Promise<void> {
     throw new Error('새 찾기 모델을 준비하지 못했습니다. 인터넷 연결을 확인해 주세요.')
   }
 }
+
+/**
+ * 진행 중인 준비 하나를 함께 기다린다 — 두 곳(사진을 바로 바꾼 기록 화면 · 설정의 받기)이 동시에 불러도 준비는 한 번이고 진행률은 모두에게 간다.
+ * 따로 만들면 탐지기가 둘 생기고 하나는 닫히지 않은 채 버려진다 (wasm 메모리). 실패하면 다음 부름이 새로 준비한다.
+ */
+const prepareShared = shareInFlight(prepare)
 
 /** 비트맵의 한 조각을 작은 캔버스로 옮긴다 */
 function tileCanvas(bitmap: ImageBitmap, tile: (typeof TILES)[number]): HTMLCanvasElement {
@@ -64,10 +67,7 @@ export const mediapipeDetector: Detector = {
 
   async load(onProgress) {
     if (detector) { onProgress(1); return }
-    progressListeners.add(onProgress)
-    // 진행 중인 준비가 있으면 그것을 함께 기다린다 — 따로 만들면 탐지기가 둘 생기고 하나는 닫히지 않은 채 버려진다 (wasm 메모리)
-    loading ??= prepare().finally(() => { loading = null })
-    try { await loading } finally { progressListeners.delete(onProgress) }
+    await prepareShared(onProgress)
   },
 
   async detect(bitmap): Promise<DetectBox[]> {
