@@ -1,10 +1,11 @@
-import { Suspense, lazy, useState } from 'react'
+import { useState } from 'react'
 import { useJournal } from '../../data/journal'
 import { Card } from '../../ui/bits'
 import Button from '../../ui/Button'
 import { expectsPhoto } from '../../data/photoKey'
 import type { Sighting } from '../../types'
 import { EVIDENCE_LOSS_WARNING } from '../identify/verdictText'
+import LazyLocationSheet from '../record/LazyLocationSheet'
 import { CountField, PlaceRow } from '../record/RecordFacts'
 import { usePlaceValue } from '../record/usePlace'
 import DeleteConfirm from './DeleteConfirm'
@@ -12,9 +13,8 @@ import { editPatch, formOf, placeBefore } from './editPatch'
 import { readShotForm, shotFormOf, shotPatch } from './shotEdit'
 import ShotFields from './ShotFields'
 
-// 위치 시트는 지도(Leaflet)를 끌고 온다. 이 파일은 기록 상세와 함께 첫 화면 묶음에 들어가므로, 시트를 열 때 받는다 —
+// 위치 시트는 지도(Leaflet)를 끌고 온다. 이 파일은 기록 상세와 함께 첫 화면 묶음에 들어가므로, 시트를 열 때 받는다 (LazyLocationSheet) —
 // 그냥 import하면 지도를 안 여는 사람도 첫 화면에서 지도 라이브러리까지 받는다 (App.tsx가 지도를 늦게 받는 이유와 같다)
-const LocationSheet = lazy(() => import('../record/LocationSheet'))
 
 interface Props {
   sighting: Sighting
@@ -92,12 +92,9 @@ export default function RecordEdit({ sighting, onClose, onDeleted }: Props) {
         <DeleteConfirm id={s.id} onDeleted={onDeleted} onError={setError} />
       </Card>
       {pickingPlace && (
-        // 받는 동안은 아무것도 그리지 않는다 — 대신 시트를 잠깐 그리면 시트가 둘 열렸다 닫힌 셈이라 뒤로가기 칸이 하나 헛칸으로 남는다 (app/nav.ts openLayer)
-        <Suspense fallback={null}>
-          {/* 직전 기록은 고치는 중인 시각 기준으로 고른다 — 시각을 먼저 고쳤으면 그 시각의 앞 기록이다 (placeBefore) */}
-          <LocationSheet place={loc.place} error={loc.error} last={placeBefore(sightings ?? [], s.id, base?.capturedAt ?? s.capturedAt)}
-            onClose={() => setPickingPlace(false)} onPickOnMap={(lat, lng) => void loc.pickOnMap(lat, lng)} onUseCurrent={() => void loc.useCurrent()} onCopyLast={loc.copyFrom} />
-        </Suspense>
+        // 직전 기록은 고치는 중인 시각 기준으로 고른다 — 시각을 먼저 고쳤으면 그 시각의 앞 기록이다 (placeBefore)
+        <LazyLocationSheet place={loc.place} error={loc.error} last={placeBefore(sightings ?? [], s.id, base?.capturedAt ?? s.capturedAt)}
+          onClose={() => setPickingPlace(false)} onPickOnMap={(lat, lng) => void loc.pickOnMap(lat, lng)} onUseCurrent={() => void loc.useCurrent()} onCopyLast={loc.copyFrom} />
       )}
     </>
   )

@@ -1,4 +1,4 @@
-import { Suspense, lazy, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useJournal } from '../../data/journal'
 import { fromTimeInput, toTimeInput } from '../../lib/captureTime'
 import { parseCount } from '../../lib/count'
@@ -7,13 +7,11 @@ import Button from '../../ui/Button'
 import { styleFromAccent } from '../dex/cardStyle'
 import { buildSighting } from './buildSighting'
 import { lastPlaceOf } from './lastPlace'
+import LazyLocationSheet from './LazyLocationSheet'
 import { CountField, PlaceRow } from './RecordFacts'
 import SpeciesInput from './SpeciesInput'
 import { usePlaceValue, type PlaceValue } from './usePlace'
 import './record.css'
-
-// 위치 시트는 지도(Leaflet)를 끌고 온다 — 위치 줄을 누를 때 받는다 (RecordEdit과 같은 이유: 위치를 안 고르는 사람까지 지도를 받지 않게)
-const LocationSheet = lazy(() => import('./LocationSheet'))
 
 interface Props {
   /** 뒤로 — 기록하기를 시작한 화면으로 (이 화면은 새 기록 첫 화면의 칸을 바꿔 끼운 것이다, App.tsx) */
@@ -85,11 +83,9 @@ export default function QuickRecord({ onCancel, onDone }: Props) {
         <Button variant="primary" icon="check" block onClick={() => void save()} disabled={saving || !at}>{saving ? '저장하는 중…' : name.trim() ? '저장' : '이름 없이 저장'}</Button>
       </div>
       {pickingPlace && (
-        // 받는 동안은 아무것도 그리지 않는다 — 대신 시트를 잠깐 그리면 뒤로가기 칸이 하나 헛칸으로 남는다 (RecordEdit과 같다)
-        <Suspense fallback={null}>
-          <LocationSheet place={loc.place} error={loc.error} last={lastPlace} onClose={() => setPickingPlace(false)}
-            onPickOnMap={(lat, lng) => void loc.pickOnMap(lat, lng)} onUseCurrent={() => void loc.useCurrent()} onCopyLast={loc.copyFrom} />
-        </Suspense>
+        // 위치 줄을 누를 때 받는다 — 못 받아도 쓰던 값은 남는다 (LazyLocationSheet)
+        <LazyLocationSheet place={loc.place} error={loc.error} last={lastPlace} onClose={() => setPickingPlace(false)}
+          onPickOnMap={(lat, lng) => void loc.pickOnMap(lat, lng)} onUseCurrent={() => void loc.useCurrent()} onCopyLast={loc.copyFrom} />
       )}
     </div>
   )
