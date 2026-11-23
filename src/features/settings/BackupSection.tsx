@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { isTouchDevice } from '../../app/device'
 import { exportBackup, importBackup } from '../../data/backup'
 import { useJournal } from '../../data/journal'
+import { syncSoon } from '../../data/sync'
 import { Card } from '../../ui/bits'
 import Button from '../../ui/Button'
 import { fileDateToday } from '../../ui/when'
@@ -46,6 +47,9 @@ export default function BackupSection() {
   const upload = (file: File) => run(async () => {
     const plan = await importBackup(file)
     await reload()
+    // 불러오기가 줄에 넣은 올릴 일을 곧 올린다 — 안 부르면 다음 계기(기록 저장·도감 열기 등)까지 드라이브에 사본이 없다.
+    // 드라이브를 연결하지 않았으면 아무것도 하지 않는다 (sync.ts)
+    syncSoon()
     return { tone: 'ok', text: importResultText(plan) }
   })
 
