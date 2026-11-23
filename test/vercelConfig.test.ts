@@ -39,6 +39,43 @@ test('모든 경로에 iframe 막기·형식 추측 끄기·리퍼러 줄이기 
   assert.equal(headerOf(ALL, 'Referrer-Policy'), 'strict-origin-when-cross-origin')
 })
 
+/** CSP 한 줄을 지시어마다 값 목록으로 나눈다 ("script-src 'self' x; …" → { 'script-src': ["'self'", 'x'] }). 빈 글이면 빈 객체 */
+function cspOf(value: string): Record<string, string[]> {
+  const parts = value.split(';').map((p) => p.trim().split(/\s+/)).filter((p) => p[0])
+  return Object.fromEntries(parts.map(([name, ...sources]) => [name, sources]))
+}
+
+const csp = cspOf(headerOf(ALL, 'Content-Security-Policy') ?? '')
+
+test('CSP: 스크립트는 우리 사이트와 구글 로그인 창에서만 받는다 — 바깥 CDN의 코드(예: jsDelivr의 새 찾기 실행 파일)는 앱과 같은 권한으로 돌아 API 키·기록·드라이브 출입증에 닿는다', () => {
+  assert.deepEqual([...(csp['script-src'] ?? [])].sort(), ["'self'", "'wasm-unsafe-eval'", 'https://accounts.google.com'])
+  assert.deepEqual(csp['default-src'], ["'self'"])
+  assert.deepEqual(csp['object-src'], ["'none'"])
+  assert.deepEqual(csp['base-uri'], ["'self'"])
+})
+
+test('CSP: 앱이 실제로 쓰는 요청·그림은 열려 있다 — 막히면 배포판에서만 드라이브·위키백과·내 API 키·새 찾기·지도가 조용히 깨진다', () => {
+  // 드라이브·위키백과·새 찾기 모델·내 API 키(주소를 사용자가 정한다)는 https, 내 컴퓨터의 LLM은 http://localhost, 새 찾기 wasm은 Cache Storage에서 꺼낸 blob 주소
+  for (const source of ["'self'", 'https:', 'blob:', 'http://localhost:*', 'http://127.0.0.1:*']) assert.ok(csp['connect-src']?.includes(source), `connect-src ${source}`)
+  // 위키백과 참고 사진·지도 그림(https), 기록 사진(blob), Leaflet의 작은 그림(data)
+  for (const source of ["'self'", 'https:', 'blob:', 'data:']) assert.ok(csp['img-src']?.includes(source), `img-src ${source}`)
+  // 이동 기록을 읽는 작업자(parseWorker)는 우리 사이트의 파일, 구글 로그인 창은 그쪽 프레임·스타일을 쓸 수 있다
+  assert.ok(csp['worker-src']?.includes("'self'"))
+  assert.ok(csp['frame-src']?.includes('https://accounts.google.com'))
+  // React·Leaflet의 style 속성과 구글 로그인 창이 넣는 <style>
+  assert.ok(csp['style-src']?.includes("'unsafe-inline'"))
+})
+
+test('CSP: index.html이 받는 글꼴 CSS의 주인은 style-src에, 글꼴 파일을 받는 곳(crossorigin preconnect)은 font-src에 있다 — 글꼴 CDN을 바꾸고 CSP를 안 고치면 배포판에서만 시스템 글꼴이 된다', () => {
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8')
+  const sheets = [...html.matchAll(/<link href="(https:\/\/[^/"]+)[^"]*" rel="stylesheet"/g)].map((m) => m[1])
+  const fontHosts = [...html.matchAll(/<link rel="preconnect" href="(https:\/\/[^/"]+)" crossorigin/g)].map((m) => m[1])
+  // 모양이 바뀌어 하나도 못 찾으면 시험이 아무것도 보지 않게 된다
+  assert.ok(sheets.length >= 2 && fontHosts.length >= 2, `${sheets} / ${fontHosts}`)
+  for (const origin of sheets) assert.ok(csp['style-src']?.includes(origin), `style-src ${origin}`)
+  for (const origin of fontHosts) assert.ok(csp['font-src']?.includes(origin), `font-src ${origin}`)
+})
+
 test('이름에 내용 해시가 붙은 /assets/ 파일만 1년 동안 다시 묻지 않는다 — 없으면 앱을 열 때마다 묻고, 신호가 끊긴 곳에서는 처음 여는 화면을 못 연다', () => {
   assert.equal(headerOf('/assets/(.*)', 'Cache-Control'), 'public, max-age=31536000, immutable')
   // index.html·privacy.html·아이콘은 이름이 그대로라, 오래 기억하면 새 배포가 안 보인다 — 다른 규칙에는 캐시 머리를 두지 않는다
