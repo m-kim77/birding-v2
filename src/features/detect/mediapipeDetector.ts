@@ -1,7 +1,8 @@
 // 타입만 — 실행 코드(약 130kB)는 prepare 안에서 받는다. 맨 위에서 값을 import하면 이 파일을 부르는 곳(기록하기의 '+'·설정의 '받은 모델' 줄)이
 // 모델이 없거나 받아 둔 표시만 볼 때도 그 코드를 받는다
 import type { ObjectDetector } from '@mediapipe/tasks-vision'
-import { retryOnce } from '../../app/chunkLoad'
+import { browserChunkEnv } from '../../app/chunkEnv'
+import { ChunkLoadError, loadChunk } from '../../app/chunkLoad'
 import { shareInFlight } from '../../lib/sharedTask'
 import type { DetectBox } from '../../types'
 import type { Detector } from './detector'
@@ -27,22 +28,38 @@ const TILE_EDGE = 640
 
 let detector: ObjectDetector | null = null
 
+/** 실행 코드·wasm을 받지 못했다 (오프라인·신호 약함·jsDelivr에 닿지 못함) */
+const PREPARE_FAILED = '새 찾기 모델을 준비하지 못했습니다. 인터넷 연결을 확인해 주세요.'
+/** 새로 배포되어 지금 열린 앱의 실행 코드 조각이 사이트에서 사라졌다 (404) — 인터넷은 멀쩡하니 연결을 확인하라고 하면 원인을 알 수 없다 */
+const NEW_BUILD = '새 판이 나와서 지금 열린 앱으로는 새 찾기를 준비할 수 없습니다. 앱을 다시 열면 쓸 수 있습니다.'
+
+/**
+ * 새 찾기 실행 코드(@mediapipe/tasks-vision) 조각을 받는다. 못 받으면 한 번 더 받아 보고, 그래도 안 되면 사이트에 새 판이 나왔는지 묻는다
+ * (chunkLoad.ts loadChunk — 새로 고치지는 않는다: 기록하기에 쓰던 값이 있다). 새 판이면 NEW_BUILD, 아니면(묻지 못했거나 같은 판) PREPARE_FAILED의 Error.
+ */
+async function loadVision(): Promise<typeof import('@mediapipe/tasks-vision')> {
+  try {
+    return await loadChunk(() => import('@mediapipe/tasks-vision'), false, browserChunkEnv)
+  } catch (e) {
+    throw new Error(e instanceof ChunkLoadError && e.newBuild ? NEW_BUILD : PREPARE_FAILED)
+  }
+}
+
 /**
  * 모델을 받고(받아 둔 것이 있으면 기기에서 읽고) 탐지기를 만든다. 진행률은 `report`로 — 기다리는 모두에게 간다 (shareInFlight).
- * 받기가 실패하면 fetchModel의 한국어 Error, 탐지기를 만들지 못하면(실행 코드·wasm을 못 받음 등) 한국어 Error.
- * 실행 코드 조각은 못 받으면 한 번 더 받아 본다 (retryOnce — 산에서 잠깐 끊긴 신호). 새 판이 나와 옛 조각이 없어도 같은 안내다 —
- * 직접 자르기로 계속할 수 있고, 앱을 다시 열면 새 판으로 받는다.
+ * 받기가 실패하면 fetchModel의 한국어 Error, 실행 코드 조각을 못 받으면 loadVision의 한국어 Error(새 판이면 '앱을 다시 열면'),
+ * 탐지기를 만들지 못하면(wasm을 못 받음 등) PREPARE_FAILED. 어느 쪽이든 직접 자르기로 계속할 수 있다.
  */
 async function prepare(report: (fraction: number) => void): Promise<void> {
   const model = await fetchModel(MODEL_URL, report)
+  const { FilesetResolver, ObjectDetector } = await loadVision()
   try {
-    const { FilesetResolver, ObjectDetector } = await retryOnce(() => import('@mediapipe/tasks-vision'))
     const fileset = await FilesetResolver.forVisionTasks(WASM_BASE)
     detector = await ObjectDetector.createFromOptions(fileset, {
       baseOptions: { modelAssetBuffer: model }, scoreThreshold: SCORE_MIN, categoryAllowlist: ['bird'], maxResults: 10,
     })
   } catch {
-    throw new Error('새 찾기 모델을 준비하지 못했습니다. 인터넷 연결을 확인해 주세요.')
+    throw new Error(PREPARE_FAILED)
   }
 }
 
